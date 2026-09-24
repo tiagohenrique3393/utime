@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -73,6 +74,7 @@ export default function HomeScreen() {
 
             <Pressable
               accessibilityRole="button"
+              onPress={() => router.push('/cadastro')}
               style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
               <Text style={styles.buttonLabel}>Começar minha jornada</Text>
             </Pressable>
