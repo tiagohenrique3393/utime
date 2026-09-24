@@ -1,9 +1,11 @@
 import { Image } from 'expo-image';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts } from '@/constants/theme';
 import { loadProfile } from '@/lib/profile';
+import { progressPercent, useCompletedTaskIds } from '@/lib/tasks';
 
 const LOGO_ASPECT = 873 / 530;
 
@@ -19,6 +21,8 @@ export default function ProvisionalHomeScreen() {
   const logoWidth = isWide ? 112 : 92;
   const firstName = loadProfile().firstName.trim();
   const greeting = firstName ? `Olá, ${firstName}.` : 'Olá.';
+  const completed = useCompletedTaskIds();
+  const percent = progressPercent(completed.length);
 
   return (
     <View style={styles.screen}>
@@ -53,12 +57,19 @@ export default function ProvisionalHomeScreen() {
             <View style={styles.progressCard}>
               <View style={styles.progressHeader}>
                 <Text style={styles.progressTitle}>Progresso de hoje</Text>
-                <Text style={styles.progressValue}>0%</Text>
+                <Text style={styles.progressValue}>{percent}%</Text>
               </View>
               <View style={styles.track}>
-                <View style={styles.fill} />
+                <View style={[styles.fill, { width: `${percent}%` }]} />
               </View>
             </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/jornada')}
+              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
+              <Text style={styles.buttonLabel}>Ver tarefas de hoje</Text>
+            </Pressable>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -185,8 +196,25 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fill: {
-    width: '0%',
     height: '100%',
     backgroundColor: colors.gold,
+  },
+  button: {
+    height: 58,
+    marginTop: 28,
+    borderRadius: 16,
+    backgroundColor: colors.ivory,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  buttonPressed: {
+    opacity: 0.84,
+  },
+  buttonLabel: {
+    color: colors.background,
+    fontFamily: fonts.text,
+    fontSize: 16,
+    letterSpacing: 0.2,
   },
 });
