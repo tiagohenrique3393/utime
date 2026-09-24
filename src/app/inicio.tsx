@@ -5,15 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts } from '@/constants/theme';
 import { loadProfile } from '@/lib/profile';
-import { progressPercent, useCompletedTaskIds } from '@/lib/tasks';
+import { pillarStats, pillars, progressPercent, useCompletedTaskIds } from '@/lib/tasks';
 
 const LOGO_ASPECT = 873 / 530;
-
-const pillars = [
-  { key: 'corpo', label: 'Corpo' },
-  { key: 'mente', label: 'Mente' },
-  { key: 'espirito', label: 'Espírito' },
-] as const;
 
 export default function ProvisionalHomeScreen() {
   const { width } = useWindowDimensions();
@@ -46,12 +40,33 @@ export default function ProvisionalHomeScreen() {
             <View style={styles.rule} />
 
             <View style={[styles.pillars, isWide && styles.pillarsWide]}>
-              {pillars.map((pillar) => (
-                <View key={pillar.key} style={[styles.pillar, isWide && styles.pillarWide]}>
-                  <View style={styles.stem} />
-                  <Text style={styles.pillarLabel}>{pillar.label}</Text>
-                </View>
-              ))}
+              {pillars.map((pillar) => {
+                const stats = pillarStats(completed, pillar.id);
+                return (
+                  <Pressable
+                    key={pillar.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${pillar.label}, ${stats.percent}%, ${stats.done} de ${stats.total}`}
+                    onPress={() => router.push(`/pilar/${pillar.id}` as Href)}
+                    style={({ pressed }) => [
+                      styles.pillar,
+                      isWide && styles.pillarWide,
+                      pressed && styles.buttonPressed,
+                    ]}>
+                    <View style={styles.pillarHeader}>
+                      <View style={styles.stem} />
+                      <Text style={styles.pillarLabel}>{pillar.label}</Text>
+                      <Text style={styles.pillarPercent}>{stats.percent}%</Text>
+                    </View>
+                    <View style={[styles.track, styles.pillarTrack]}>
+                      <View style={[styles.fill, { width: `${stats.percent}%` }]} />
+                    </View>
+                    <Text style={styles.pillarCount}>
+                      {stats.done} de {stats.total}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             <View style={styles.progressCard}>
@@ -76,6 +91,7 @@ export default function ProvisionalHomeScreen() {
               style={({ pressed }) => [styles.secondary, pressed && styles.buttonPressed]}>
               <Text style={styles.secondaryLabel}>Meus 30 dias</Text>
             </Pressable>
+            <Text style={styles.motto}>A vida que você quer é construída nos dias comuns.</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -142,33 +158,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   pillar: {
-    minHeight: 72,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     backgroundColor: colors.card,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
   pillarWide: {
     flex: 1,
-    flexDirection: 'column',
-    justifyContent: 'center',
-    minHeight: 140,
-    gap: 14,
+  },
+  pillarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   stem: {
     width: 1,
-    height: 28,
+    height: 18,
     backgroundColor: colors.gold,
   },
   pillarLabel: {
+    flex: 1,
     color: colors.ivory,
     fontFamily: fonts.text,
     fontSize: 16,
     letterSpacing: 0.4,
+  },
+  pillarPercent: {
+    color: colors.ivory,
+    fontFamily: fonts.text,
+    fontSize: 14,
+  },
+  pillarTrack: {
+    marginTop: 14,
+  },
+  pillarCount: {
+    marginTop: 10,
+    color: colors.muted,
+    fontFamily: fonts.text,
+    fontSize: 13,
   },
   progressCard: {
     marginTop: 28,
@@ -238,5 +267,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.text,
     fontSize: 16,
     letterSpacing: 0.2,
+  },
+  motto: {
+    marginTop: 28,
+    color: colors.muted,
+    fontFamily: fonts.display,
+    fontSize: 22,
+    lineHeight: 28,
+    textAlign: 'center',
   },
 });

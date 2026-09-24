@@ -44,6 +44,63 @@ export const periods: TaskPeriod[] = [
 
 export const TASK_TOTAL = periods.reduce((sum, period) => sum + period.tasks.length, 0);
 
+export type PillarId = 'corpo' | 'mente' | 'espirito';
+
+export const pillars: {
+  id: PillarId;
+  label: string;
+  text: string;
+  tasks: { id: string; label: string }[];
+}[] = [
+  {
+    id: 'corpo',
+    label: 'Corpo',
+    text: 'Cuide da sua energia, da sua saúde e da sua capacidade de agir.',
+    tasks: [
+      { id: 'manha-banho', label: 'Tomar um banho' },
+      { id: 'manha-cafe', label: 'Tomar um café' },
+      { id: 'manha-agua', label: 'Beber 1 L de água da manhã' },
+      { id: 'tarde-almoco', label: 'Almoçar' },
+      { id: 'tarde-atividade', label: 'Realizar atividade física' },
+      { id: 'tarde-lanche', label: 'Lanche da tarde' },
+      { id: 'tarde-agua', label: 'Beber 1 L de água da tarde' },
+      { id: 'noite-jantar', label: 'Jantar' },
+      { id: 'noite-agua', label: 'Beber 1 L de água da noite' },
+      { id: 'noite-ceia', label: 'Ceia' },
+    ],
+  },
+  {
+    id: 'mente',
+    label: 'Mente',
+    text: 'Fortaleça seus pensamentos, seu conhecimento e suas decisões.',
+    tasks: [
+      { id: 'manha-leitura', label: 'Leitura e reflexão da manhã' },
+      { id: 'tarde-assistir', label: 'Assistir algo produtivo' },
+      { id: 'noite-leitura', label: 'Leitura e reflexão da noite' },
+    ],
+  },
+  {
+    id: 'espirito',
+    label: 'Espírito',
+    text: 'Reserve tempo para a fé, a gratidão e o seu propósito.',
+    tasks: [
+      { id: 'manha-agradecimento', label: 'Agradecimento e organização' },
+      { id: 'noite-oracao', label: 'Oração e organização' },
+    ],
+  },
+];
+
+export function pillarStats(completedIds: readonly string[], pillarId: PillarId) {
+  const pillar = pillars.find((item) => item.id === pillarId);
+  const tasks = pillar?.tasks ?? [];
+  const done = tasks.filter((task) => completedIds.includes(task.id)).length;
+  return {
+    done,
+    total: tasks.length,
+    percent: tasks.length === 0 ? 0 : Math.round((done / tasks.length) * 100),
+  };
+}
+
 const taskIds = new Set(periods.flatMap((period) => period.tasks.map((task) => task.id)));
 
 const STORAGE_KEY = 'youtime.preview.tasks';
