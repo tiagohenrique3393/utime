@@ -12,7 +12,7 @@ const LOGO_ASPECT = 873 / 530;
 const journeys: { id: JourneyId; title: string; text: string }[] = [
   {
     id: 'metime',
-    title: 'MeTime',
+    title: 'ManTime',
     text: 'Uma jornada criada para o desenvolvimento masculino.',
   },
   {
