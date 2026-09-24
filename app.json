@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "YouTime",
+    "slug": "youtime",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "youtime",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#09090B",
+    "primaryColor": "#C6A36A",
+    "ios": {
+      "bundleIdentifier": "app.youtime.mobile",
+      "supportsTablet": true,
+      "backgroundColor": "#09090B",
+      "userInterfaceStyle": "dark"
+    },
+    "android": {
+      "package": "app.youtime.mobile",
+      "backgroundColor": "#09090B",
+      "userInterfaceStyle": "dark",
+      "predictiveBackGestureEnabled": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#09090B",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png",
+      "backgroundColor": "#09090B"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#09090B",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
