@@ -1,4 +1,3 @@
-import { SymbolView } from 'expo-symbols';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,22 +5,31 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/constants/theme';
 
 const pillars = [
-  {
-    key: 'corpo',
-    label: 'Corpo',
-    symbol: { ios: 'person', android: 'person', web: 'person' },
-  },
-  {
-    key: 'mente',
-    label: 'Mente',
-    symbol: { ios: 'brain', android: 'psychology', web: 'psychology' },
-  },
-  {
-    key: 'espirito',
-    label: 'Espírito',
-    symbol: { ios: 'figure.mind.and.body', android: 'self_improvement', web: 'self_improvement' },
-  },
+  { key: 'corpo', label: 'Corpo', icon: 'body' },
+  { key: 'mente', label: 'Mente', icon: 'mind' },
+  { key: 'espirito', label: 'Espírito', icon: 'spirit' },
 ] as const;
+
+function PillarIcon({ name }: { name: (typeof pillars)[number]['icon'] }) {
+  if (name === 'body') {
+    return (
+      <View style={iconStyles.body}>
+        <View style={iconStyles.head} />
+        <View style={iconStyles.shoulders} />
+      </View>
+    );
+  }
+
+  if (name === 'mind') {
+    return (
+      <View style={iconStyles.mind}>
+        <View style={iconStyles.mindDot} />
+      </View>
+    );
+  }
+
+  return <View style={iconStyles.spirit} />;
+}
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
@@ -52,7 +60,7 @@ export default function HomeScreen() {
               {pillars.map((pillar) => (
                 <View key={pillar.key} style={[styles.card, isWide ? styles.cardWide : styles.cardCompact]}>
                   <View style={styles.iconWell}>
-                    <SymbolView name={pillar.symbol} tintColor={colors.gold} size={22} />
+                    <PillarIcon name={pillar.icon} />
                   </View>
                   <Text style={[styles.cardLabel, isWide && styles.cardLabelWide]}>{pillar.label}</Text>
                 </View>
@@ -197,5 +205,50 @@ const styles = StyleSheet.create({
     fontFamily: fonts.text,
     fontSize: 16,
     letterSpacing: 0.2,
+  },
+});
+
+const iconStyles = StyleSheet.create({
+  body: {
+    alignItems: 'center',
+  },
+  head: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1.25,
+    borderColor: colors.gold,
+  },
+  shoulders: {
+    width: 16,
+    height: 7,
+    marginTop: 2,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderWidth: 1.25,
+    borderBottomWidth: 0,
+    borderColor: colors.gold,
+  },
+  mind: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.25,
+    borderColor: colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mindDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.gold,
+  },
+  spirit: {
+    width: 11,
+    height: 11,
+    borderWidth: 1.25,
+    borderColor: colors.gold,
+    transform: [{ rotate: '45deg' }],
   },
 });
