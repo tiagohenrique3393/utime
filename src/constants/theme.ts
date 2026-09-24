@@ -3,8 +3,10 @@ export const colors = {
   ivory: '#F4F0E8',
   muted: '#A39C92',
   gold: '#C6A36A',
-  goldSoft: 'rgba(198, 163, 106, 0.14)',
   line: 'rgba(198, 163, 106, 0.55)',
+  card: '#141416',
+  cardBorder: 'rgba(244, 240, 232, 0.08)',
+  iconBorder: 'rgba(198, 163, 106, 0.45)',
 } as const;
 
 export const fonts = {
