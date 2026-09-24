@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -69,6 +69,12 @@ export default function ProvisionalHomeScreen() {
               onPress={() => router.push('/jornada')}
               style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
               <Text style={styles.buttonLabel}>Ver tarefas de hoje</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/trinta-dias' as Href)}
+              style={({ pressed }) => [styles.secondary, pressed && styles.buttonPressed]}>
+              <Text style={styles.secondaryLabel}>Meus 30 dias</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -213,6 +219,22 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     color: colors.background,
+    fontFamily: fonts.text,
+    fontSize: 16,
+    letterSpacing: 0.2,
+  },
+  secondary: {
+    height: 58,
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  secondaryLabel: {
+    color: colors.ivory,
     fontFamily: fonts.text,
     fontSize: 16,
     letterSpacing: 0.2,

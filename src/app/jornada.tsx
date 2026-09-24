@@ -1,10 +1,18 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts } from '@/constants/theme';
-import { periods, progressPercent, toggleTask, useCompletedTaskIds } from '@/lib/tasks';
+import {
+  completedIdsForDay,
+  isDayUnlocked,
+  markDayStarted,
+  periods,
+  progressPercent,
+  toggleDayTask,
+  useJourneyBoard,
+} from '@/lib/tasks';
 
 function formatToday(date: Date) {
   const formatted = new Intl.DateTimeFormat('pt-BR', {
@@ -16,6 +24,15 @@ function formatToday(date: Date) {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
+function parseDay(value: string | string[] | undefined) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const day = Number(raw);
+  if (!Number.isInteger(day) || day < 1 || day > 30) {
+    return 1;
+  }
+  return day;
+}
+
 function goHome() {
   if (router.canGoBack()) {
     router.back();
@@ -25,9 +42,13 @@ function goHome() {
 }
 
 export default function JourneyScreen() {
+  const params = useLocalSearchParams<{ dia?: string }>();
+  const day = parseDay(params.dia);
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
-  const completed = useCompletedTaskIds();
+  const journey = useJourneyBoard();
+  const unlocked = isDayUnlocked(day, journey.testMode);
+  const completed = completedIdsForDay(journey, day);
   const completedSet = new Set(completed);
   const percent = progressPercent(completed.length);
   const [today, setToday] = useState('');
@@ -35,6 +56,18 @@ export default function JourneyScreen() {
   useEffect(() => {
     setToday(formatToday(new Date()));
   }, []);
+
+  useEffect(() => {
+    if (!unlocked) {
+      router.replace('/trinta-dias' as Href);
+      return;
+    }
+    markDayStarted(day);
+  }, [day, unlocked]);
+
+  if (!unlocked) {
+    return <View style={styles.screen} />;
+  }
 
   return (
     <View style={styles.screen}>
@@ -50,9 +83,9 @@ export default function JourneyScreen() {
 
             <Text style={styles.eyebrow}>Minha jornada</Text>
             <Text accessibilityRole="header" style={styles.title}>
-              Dia 1 de 30
+              Dia {day} de 30
             </Text>
-            <Text style={styles.date}>{today}</Text>
+            {day === 1 ? <Text style={styles.date}>{today}</Text> : <View style={styles.date} />}
 
             <View style={styles.progressCard}>
               <View style={styles.progressHeader}>
@@ -76,7 +109,7 @@ export default function JourneyScreen() {
                           key={task.id}
                           accessibilityRole="checkbox"
                           accessibilityState={{ checked }}
-                          onPress={() => toggleTask(task.id)}
+                          onPress={() => toggleDayTask(day, task.id)}
                           style={({ pressed }) => [
                             styles.task,
                             checked && styles.taskChecked,
