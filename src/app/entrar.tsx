@@ -22,9 +22,13 @@ export default function SignInScreen() {
     router.push(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
   }
 
-  function handleSubmit() {
-    const result = signInWithEmail(email, password);
-    setNotice({ message: result.message, positive: result.ok });
+  async function handleSubmit() {
+    const result = await signInWithEmail(email, password);
+    if (!result.ok || result.next !== 'app') {
+      setNotice({ message: result.message, positive: false });
+      return;
+    }
+    router.push(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
   }
 
   return (
@@ -76,6 +80,13 @@ export default function SignInScreen() {
         onSubmitEditing={handleSubmit}
         style={styles.input}
       />
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/recuperar')}
+        style={({ pressed }) => [styles.forgot, pressed && styles.pressed]}>
+        <Text style={styles.forgotLabel}>Esqueci minha senha</Text>
+      </Pressable>
 
       <Pressable
         accessibilityRole="button"
@@ -154,6 +165,16 @@ const styles = StyleSheet.create({
     color: colors.ivory,
     fontFamily: fonts.text,
     fontSize: 16,
+  },
+  forgot: {
+    alignSelf: 'flex-end',
+    marginTop: 10,
+    paddingVertical: 4,
+  },
+  forgotLabel: {
+    color: colors.gold,
+    fontFamily: fonts.text,
+    fontSize: 13,
   },
   primary: {
     height: 58,

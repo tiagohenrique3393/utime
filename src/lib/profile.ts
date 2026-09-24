@@ -10,6 +10,11 @@ export type Profile = {
 };
 
 const STORAGE_KEY = 'youtime.preview.profile';
+let ownerId: string | null = null;
+
+function profileKey() {
+  return ownerId ? `youtime.profile.${ownerId}` : STORAGE_KEY;
+}
 
 const emptyProfile: Profile = {
   firstName: '',
@@ -22,21 +27,32 @@ let profile: Profile = { ...emptyProfile, goals: [] };
 
 function persistProfile() {
   try {
-    if (typeof sessionStorage === 'undefined') {
+    if (typeof localStorage === 'undefined') {
       return;
     }
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+    localStorage.setItem(profileKey(), JSON.stringify(profile));
   } catch {
     // A prévia nativa guarda o perfil só na memória da sessão.
   }
 }
 
+function readProfileRaw() {
+  const key = profileKey();
+  if (typeof localStorage !== 'undefined') {
+    const local = localStorage.getItem(key);
+    if (local) {
+      return local;
+    }
+  }
+  if (!ownerId && typeof sessionStorage !== 'undefined') {
+    return sessionStorage.getItem(key);
+  }
+  return null;
+}
+
 function restoreProfile() {
   try {
-    if (typeof sessionStorage === 'undefined') {
-      return;
-    }
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = readProfileRaw();
     if (!raw) {
       return;
     }
@@ -53,6 +69,15 @@ function restoreProfile() {
 }
 
 restoreProfile();
+
+export function setProfileOwner(userId: string | null) {
+  if (ownerId === userId) {
+    return;
+  }
+  ownerId = userId;
+  profile = { ...emptyProfile, goals: [] };
+  restoreProfile();
+}
 
 export function loadProfile(): Profile {
   restoreProfile();

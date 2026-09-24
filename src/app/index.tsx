@@ -1,10 +1,14 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts } from '@/constants/theme';
+import { getSessionUserId } from '@/lib/accounts';
+import { isOnboardingComplete } from '@/lib/profile';
+import { consumeRecoveryRedirect, hasPendingRecovery } from '@/lib/session';
 
 const LOGO_ASPECT = 873 / 530;
 
@@ -39,6 +43,21 @@ export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
   const logoWidth = width < 360 ? 118 : isWide ? 186 : 146;
+  const resumeSession = getSessionUserId() !== null || hasPendingRecovery();
+
+  useEffect(() => {
+    if (consumeRecoveryRedirect()) {
+      router.replace('/redefinir-senha');
+      return;
+    }
+    if (getSessionUserId()) {
+      router.replace(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
+    }
+  }, []);
+
+  if (resumeSession) {
+    return <View style={styles.screen} />;
+  }
 
   return (
     <View style={styles.screen}>

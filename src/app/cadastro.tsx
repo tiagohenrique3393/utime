@@ -21,10 +21,14 @@ export default function SignUpScreen() {
     router.push('/boas-vindas');
   }
 
-  function handleSubmit() {
-    const result = signUpWithEmail(email, password);
+  async function handleSubmit() {
+    const result = await signUpWithEmail(email, password);
     if (!result.ok) {
       setNotice({ message: result.message, positive: false });
+      return;
+    }
+    if (result.next === 'confirm') {
+      setNotice({ message: result.message, positive: true });
       return;
     }
     router.push('/boas-vindas');

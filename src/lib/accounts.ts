@@ -1,3 +1,7 @@
+import { supabase } from '../../utils/supabase';
+import { setProfileOwner } from '@/lib/profile';
+import { setTaskOwner } from '@/lib/tasks';
+
 type Account = {
   email: string;
   password: string;
@@ -41,6 +45,7 @@ const GOOGLE_PREVIEW_EMAIL = 'google.preview@youtime.app';
 export type AuthResult = {
   ok: boolean;
   message: string;
+  next?: 'app' | 'confirm';
 };
 
 function normalizeEmail(email: string) {
@@ -51,27 +56,46 @@ function validateEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-export function signUpWithEmail(email: string, password: string): AuthResult {
-  const normalized = normalizeEmail(email);
-
-  if (!validateEmail(normalized)) {
-    return { ok: false, message: 'Informe um e-mail válido.' };
+function authErrorMessage(message: string) {
+  const text = message.toLowerCase();
+  if (text.includes('already registered') || text.includes('already been registered')) {
+    return 'Já existe uma conta com este e-mail.';
   }
-
-  if (password.length < 6) {
-    return { ok: false, message: 'A senha precisa ter ao menos 6 caracteres.' };
+  if (text.includes('invalid login') || text.includes('invalid credentials')) {
+    return 'E-mail ou senha incorretos.';
   }
-
-  if (accounts.has(normalized)) {
-    return { ok: false, message: 'Já existe uma conta com este e-mail.' };
+  if (text.includes('email not confirmed')) {
+    return 'Confirme seu e-mail antes de entrar.';
   }
-
-  accounts.set(normalized, { email: normalized, password, provider: 'email' });
-  persistAccounts();
-  return { ok: true, message: 'Conta criada. Você já pode entrar.' };
+  if (text.includes('password') && text.includes('6')) {
+    return 'A senha precisa ter ao menos 6 caracteres.';
+  }
+  if (text.includes('rate limit') || text.includes('too many')) {
+    return 'Muitas tentativas. Aguarde um pouco e tente de novo.';
+  }
+  return 'Não foi possível concluir agora. Tente novamente.';
 }
 
-export function signInWithEmail(email: string, password: string): AuthResult {
+export function appRedirect(path: string) {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${path}`;
+  }
+  return path;
+}
+
+let sessionUserId: string | null = null;
+
+export function getSessionUserId() {
+  return sessionUserId;
+}
+
+export function applySessionOwner(userId: string | null) {
+  sessionUserId = userId;
+  setProfileOwner(userId);
+  setTaskOwner(userId);
+}
+
+export async function signUpWithEmail(email: string, password: string): Promise<AuthResult> {
   const normalized = normalizeEmail(email);
 
   if (!validateEmail(normalized)) {
@@ -82,13 +106,94 @@ export function signInWithEmail(email: string, password: string): AuthResult {
     return { ok: false, message: 'A senha precisa ter ao menos 6 caracteres.' };
   }
 
-  restoreAccounts();
-  const account = accounts.get(normalized);
-  if (!account || account.provider !== 'email' || account.password !== password) {
-    return { ok: false, message: 'E-mail ou senha incorretos.' };
+  const { data, error } = await supabase.auth.signUp({
+    email: normalized,
+    password,
+    options: { emailRedirectTo: appRedirect('/') },
+  });
+
+  if (error) {
+    return { ok: false, message: authErrorMessage(error.message) };
   }
 
-  return { ok: true, message: 'Entrada confirmada.' };
+  if (!data.session) {
+    return {
+      ok: true,
+      next: 'confirm',
+      message: 'Enviamos um e-mail para confirmar sua conta. Depois, entre com seu e-mail e senha.',
+    };
+  }
+
+  applySessionOwner(data.user?.id ?? null);
+  return { ok: true, next: 'app', message: 'Conta criada.' };
+}
+
+export async function signInWithEmail(email: string, password: string): Promise<AuthResult> {
+  const normalized = normalizeEmail(email);
+
+  if (!validateEmail(normalized)) {
+    return { ok: false, message: 'Informe um e-mail válido.' };
+  }
+
+  if (password.length < 6) {
+    return { ok: false, message: 'A senha precisa ter ao menos 6 caracteres.' };
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalized,
+    password,
+  });
+
+  if (error || !data.session) {
+    return { ok: false, message: authErrorMessage(error?.message ?? 'invalid credentials') };
+  }
+
+  applySessionOwner(data.user?.id ?? null);
+  return { ok: true, next: 'app', message: 'Entrada confirmada.' };
+}
+
+export async function requestPasswordReset(email: string): Promise<AuthResult> {
+  const normalized = normalizeEmail(email);
+
+  if (!validateEmail(normalized)) {
+    return { ok: false, message: 'Informe um e-mail válido.' };
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(normalized, {
+    redirectTo: appRedirect('/redefinir-senha'),
+  });
+
+  if (error) {
+    return { ok: false, message: authErrorMessage(error.message) };
+  }
+
+  return {
+    ok: true,
+    message: 'Se este e-mail estiver cadastrado, enviaremos um link para redefinir a senha.',
+  };
+}
+
+export async function updatePassword(password: string): Promise<AuthResult> {
+  if (password.length < 6) {
+    return { ok: false, message: 'A senha precisa ter ao menos 6 caracteres.' };
+  }
+
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) {
+    return { ok: false, message: 'Abra o link recebido por e-mail neste aparelho.' };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    return { ok: false, message: authErrorMessage(error.message) };
+  }
+
+  return { ok: true, next: 'app', message: 'Senha atualizada.' };
+}
+
+export async function signOut(): Promise<void> {
+  await supabase.auth.signOut();
+  applySessionOwner(null);
 }
 
 export function continueWithGoogle(mode: 'signup' | 'login'): AuthResult {

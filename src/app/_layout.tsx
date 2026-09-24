@@ -4,9 +4,12 @@ import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { colors } from '@/constants/theme';
+import { applySessionOwner } from '@/lib/accounts';
+import { prepareAuth } from '@/lib/session';
+import { supabase } from '../../utils/supabase';
 
 SplashScreen.preventAutoHideAsync();
 void SystemUI.setBackgroundColorAsync(colors.background);
@@ -28,6 +31,7 @@ export default function RootLayout() {
     CormorantGaramond_500Medium,
     Outfit_400Regular,
   });
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     if (loaded || error) {
@@ -35,7 +39,26 @@ export default function RootLayout() {
     }
   }, [loaded, error]);
 
-  if (!loaded && !error) {
+  useEffect(() => {
+    let active = true;
+    prepareAuth().finally(() => {
+      if (active) {
+        setAuthReady(true);
+      }
+    });
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') {
+        return;
+      }
+      applySessionOwner(session?.user.id ?? null);
+    });
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  if ((!loaded && !error) || !authReady) {
     return null;
   }
 

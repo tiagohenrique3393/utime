@@ -104,6 +104,11 @@ export function pillarStats(completedIds: readonly string[], pillarId: PillarId)
 const taskIds = new Set(periods.flatMap((period) => period.tasks.map((task) => task.id)));
 
 const STORAGE_KEY = 'youtime.preview.tasks';
+let ownerId: string | null = null;
+
+function taskStorageKey() {
+  return ownerId ? `youtime.tasks.${ownerId}` : STORAGE_KEY;
+}
 const emptySnapshot: readonly string[] = [];
 
 let completed = new Set<string>();
@@ -116,7 +121,7 @@ function persistTasks() {
     if (typeof localStorage === 'undefined') {
       return;
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    localStorage.setItem(taskStorageKey(), JSON.stringify(snapshot));
   } catch {
     // A prévia nativa guarda as tarefas só na memória da sessão.
   }
@@ -131,7 +136,7 @@ function restoreTasks() {
     if (typeof localStorage === 'undefined') {
       return;
     }
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(taskStorageKey());
     if (!raw) {
       return;
     }
@@ -188,10 +193,6 @@ export function toggleTask(id: string) {
   emitBoard();
 }
 
-export function useCompletedTaskIds() {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-}
-
 export const DAY_COUNT = 30;
 
 export type DayStatus = 'locked' | 'green' | 'yellow' | 'red';
@@ -205,6 +206,10 @@ export type JourneyBoard = {
 
 const JOURNEY_KEY = 'youtime.preview.journey';
 
+function journeyStorageKey() {
+  return ownerId ? `youtime.journey.${ownerId}` : JOURNEY_KEY;
+}
+
 const serverBoard: JourneyBoard = {
   dayOne: emptySnapshot,
   tasksByDay: {},
@@ -215,6 +220,35 @@ const serverBoard: JourneyBoard = {
 let board: JourneyBoard = serverBoard;
 let journeyRestored = false;
 const boardListeners = new Set<() => void>();
+
+function emptyBoard(): JourneyBoard {
+  return {
+    dayOne: emptySnapshot,
+    tasksByDay: {},
+    started: [1],
+    testMode: false,
+  };
+}
+
+export function setTaskOwner(userId: string | null) {
+  if (ownerId === userId && restored && journeyRestored) {
+    return;
+  }
+  ownerId = userId;
+  restored = false;
+  journeyRestored = false;
+  completed = new Set();
+  snapshot = emptySnapshot;
+  board = emptyBoard();
+  restoreTasks();
+  restoreJourney();
+  emit();
+  emitBoard();
+}
+
+export function useCompletedTaskIds() {
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
 
 function emitBoard() {
   boardListeners.forEach((listener) => listener());
@@ -232,7 +266,7 @@ function persistJourney() {
       }
     }
     localStorage.setItem(
-      JOURNEY_KEY,
+      journeyStorageKey(),
       JSON.stringify({
         testMode: board.testMode,
         started: board.started.filter((day) => day !== 1),
@@ -260,7 +294,7 @@ function restoreJourney() {
 
   try {
     if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(JOURNEY_KEY);
+      const raw = localStorage.getItem(journeyStorageKey());
       if (raw) {
         const parsed = JSON.parse(raw) as {
           testMode?: unknown;

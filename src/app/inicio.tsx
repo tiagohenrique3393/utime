@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts } from '@/constants/theme';
+import { getSessionUserId, signOut } from '@/lib/accounts';
 import { loadProfile } from '@/lib/profile';
 import { pillarStats, pillars, progressPercent, useCompletedTaskIds } from '@/lib/tasks';
 
@@ -17,6 +18,12 @@ export default function ProvisionalHomeScreen() {
   const greeting = firstName ? `Olá, ${firstName}.` : 'Olá.';
   const completed = useCompletedTaskIds();
   const percent = progressPercent(completed.length);
+  const signedIn = getSessionUserId() !== null;
+
+  async function handleSignOut() {
+    await signOut();
+    router.replace('/');
+  }
 
   return (
     <View style={styles.screen}>
@@ -92,6 +99,14 @@ export default function ProvisionalHomeScreen() {
               <Text style={styles.secondaryLabel}>Meus 30 dias</Text>
             </Pressable>
             <Text style={styles.motto}>A vida que você quer é construída nos dias comuns.</Text>
+            {signedIn ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleSignOut}
+                style={({ pressed }) => [styles.signOut, pressed && styles.buttonPressed]}>
+                <Text style={styles.signOutLabel}>Sair</Text>
+              </Pressable>
+            ) : null}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -275,5 +290,15 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 28,
     textAlign: 'center',
+  },
+  signOut: {
+    alignSelf: 'center',
+    marginTop: 18,
+    paddingVertical: 8,
+  },
+  signOutLabel: {
+    color: colors.muted,
+    fontFamily: fonts.text,
+    fontSize: 14,
   },
 });
