@@ -14,12 +14,20 @@ export default function SignUpScreen() {
 
   function handleGoogle() {
     const result = continueWithGoogle('signup');
-    setNotice({ message: result.message, positive: result.ok });
+    if (!result.ok) {
+      setNotice({ message: result.message, positive: false });
+      return;
+    }
+    router.push('/boas-vindas');
   }
 
   function handleSubmit() {
     const result = signUpWithEmail(email, password);
-    setNotice({ message: result.message, positive: result.ok });
+    if (!result.ok) {
+      setNotice({ message: result.message, positive: false });
+      return;
+    }
+    router.push('/boas-vindas');
   }
 
   return (

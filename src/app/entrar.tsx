@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AuthNotice, AuthScreen } from '@/components/auth-screen';
 import { colors, fonts } from '@/constants/theme';
 import { continueWithGoogle, signInWithEmail } from '@/lib/accounts';
+import { isOnboardingComplete } from '@/lib/profile';
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
@@ -14,7 +15,11 @@ export default function SignInScreen() {
 
   function handleGoogle() {
     const result = continueWithGoogle('login');
-    setNotice({ message: result.message, positive: result.ok });
+    if (!result.ok) {
+      setNotice({ message: result.message, positive: false });
+      return;
+    }
+    router.push(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
   }
 
   function handleSubmit() {
