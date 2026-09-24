@@ -33,12 +33,16 @@ function parseDay(value: string | string[] | undefined) {
   return day;
 }
 
-function goHome() {
+function goBack() {
   if (router.canGoBack()) {
     router.back();
     return;
   }
   router.replace('/inicio');
+}
+
+function goHome() {
+  router.dismissTo('/inicio');
 }
 
 export default function JourneyScreen() {
@@ -77,7 +81,7 @@ export default function JourneyScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
           <View style={[styles.column, isWide && styles.columnWide]}>
-            <Pressable accessibilityRole="button" onPress={goHome} style={styles.back}>
+            <Pressable accessibilityRole="button" onPress={goBack} style={styles.back}>
               <Text style={styles.backLabel}>Voltar</Text>
             </Pressable>
 

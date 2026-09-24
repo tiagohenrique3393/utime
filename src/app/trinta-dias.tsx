@@ -22,18 +22,22 @@ const weeks = [
 ] as const;
 
 const statusStyle = {
-  green: { border: '#9BB192', fill: 'rgba(155, 177, 146, 0.16)', ink: '#9BB192' },
-  yellow: { border: '#D4B15F', fill: 'rgba(212, 177, 95, 0.16)', ink: '#D4B15F' },
-  red: { border: '#C48B8B', fill: 'rgba(196, 139, 139, 0.16)', ink: '#C48B8B' },
+  green: { border: '#9BB192', fill: 'rgba(155, 177, 146, 0.34)', ink: '#9BB192' },
+  yellow: { border: '#D4B15F', fill: 'rgba(212, 177, 95, 0.34)', ink: '#D4B15F' },
+  red: { border: '#C48B8B', fill: 'rgba(196, 139, 139, 0.38)', ink: '#C48B8B' },
   locked: { border: colors.cardBorder, fill: colors.card, ink: colors.muted },
 } as const;
 
-function goHome() {
+function goBack() {
   if (router.canGoBack()) {
     router.back();
     return;
   }
   router.replace('/inicio');
+}
+
+function goHome() {
+  router.dismissTo('/inicio');
 }
 
 function LockMark() {
@@ -60,7 +64,7 @@ export default function ThirtyDaysScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
           <View style={[styles.column, isWide && styles.columnWide]}>
-            <Pressable accessibilityRole="button" onPress={goHome} style={styles.back}>
+            <Pressable accessibilityRole="button" onPress={goBack} style={styles.back}>
               <Text style={styles.backLabel}>Voltar</Text>
             </Pressable>
 
