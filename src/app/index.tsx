@@ -1,8 +1,11 @@
+import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts } from '@/constants/theme';
+
+const LOGO_ASPECT = 873 / 530;
 
 const pillars = [
   { key: 'corpo', label: 'Corpo', icon: 'body' },
@@ -34,7 +37,7 @@ function PillarIcon({ name }: { name: (typeof pillars)[number]['icon'] }) {
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
-  const titleSize = width < 360 ? 40 : isWide ? 60 : 48;
+  const logoWidth = width < 360 ? 118 : isWide ? 186 : 146;
 
   return (
     <View style={styles.screen}>
@@ -47,11 +50,12 @@ export default function HomeScreen() {
           bounces={false}>
           <View style={[styles.column, isWide && styles.columnWide]}>
             <View style={styles.header}>
-              <Text
-                accessibilityRole="header"
-                style={[styles.title, { fontSize: titleSize, lineHeight: titleSize + 4 }]}>
-                YouTime
-              </Text>
+              <Image
+                accessibilityLabel="YouTime"
+                source={require('@/assets/youtime-logo.png')}
+                style={{ width: logoWidth, height: logoWidth * LOGO_ASPECT }}
+                contentFit="contain"
+              />
               <Text style={[styles.tagline, isWide && styles.taglineWide]}>Seu tempo. Sua evolução.</Text>
               <View style={styles.rule} />
             </View>
@@ -112,12 +116,6 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-  },
-  title: {
-    color: colors.ivory,
-    fontFamily: fonts.display,
-    letterSpacing: -0.8,
-    textAlign: 'center',
   },
   tagline: {
     marginTop: 10,
