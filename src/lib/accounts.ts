@@ -152,6 +152,10 @@ export async function signInWithEmail(email: string, password: string): Promise<
   return { ok: true, next: 'app', message: 'Entrada confirmada.' };
 }
 
+function supabaseErrorText(error: { message: string; code?: string }) {
+  return error.code ? `${error.message} (${error.code})` : error.message;
+}
+
 export async function requestPasswordReset(email: string): Promise<AuthResult> {
   const normalized = normalizeEmail(email);
 
@@ -164,7 +168,7 @@ export async function requestPasswordReset(email: string): Promise<AuthResult> {
   });
 
   if (error) {
-    return { ok: false, message: authErrorMessage(error.message) };
+    return { ok: false, message: supabaseErrorText(error) };
   }
 
   return {
@@ -185,7 +189,7 @@ export async function updatePassword(password: string): Promise<AuthResult> {
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) {
-    return { ok: false, message: authErrorMessage(error.message) };
+    return { ok: false, message: supabaseErrorText(error) };
   }
 
   return { ok: true, next: 'app', message: 'Senha atualizada.' };
