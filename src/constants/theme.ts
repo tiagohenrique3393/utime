@@ -9,6 +9,5 @@ export const colors = {
 
 export const fonts = {
   display: 'CormorantGaramond_500Medium',
-  text: 'Outfit_300Light',
-  textMedium: 'Outfit_400Regular',
+  text: 'Outfit_400Regular',
 } as const;

@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts } from '@/constants/theme';
@@ -11,17 +11,14 @@ const pillars = [
 ] as const;
 
 export default function HomeScreen() {
-  const { width } = useWindowDimensions();
-  const titleSize = Math.min(84, Math.max(52, width * 0.15));
-
   return (
     <View style={styles.screen}>
       <StatusBar style="light" />
-      <View pointerEvents="none" style={styles.glow} />
+      <View style={styles.glow} />
 
       <SafeAreaView style={styles.safe}>
         <View style={styles.composition}>
-          <Text accessibilityRole="header" style={[styles.title, { fontSize: titleSize, lineHeight: titleSize * 1.02 }]}>
+          <Text accessibilityRole="header" style={styles.title}>
             YouTime
           </Text>
 
@@ -55,6 +52,7 @@ const styles = StyleSheet.create({
     marginLeft: -160,
     borderRadius: 160,
     backgroundColor: colors.goldSoft,
+    pointerEvents: 'none',
   },
   safe: {
     flex: 1,
@@ -70,6 +68,8 @@ const styles = StyleSheet.create({
   title: {
     color: colors.ivory,
     fontFamily: fonts.display,
+    fontSize: 68,
+    lineHeight: 72,
     letterSpacing: -1,
     textAlign: 'center',
   },
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   },
   pillarLabel: {
     color: colors.muted,
-    fontFamily: fonts.textMedium,
+    fontFamily: fonts.text,
     fontSize: 12,
     letterSpacing: 1.1,
     textTransform: 'uppercase',

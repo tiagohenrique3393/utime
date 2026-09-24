@@ -1,7 +1,5 @@
-import {
-  CormorantGaramond_500Medium,
-} from '@expo-google-fonts/cormorant-garamond';
-import { Outfit_300Light, Outfit_400Regular } from '@expo-google-fonts/outfit';
+import { CormorantGaramond_500Medium } from '@expo-google-fonts/cormorant-garamond';
+import { Outfit_400Regular } from '@expo-google-fonts/outfit';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -28,7 +26,6 @@ const theme = {
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     CormorantGaramond_500Medium,
-    Outfit_300Light,
     Outfit_400Regular,
   });
 
