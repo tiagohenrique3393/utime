@@ -4,7 +4,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AuthNotice, AuthScreen } from '@/components/auth-screen';
 import { colors, fonts } from '@/constants/theme';
-import { continueWithGoogle, signUpWithEmail } from '@/lib/accounts';
+import { signInWithGoogle, signUpWithEmail } from '@/lib/accounts';
+import { isOnboardingComplete } from '@/lib/profile';
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
@@ -12,13 +13,15 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [notice, setNotice] = useState<{ message: string; positive: boolean } | null>(null);
 
-  function handleGoogle() {
-    const result = continueWithGoogle('signup');
+  async function handleGoogle() {
+    const result = await signInWithGoogle();
     if (!result.ok) {
       setNotice({ message: result.message, positive: false });
       return;
     }
-    router.push('/boas-vindas');
+    if (result.next === 'app') {
+      router.push(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
+    }
   }
 
   async function handleSubmit() {

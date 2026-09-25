@@ -1,46 +1,13 @@
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
+
 import { supabase } from '../../utils/supabase';
+import { establishSessionFromUrl } from '@/lib/session';
 import { setProfileOwner } from '@/lib/profile';
 import { setTaskOwner } from '@/lib/tasks';
 
-type Account = {
-  email: string;
-  password: string;
-  provider: 'email' | 'google';
-};
-
-const STORAGE_KEY = 'youtime.preview.accounts';
-let accounts = new Map<string, Account>();
-
-function persistAccounts() {
-  try {
-    if (typeof sessionStorage === 'undefined') {
-      return;
-    }
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...accounts.entries()]));
-  } catch {
-    // A prévia nativa guarda as contas só na memória da sessão.
-  }
-}
-
-function restoreAccounts() {
-  try {
-    if (typeof sessionStorage === 'undefined') {
-      return;
-    }
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return;
-    }
-    const entries = JSON.parse(raw) as [string, Account][];
-    accounts = new Map(entries);
-  } catch {
-    accounts = new Map();
-  }
-}
-
-restoreAccounts();
-
-const GOOGLE_PREVIEW_EMAIL = 'google.preview@youtime.app';
+WebBrowser.maybeCompleteAuthSession();
 
 export type AuthResult = {
   ok: boolean;
@@ -80,7 +47,14 @@ export function appRedirect(path: string) {
   if (typeof window !== 'undefined' && window.location?.origin) {
     return `${window.location.origin}${path}`;
   }
-  return path;
+  return Linking.createURL(path, { scheme: 'youtime' });
+}
+
+export function oauthRedirectTo() {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/`;
+  }
+  return Linking.createURL('/', { scheme: 'youtime' });
 }
 
 let sessionUserId: string | null = null;
@@ -200,21 +174,37 @@ export async function signOut(): Promise<void> {
   applySessionOwner(null);
 }
 
-export function continueWithGoogle(mode: 'signup' | 'login'): AuthResult {
-  if (mode === 'signup') {
-    accounts.set(GOOGLE_PREVIEW_EMAIL, {
-      email: GOOGLE_PREVIEW_EMAIL,
-      password: '',
-      provider: 'google',
-    });
-    persistAccounts();
-    return { ok: true, message: 'Conta Google conectada nesta prévia.' };
+export async function signInWithGoogle(): Promise<AuthResult> {
+  const redirectTo = oauthRedirectTo();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo,
+      skipBrowserRedirect: Platform.OS !== 'web',
+    },
+  });
+
+  if (error) {
+    return { ok: false, message: supabaseErrorText(error) };
   }
 
-  restoreAccounts();
-  if (!accounts.has(GOOGLE_PREVIEW_EMAIL)) {
-    return { ok: false, message: 'Nenhuma conta Google nesta prévia. Crie uma no cadastro.' };
+  if (Platform.OS === 'web') {
+    return { ok: true, message: 'Redirecionando para o Google.' };
   }
 
-  return { ok: true, message: 'Entrada com Google confirmada.' };
+  if (!data.url) {
+    return { ok: false, message: 'Não foi possível abrir o Google.' };
+  }
+
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+  if (result.type !== 'success') {
+    return { ok: false, message: 'A entrada com Google foi cancelada.' };
+  }
+
+  const established = await establishSessionFromUrl(result.url);
+  if (!established) {
+    return { ok: false, message: 'Não foi possível concluir a entrada com Google.' };
+  }
+
+  return { ok: true, next: 'app', message: 'Entrada com Google confirmada.' };
 }
