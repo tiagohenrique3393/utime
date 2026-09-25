@@ -102,6 +102,14 @@ export default function ProvisionalHomeScreen() {
             {signedIn ? (
               <Pressable
                 accessibilityRole="button"
+                onPress={() => router.push('/perfil')}
+                style={({ pressed }) => [styles.signOut, pressed && styles.buttonPressed]}>
+                <Text style={styles.signOutLabel}>Perfil</Text>
+              </Pressable>
+            ) : null}
+            {signedIn ? (
+              <Pressable
+                accessibilityRole="button"
                 onPress={handleSignOut}
                 style={({ pressed }) => [styles.signOut, pressed && styles.buttonPressed]}>
                 <Text style={styles.signOutLabel}>Sair</Text>
