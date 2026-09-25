@@ -402,18 +402,17 @@ export function dayProgress(source: JourneyBoard, day: number) {
 }
 
 export function overallProgress(source: JourneyBoard) {
-  const days = source.started.filter((day) => isDayUnlocked(day, source.testMode));
-  if (days.length === 0) {
-    return 0;
+  let total = 0;
+  for (let day = 1; day <= DAY_COUNT; day += 1) {
+    total += dayProgress(source, day);
   }
-  const total = days.reduce((sum, day) => sum + dayProgress(source, day), 0);
-  return Math.round(total / days.length);
+  return Math.round((total / DAY_COUNT) * 10) / 10;
 }
 
 export function completedDayCount(source: JourneyBoard) {
   let count = 0;
   for (let day = 1; day <= DAY_COUNT; day += 1) {
-    if (isDayUnlocked(day, source.testMode) && dayProgress(source, day) === 100) {
+    if (dayProgress(source, day) === 100) {
       count += 1;
     }
   }

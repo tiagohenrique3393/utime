@@ -40,6 +40,12 @@ function goHome() {
   router.dismissTo('/inicio');
 }
 
+function formatOverallPercent(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace('.', ',');
+  return `${text}%`;
+}
+
 function LockMark() {
   return (
     <View style={lockStyles.root}>
@@ -76,7 +82,7 @@ export default function ThirtyDaysScreen() {
             <View style={styles.progressCard}>
               <View style={styles.progressHeader}>
                 <Text style={styles.progressTitle}>Progresso geral</Text>
-                <Text style={styles.progressValue}>{percent}%</Text>
+                <Text style={styles.progressValue}>{formatOverallPercent(percent)}</Text>
               </View>
               <View style={styles.track}>
                 <View style={[styles.fill, { width: `${percent}%` }]} />
