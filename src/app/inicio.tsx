@@ -1,12 +1,13 @@
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
+import { useSyncExternalStore } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/bottom-nav';
 import { colors, fonts } from '@/constants/theme';
 import { getSessionUserId, signOut } from '@/lib/accounts';
-import { loadProfile } from '@/lib/profile';
+import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { pillarStats, pillars, progressPercent, useCompletedTaskIds } from '@/lib/tasks';
 
 const LOGO_ASPECT = 873 / 530;
@@ -15,7 +16,7 @@ export default function ProvisionalHomeScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
   const logoWidth = isWide ? 112 : 92;
-  const firstName = loadProfile().firstName.trim();
+  const firstName = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot).firstName.trim();
   const greeting = firstName ? `Olá, ${firstName}.` : 'Olá.';
   const completed = useCompletedTaskIds();
   const percent = progressPercent(completed.length);

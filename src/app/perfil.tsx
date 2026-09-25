@@ -1,12 +1,12 @@
 import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/bottom-nav';
 import { colors, fonts } from '@/constants/theme';
 import { getSessionEmail, getSessionUserId, signOut } from '@/lib/accounts';
-import { loadProfile, type JourneyId } from '@/lib/profile';
+import { loadProfile, updateProfileName, type JourneyId } from '@/lib/profile';
 
 const journeyTitles: Record<JourneyId, string> = {
   metime: 'ManTime',
@@ -29,6 +29,10 @@ export default function ProfileScreen() {
   const [emailState, setEmailState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [leaving, setLeaving] = useState(false);
   const [notice, setNotice] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [nameNotice, setNameNotice] = useState('');
 
   useEffect(() => {
     if (!getSessionUserId()) {
@@ -60,6 +64,39 @@ export default function ProfileScreen() {
     };
   }, [signedIn]);
 
+  function startNameEdit() {
+    setNameDraft(profile.firstName);
+    setNameNotice('');
+    setEditingName(true);
+  }
+
+  function cancelNameEdit() {
+    if (savingName) {
+      return;
+    }
+    setNameNotice('');
+    setEditingName(false);
+  }
+
+  async function saveName() {
+    if (savingName) {
+      return;
+    }
+    if (nameDraft.trim().length === 0) {
+      setNameNotice('Informe seu nome.');
+      return;
+    }
+    setSavingName(true);
+    setNameNotice('');
+    const saved = await updateProfileName(nameDraft);
+    setSavingName(false);
+    if (!saved) {
+      setNameNotice('Não foi possível salvar o nome agora.');
+      return;
+    }
+    setEditingName(false);
+  }
+
   async function handleSignOut() {
     if (leaving) {
       return;
@@ -89,6 +126,7 @@ export default function ProfileScreen() {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <View style={[styles.column, isWide && styles.columnWide]}>
             <Pressable
@@ -105,7 +143,47 @@ export default function ProfileScreen() {
 
             <View style={styles.card}>
               <Text style={styles.fieldLabel}>Nome</Text>
-              <Text style={styles.fieldValue}>{name}</Text>
+              {editingName ? (
+                <>
+                  <TextInput
+                    value={nameDraft}
+                    onChangeText={(value) => {
+                      setNameDraft(value);
+                      setNameNotice('');
+                    }}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    autoFocus
+                    editable={!savingName}
+                    textContentType="givenName"
+                    autoComplete="given-name"
+                    placeholder="Seu primeiro nome"
+                    placeholderTextColor={colors.muted}
+                    onSubmitEditing={saveName}
+                    style={styles.input}
+                  />
+                  {nameNotice ? <Text style={styles.nameNotice}>{nameNotice}</Text> : null}
+                  <View style={styles.nameActions}>
+                    <Pressable accessibilityRole="button" disabled={savingName} onPress={cancelNameEdit} style={styles.nameAction}>
+                      <Text style={styles.nameActionMuted}>Cancelar</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={savingName}
+                      onPress={saveName}
+                      style={styles.nameAction}>
+                      <Text style={styles.nameActionLabel}>{savingName ? 'Salvando' : 'Salvar'}</Text>
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.fieldValue}>{name}</Text>
+                  <Pressable accessibilityRole="button" onPress={startNameEdit} style={styles.editName}>
+                    <Text style={styles.editNameLabel}>Editar nome</Text>
+                  </Pressable>
+                </>
+              )}
               <View style={styles.separator} />
               <Text style={styles.fieldLabel}>E-mail</Text>
               <Text style={styles.fieldValue}>{emailText}</Text>
@@ -213,6 +291,57 @@ const styles = StyleSheet.create({
     fontFamily: fonts.text,
     fontSize: 18,
     lineHeight: 24,
+  },
+  input: {
+    height: 52,
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.background,
+    paddingHorizontal: 16,
+    color: colors.ivory,
+    fontFamily: fonts.text,
+    fontSize: 16,
+  },
+  nameNotice: {
+    marginTop: 8,
+    color: '#C48B8B',
+    fontFamily: fonts.text,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  nameActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 18,
+    marginTop: 12,
+    marginBottom: 14,
+  },
+  nameAction: {
+    paddingVertical: 8,
+  },
+  nameActionMuted: {
+    color: colors.muted,
+    fontFamily: fonts.text,
+    fontSize: 15,
+  },
+  nameActionLabel: {
+    color: colors.ivory,
+    fontFamily: fonts.text,
+    fontSize: 15,
+  },
+  editName: {
+    alignSelf: 'flex-start',
+    marginTop: -6,
+    marginBottom: 14,
+    paddingVertical: 4,
+  },
+  editNameLabel: {
+    color: colors.gold,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
   separator: {
     height: 1,

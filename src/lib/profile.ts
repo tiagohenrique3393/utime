@@ -30,6 +30,23 @@ const emptyProfile: Profile = {
 };
 
 let profile: Profile = { ...emptyProfile, goals: [] };
+let lastProfilePushOk = true;
+const profileListeners = new Set<() => void>();
+
+function emitProfile() {
+  profileListeners.forEach((listener) => listener());
+}
+
+export function subscribeProfile(listener: () => void) {
+  profileListeners.add(listener);
+  return () => {
+    profileListeners.delete(listener);
+  };
+}
+
+export function getProfileSnapshot() {
+  return profile;
+}
 
 function isGoalId(value: string): value is GoalId {
   return goalIds.has(value as GoalId);
@@ -66,9 +83,7 @@ async function upsertProfile(userId: string, next: Profile) {
     },
     { onConflict: 'user_id' },
   );
-  if (error) {
-    return;
-  }
+  return !error;
 }
 
 function scheduleProfilePush() {
@@ -88,7 +103,7 @@ async function runProfilePush(userId: string) {
   while (profilePushAgain && ownerId === userId) {
     profilePushAgain = false;
     const next = copyProfile(profile);
-    await upsertProfile(userId, next);
+    lastProfilePushOk = await upsertProfile(userId, next);
   }
 }
 
@@ -111,13 +126,26 @@ function readProfileRaw() {
   return null;
 }
 
+function sameProfile(left: Profile, right: Profile) {
+  return (
+    left.firstName === right.firstName &&
+    left.journey === right.journey &&
+    left.completed === right.completed &&
+    left.goals.length === right.goals.length &&
+    left.goals.every((goal, index) => goal === right.goals[index])
+  );
+}
+
 function restoreProfile() {
   try {
     const raw = readProfileRaw();
     if (!raw) {
       return;
     }
-    profile = copyProfile(JSON.parse(raw) as Profile);
+    const next = copyProfile(JSON.parse(raw) as Profile);
+    if (!sameProfile(profile, next)) {
+      profile = next;
+    }
   } catch {
     profile = { ...emptyProfile, goals: [] };
   }
@@ -145,6 +173,7 @@ export function setProfileOwner(userId: string | null) {
   profileRevision = 0;
   profile = { ...emptyProfile, goals: [] };
   restoreProfile();
+  emitProfile();
 }
 
 export function loadProfile(): Profile {
@@ -156,6 +185,35 @@ export function saveProfile(next: Profile) {
   profileRevision += 1;
   profile = copyProfile(next);
   persistProfile();
+  emitProfile();
+}
+
+export async function updateProfileName(firstName: string) {
+  const userId = ownerId;
+  const trimmed = firstName.trim();
+  if (!userId || trimmed.length === 0) {
+    return false;
+  }
+  const previous = copyProfile(profile);
+  if (previous.firstName === trimmed) {
+    return true;
+  }
+  profileRevision += 1;
+  profile = copyProfile({ ...previous, firstName: trimmed });
+  writeProfileLocal();
+  emitProfile();
+  scheduleProfilePush();
+  await (profilePush ?? Promise.resolve());
+  if (lastProfilePushOk && ownerId === userId) {
+    return true;
+  }
+  if (ownerId === userId) {
+    profileRevision += 1;
+    profile = previous;
+    writeProfileLocal();
+    emitProfile();
+  }
+  return false;
 }
 
 export function replaceProfile(userId: string, next: Profile) {
@@ -164,6 +222,7 @@ export function replaceProfile(userId: string, next: Profile) {
   }
   profile = copyProfile(next);
   writeProfileLocal();
+  emitProfile();
 }
 
 export function pushProfile(userId: string) {
