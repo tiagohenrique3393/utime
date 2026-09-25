@@ -2,7 +2,9 @@ import { router, type Href } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomNav } from '@/components/bottom-nav';
 import { colors, fonts } from '@/constants/theme';
+import { getSessionUserId } from '@/lib/accounts';
 import {
   completedDayCount,
   dayProgress,
@@ -61,10 +63,13 @@ export default function ThirtyDaysScreen() {
   const journey = useJourneyBoard();
   const percent = overallProgress(journey);
   const concluded = completedDayCount(journey);
+  const signedIn = getSessionUserId() !== null;
 
   return (
     <View style={styles.screen}>
-      <SafeAreaView style={[styles.safe, isWide && styles.safeWide]}>
+      <SafeAreaView
+        edges={signedIn ? ['top', 'left', 'right'] : ['top', 'right', 'bottom', 'left']}
+        style={[styles.safe, isWide && styles.safeWide]}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -165,6 +170,7 @@ export default function ThirtyDaysScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+      {signedIn ? <BottomNav /> : null}
     </View>
   );
 }

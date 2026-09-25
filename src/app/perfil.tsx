@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomNav } from '@/components/bottom-nav';
 import { colors, fonts } from '@/constants/theme';
 import { getSessionEmail, getSessionUserId, signOut } from '@/lib/accounts';
 import { loadProfile, type JourneyId } from '@/lib/profile';
@@ -84,7 +85,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.screen}>
-      <SafeAreaView style={[styles.safe, isWide && styles.safeWide]}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safe, isWide && styles.safeWide]}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -125,6 +126,7 @@ export default function ProfileScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+      <BottomNav />
     </View>
   );
 }

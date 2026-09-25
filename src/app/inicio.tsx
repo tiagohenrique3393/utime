@@ -3,6 +3,7 @@ import { router, type Href } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomNav } from '@/components/bottom-nav';
 import { colors, fonts } from '@/constants/theme';
 import { getSessionUserId, signOut } from '@/lib/accounts';
 import { loadProfile } from '@/lib/profile';
@@ -27,7 +28,9 @@ export default function ProvisionalHomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <SafeAreaView style={[styles.safe, isWide && styles.safeWide]}>
+      <SafeAreaView
+        edges={signedIn ? ['top', 'left', 'right'] : ['top', 'right', 'bottom', 'left']}
+        style={[styles.safe, isWide && styles.safeWide]}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -118,6 +121,7 @@ export default function ProvisionalHomeScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+      {signedIn ? <BottomNav /> : null}
     </View>
   );
 }
