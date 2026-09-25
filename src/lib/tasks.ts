@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import { supabase } from '../../utils/supabase';
+
 export type TaskPeriod = {
   id: 'manha' | 'tarde' | 'noite';
   title: string;
@@ -105,6 +107,9 @@ const taskIds = new Set(periods.flatMap((period) => period.tasks.map((task) => t
 
 const STORAGE_KEY = 'youtime.preview.tasks';
 let ownerId: string | null = null;
+let journeyRevision = 0;
+let journeyPushAgain = false;
+let journeyPush: Promise<void> | null = null;
 
 function taskStorageKey() {
   return ownerId ? `youtime.tasks.${ownerId}` : STORAGE_KEY;
@@ -116,14 +121,16 @@ let snapshot: readonly string[] = emptySnapshot;
 let restored = false;
 const listeners = new Set<() => void>();
 
-function persistTasks() {
+function persistTasks(syncRemote = true) {
   try {
-    if (typeof localStorage === 'undefined') {
-      return;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(taskStorageKey(), JSON.stringify(snapshot));
     }
-    localStorage.setItem(taskStorageKey(), JSON.stringify(snapshot));
   } catch {
     // A prévia nativa guarda as tarefas só na memória da sessão.
+  }
+  if (syncRemote) {
+    scheduleJourneyPush();
   }
 }
 
@@ -181,6 +188,7 @@ export function toggleTask(id: string) {
   if (!taskIds.has(id)) {
     return;
   }
+  journeyRevision += 1;
   if (completed.has(id)) {
     completed.delete(id);
   } else {
@@ -230,11 +238,20 @@ function emptyBoard(): JourneyBoard {
   };
 }
 
+export function getTaskOwner() {
+  return ownerId;
+}
+
+export function getJourneyRevision() {
+  return journeyRevision;
+}
+
 export function setTaskOwner(userId: string | null) {
   if (ownerId === userId && restored && journeyRestored) {
     return;
   }
   ownerId = userId;
+  journeyRevision = 0;
   restored = false;
   journeyRestored = false;
   completed = new Set();
@@ -254,27 +271,29 @@ function emitBoard() {
   boardListeners.forEach((listener) => listener());
 }
 
-function persistJourney() {
+function persistJourney(syncRemote = true) {
   try {
-    if (typeof localStorage === 'undefined') {
-      return;
-    }
-    const tasks: Record<string, readonly string[]> = {};
-    for (const [day, ids] of Object.entries(board.tasksByDay)) {
-      if (ids.length > 0) {
-        tasks[day] = ids;
+    if (typeof localStorage !== 'undefined') {
+      const tasks: Record<string, readonly string[]> = {};
+      for (const [day, ids] of Object.entries(board.tasksByDay)) {
+        if (ids.length > 0) {
+          tasks[day] = ids;
+        }
       }
+      localStorage.setItem(
+        journeyStorageKey(),
+        JSON.stringify({
+          testMode: board.testMode,
+          started: board.started.filter((day) => day !== 1),
+          tasks,
+        }),
+      );
     }
-    localStorage.setItem(
-      journeyStorageKey(),
-      JSON.stringify({
-        testMode: board.testMode,
-        started: board.started.filter((day) => day !== 1),
-        tasks,
-      }),
-    );
   } catch {
     // A prévia nativa guarda a jornada só na memória da sessão.
+  }
+  if (syncRemote) {
+    scheduleJourneyPush();
   }
 }
 
@@ -407,6 +426,7 @@ export function markDayStarted(day: number) {
   if (!isDayUnlocked(day, board.testMode) || board.started.includes(day)) {
     return;
   }
+  journeyRevision += 1;
   board = { ...board, started: withDayOne([...board.started, day]) };
   persistJourney();
   emitBoard();
@@ -421,6 +441,7 @@ export function setTestMode(enabled: boolean) {
   if (board.testMode === enabled) {
     return;
   }
+  journeyRevision += 1;
   board = { ...board, testMode: enabled };
   persistJourney();
   emitBoard();
@@ -436,6 +457,7 @@ export function toggleDayTask(day: number, id: string) {
   if (!isDayUnlocked(day, board.testMode) || !taskIds.has(id)) {
     return;
   }
+  journeyRevision += 1;
   const key = String(day);
   const current = new Set(board.tasksByDay[key] ?? []);
   if (current.has(id)) {
@@ -457,4 +479,127 @@ export function toggleDayTask(day: number, id: string) {
   };
   persistJourney();
   emitBoard();
+}
+
+export type RemoteDay = {
+  day: number;
+  ids: readonly string[];
+  started: boolean;
+};
+
+export function journeyHasContent() {
+  restoreTasks();
+  restoreJourney();
+  if (snapshot.length > 0 || board.testMode) {
+    return true;
+  }
+  if (board.started.some((day) => day !== 1)) {
+    return true;
+  }
+  return Object.values(board.tasksByDay).some((ids) => ids.length > 0);
+}
+
+export function replaceJourney(userId: string, days: readonly RemoteDay[], testMode: boolean) {
+  if (ownerId !== userId) {
+    return;
+  }
+
+  const tasksByDay: Record<string, readonly string[]> = {};
+  const started: number[] = [];
+  let dayOne: string[] = [];
+
+  for (const row of days) {
+    if (!Number.isInteger(row.day) || row.day < 1 || row.day > DAY_COUNT) {
+      continue;
+    }
+    const ids = row.ids.filter((id) => taskIds.has(id)).sort();
+    if (row.day === 1) {
+      dayOne = ids;
+    } else if (ids.length > 0) {
+      tasksByDay[String(row.day)] = ids;
+    }
+    if (row.started || ids.length > 0) {
+      started.push(row.day);
+    }
+  }
+
+  completed = new Set(dayOne);
+  snapshot = [...completed].sort();
+  board = {
+    dayOne: snapshot,
+    tasksByDay,
+    started: withDayOne(started),
+    testMode: __DEV__ && testMode,
+  };
+  restored = true;
+  journeyRestored = true;
+  persistTasks(false);
+  persistJourney(false);
+  emit();
+  emitBoard();
+}
+
+export function pushJourney(userId: string) {
+  if (ownerId !== userId) {
+    return Promise.resolve();
+  }
+  scheduleJourneyPush();
+  return journeyPush ?? Promise.resolve();
+}
+
+function scheduleJourneyPush() {
+  const userId = ownerId;
+  if (!userId) {
+    return;
+  }
+  journeyPushAgain = true;
+  if (!journeyPush) {
+    journeyPush = runJourneyPush(userId).finally(() => {
+      journeyPush = null;
+    });
+  }
+}
+
+async function runJourneyPush(userId: string) {
+  while (journeyPushAgain && ownerId === userId) {
+    journeyPushAgain = false;
+    const source: JourneyBoard = {
+      dayOne: [...board.dayOne],
+      tasksByDay: Object.fromEntries(Object.entries(board.tasksByDay).map(([day, ids]) => [day, [...ids]])),
+      started: [...board.started],
+      testMode: board.testMode,
+    };
+    await upsertJourney(userId, source);
+  }
+}
+
+async function upsertJourney(userId: string, source: JourneyBoard) {
+  const rows = [];
+  for (let day = 1; day <= DAY_COUNT; day += 1) {
+    const ids = [...completedIdsForDay(source, day)];
+    rows.push({
+      user_id: userId,
+      day_number: day,
+      completed_task_ids: ids,
+      started: source.started.includes(day),
+      progress_percent: progressPercent(ids.length),
+      pillar_percents: {
+        corpo: pillarStats(ids, 'corpo').percent,
+        mente: pillarStats(ids, 'mente').percent,
+        espirito: pillarStats(ids, 'espirito').percent,
+      },
+    });
+  }
+
+  const { error: daysError } = await supabase.from('journey_days').upsert(rows, {
+    onConflict: 'user_id,day_number',
+  });
+  if (daysError) {
+    return;
+  }
+
+  await supabase.from('journey_state').upsert(
+    { user_id: userId, test_mode: source.testMode },
+    { onConflict: 'user_id' },
+  );
 }

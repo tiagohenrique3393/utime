@@ -34,7 +34,9 @@ A tela inicial está em `src/app/index.tsx`. Novas rotas entram como arquivos em
 
 ## Autenticação
 
-O cadastro, a entrada e a recuperação de senha por e-mail usam o Supabase. A sessão fica salva no aparelho e continua depois de fechar o aplicativo. Cada conta lê apenas o próprio perfil e as próprias tarefas, guardados neste aparelho.
+O cadastro, a entrada, a recuperação de senha e a entrada com Google usam o Supabase. A sessão fica salva no aparelho e continua depois de fechar o aplicativo.
+
+O perfil, o checklist, o progresso diário, as porcentagens e o histórico dos 30 dias também ficam no Supabase, cada conta com os próprios registros. Antes disso funcionar no banco, execute uma vez o arquivo `supabase/schema.sql` no SQL Editor do projeto. Até lá, o aplicativo continua usando os dados salvos neste aparelho. As porcentagens exibidas continuam sendo calculadas no aplicativo; o banco apenas guarda o resultado.
 
 Crie um arquivo `.env.local` na raiz (ele não entra no Git):
 

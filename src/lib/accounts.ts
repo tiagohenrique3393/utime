@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { supabase } from '../../utils/supabase';
 import { establishSessionFromUrl } from '@/lib/session';
 import { setProfileOwner } from '@/lib/profile';
+import { hydrateAccount } from '@/lib/sync';
 import { setTaskOwner } from '@/lib/tasks';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -63,10 +64,22 @@ export function getSessionUserId() {
   return sessionUserId;
 }
 
+let hydration: { userId: string; promise: Promise<void> } | null = null;
+
 export function applySessionOwner(userId: string | null) {
   sessionUserId = userId;
   setProfileOwner(userId);
   setTaskOwner(userId);
+  if (!userId) {
+    hydration = null;
+    return Promise.resolve();
+  }
+  if (hydration?.userId === userId) {
+    return hydration.promise;
+  }
+  const promise = hydrateAccount(userId);
+  hydration = { userId, promise };
+  return promise;
 }
 
 export async function signUpWithEmail(email: string, password: string): Promise<AuthResult> {
@@ -98,7 +111,7 @@ export async function signUpWithEmail(email: string, password: string): Promise<
     };
   }
 
-  applySessionOwner(data.user?.id ?? null);
+  await applySessionOwner(data.user?.id ?? null);
   return { ok: true, next: 'app', message: 'Conta criada.' };
 }
 
@@ -122,7 +135,7 @@ export async function signInWithEmail(email: string, password: string): Promise<
     return { ok: false, message: authErrorMessage(error?.message ?? 'invalid credentials') };
   }
 
-  applySessionOwner(data.user?.id ?? null);
+  await applySessionOwner(data.user?.id ?? null);
   return { ok: true, next: 'app', message: 'Entrada confirmada.' };
 }
 
@@ -171,7 +184,7 @@ export async function updatePassword(password: string): Promise<AuthResult> {
 
 export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
-  applySessionOwner(null);
+  await applySessionOwner(null);
 }
 
 export async function signInWithGoogle(): Promise<AuthResult> {

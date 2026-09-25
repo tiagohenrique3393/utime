@@ -30,7 +30,7 @@ export async function establishSessionFromUrl(url: string) {
       return false;
     }
     pendingRecovery = hash.get('type') === 'recovery';
-    applySessionOwner(data.session.user.id);
+    await applySessionOwner(data.session.user.id);
     return true;
   }
 
@@ -43,7 +43,7 @@ export async function establishSessionFromUrl(url: string) {
     return false;
   }
   pendingRecovery = query.get('type') === 'recovery';
-  applySessionOwner(data.session.user.id);
+  await applySessionOwner(data.session.user.id);
   return true;
 }
 
@@ -78,6 +78,6 @@ async function captureSessionFromUrl() {
 export async function prepareAuth() {
   await captureSessionFromUrl();
   const { data } = await supabase.auth.getSession();
-  applySessionOwner(data.session?.user.id ?? null);
+  await applySessionOwner(data.session?.user.id ?? null);
   return data.session;
 }

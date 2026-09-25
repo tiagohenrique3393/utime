@@ -1,3 +1,5 @@
+import { supabase } from '../../utils/supabase';
+
 export type JourneyId = 'metime' | 'womantime';
 
 export type GoalId = 'disciplina' | 'corpo' | 'mente' | 'espirito' | 'rotina';
@@ -10,7 +12,11 @@ export type Profile = {
 };
 
 const STORAGE_KEY = 'youtime.preview.profile';
+const goalIds = new Set<GoalId>(['disciplina', 'corpo', 'mente', 'espirito', 'rotina']);
 let ownerId: string | null = null;
+let profileRevision = 0;
+let profilePushAgain = false;
+let profilePush: Promise<void> | null = null;
 
 function profileKey() {
   return ownerId ? `youtime.profile.${ownerId}` : STORAGE_KEY;
@@ -25,7 +31,20 @@ const emptyProfile: Profile = {
 
 let profile: Profile = { ...emptyProfile, goals: [] };
 
-function persistProfile() {
+function isGoalId(value: string): value is GoalId {
+  return goalIds.has(value as GoalId);
+}
+
+function copyProfile(next: Profile): Profile {
+  return {
+    firstName: typeof next.firstName === 'string' ? next.firstName : '',
+    journey: next.journey === 'metime' || next.journey === 'womantime' ? next.journey : null,
+    goals: Array.isArray(next.goals) ? next.goals.filter(isGoalId) : [],
+    completed: Boolean(next.completed),
+  };
+}
+
+function writeProfileLocal() {
   try {
     if (typeof localStorage === 'undefined') {
       return;
@@ -34,6 +53,48 @@ function persistProfile() {
   } catch {
     // A prévia nativa guarda o perfil só na memória da sessão.
   }
+}
+
+async function upsertProfile(userId: string, next: Profile) {
+  const { error } = await supabase.from('profiles').upsert(
+    {
+      user_id: userId,
+      first_name: next.firstName,
+      journey: next.journey,
+      goals: next.goals,
+      onboarding_completed: next.completed,
+    },
+    { onConflict: 'user_id' },
+  );
+  if (error) {
+    return;
+  }
+}
+
+function scheduleProfilePush() {
+  const userId = ownerId;
+  if (!userId) {
+    return;
+  }
+  profilePushAgain = true;
+  if (!profilePush) {
+    profilePush = runProfilePush(userId).finally(() => {
+      profilePush = null;
+    });
+  }
+}
+
+async function runProfilePush(userId: string) {
+  while (profilePushAgain && ownerId === userId) {
+    profilePushAgain = false;
+    const next = copyProfile(profile);
+    await upsertProfile(userId, next);
+  }
+}
+
+function persistProfile() {
+  writeProfileLocal();
+  scheduleProfilePush();
 }
 
 function readProfileRaw() {
@@ -56,13 +117,7 @@ function restoreProfile() {
     if (!raw) {
       return;
     }
-    const parsed = JSON.parse(raw) as Profile;
-    profile = {
-      firstName: typeof parsed.firstName === 'string' ? parsed.firstName : '',
-      journey: parsed.journey === 'metime' || parsed.journey === 'womantime' ? parsed.journey : null,
-      goals: Array.isArray(parsed.goals) ? parsed.goals : [],
-      completed: Boolean(parsed.completed),
-    };
+    profile = copyProfile(JSON.parse(raw) as Profile);
   } catch {
     profile = { ...emptyProfile, goals: [] };
   }
@@ -70,25 +125,56 @@ function restoreProfile() {
 
 restoreProfile();
 
+export function getProfileOwner() {
+  return ownerId;
+}
+
+export function getProfileRevision() {
+  return profileRevision;
+}
+
+export function profileHasContent(next: Profile = profile) {
+  return next.firstName.trim().length > 0 || next.journey !== null || next.goals.length > 0 || next.completed;
+}
+
 export function setProfileOwner(userId: string | null) {
   if (ownerId === userId) {
     return;
   }
   ownerId = userId;
+  profileRevision = 0;
   profile = { ...emptyProfile, goals: [] };
   restoreProfile();
 }
 
 export function loadProfile(): Profile {
   restoreProfile();
-  return { ...profile, goals: [...profile.goals] };
+  return copyProfile(profile);
 }
 
 export function saveProfile(next: Profile) {
-  profile = { ...next, goals: [...next.goals] };
+  profileRevision += 1;
+  profile = copyProfile(next);
   persistProfile();
 }
 
+export function replaceProfile(userId: string, next: Profile) {
+  if (ownerId !== userId) {
+    return;
+  }
+  profile = copyProfile(next);
+  writeProfileLocal();
+}
+
+export function pushProfile(userId: string) {
+  if (ownerId !== userId) {
+    return Promise.resolve();
+  }
+  scheduleProfilePush();
+  return profilePush ?? Promise.resolve();
+}
+
 export function isOnboardingComplete() {
-  return loadProfile().completed && loadProfile().firstName.trim().length > 0;
+  const current = loadProfile();
+  return current.completed && current.firstName.trim().length > 0;
 }
