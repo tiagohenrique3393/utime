@@ -47,6 +47,10 @@ export async function establishSessionFromUrl(url: string) {
   return true;
 }
 
+export function notePasswordRecovery() {
+  pendingRecovery = true;
+}
+
 export function hasPendingRecovery() {
   return pendingRecovery;
 }

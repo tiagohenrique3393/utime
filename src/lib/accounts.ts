@@ -163,12 +163,16 @@ export async function requestPasswordReset(email: string): Promise<AuthResult> {
   });
 
   if (error) {
-    return { ok: false, message: supabaseErrorText(error) };
+    const text = error.message.toLowerCase();
+    if (text.includes('rate limit') || text.includes('too many')) {
+      return { ok: false, message: 'Muitas tentativas. Aguarde um pouco e tente de novo.' };
+    }
+    return { ok: false, message: 'Não foi possível enviar o e-mail de recuperação. Tente novamente.' };
   }
 
   return {
     ok: true,
-    message: 'Se este e-mail estiver cadastrado, enviaremos um link para redefinir a senha.',
+    message: 'Enviamos o e-mail de recuperação. Abra o link para definir uma nova senha.',
   };
 }
 
@@ -184,10 +188,17 @@ export async function updatePassword(password: string): Promise<AuthResult> {
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) {
-    return { ok: false, message: supabaseErrorText(error) };
+    const text = error.message.toLowerCase();
+    if (text.includes('password') && text.includes('6')) {
+      return { ok: false, message: 'A senha precisa ter ao menos 6 caracteres.' };
+    }
+    if (text.includes('rate limit') || text.includes('too many')) {
+      return { ok: false, message: 'Muitas tentativas. Aguarde um pouco e tente de novo.' };
+    }
+    return { ok: false, message: 'Não foi possível salvar a nova senha. Tente novamente.' };
   }
 
-  return { ok: true, next: 'app', message: 'Senha atualizada.' };
+  return { ok: true, next: 'app', message: 'Nova senha salva com sucesso.' };
 }
 
 export async function signOut(): Promise<void> {

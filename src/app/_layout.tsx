@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 
 import { colors } from '@/constants/theme';
 import { applySessionOwner } from '@/lib/accounts';
-import { prepareAuth } from '@/lib/session';
+import { notePasswordRecovery, prepareAuth } from '@/lib/session';
 import { supabase } from '../../utils/supabase';
 
 SplashScreen.preventAutoHideAsync();
@@ -47,6 +47,9 @@ export default function RootLayout() {
       }
     });
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        notePasswordRecovery();
+      }
       if (event === 'INITIAL_SESSION') {
         return;
       }

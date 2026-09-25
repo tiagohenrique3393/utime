@@ -4,8 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AuthNotice, AuthScreen } from '@/components/auth-screen';
 import { colors, fonts } from '@/constants/theme';
-import { updatePassword } from '@/lib/accounts';
-import { isOnboardingComplete } from '@/lib/profile';
+import { signOut, updatePassword } from '@/lib/accounts';
 import { consumeRecoveryRedirect } from '@/lib/session';
 
 export default function ResetPasswordScreen() {
@@ -13,9 +12,16 @@ export default function ResetPasswordScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [notice, setNotice] = useState<{ message: string; positive: boolean } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   async function handleSubmit() {
     if (saving) {
+      return;
+    }
+    if (saved) {
+      setSaving(true);
+      await signOut();
+      router.replace('/entrar');
       return;
     }
     setSaving(true);
@@ -24,7 +30,7 @@ export default function ResetPasswordScreen() {
     setNotice({ message: result.message, positive: result.ok });
     if (result.ok) {
       consumeRecoveryRedirect();
-      router.replace(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
+      setSaved(true);
     }
   }
 
@@ -54,7 +60,7 @@ export default function ResetPasswordScreen() {
         accessibilityRole="button"
         onPress={handleSubmit}
         style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
-        <Text style={styles.primaryLabel}>Salvar nova senha</Text>
+        <Text style={styles.primaryLabel}>{saved ? 'Entrar' : 'Salvar nova senha'}</Text>
       </Pressable>
     </AuthScreen>
   );
