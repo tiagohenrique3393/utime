@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   primaryLabel: {
-    color: colors.background,
+    color: colors.onPrimary,
     fontFamily: fonts.text,
     fontSize: 16,
   },

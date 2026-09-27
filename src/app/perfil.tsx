@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   },
   nameNotice: {
     marginTop: 8,
-    color: '#C48B8B',
+    color: colors.danger,
     fontFamily: fonts.text,
     fontSize: 14,
     lineHeight: 20,
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   },
   notice: {
     marginTop: 16,
-    color: '#C48B8B',
+    color: colors.danger,
     fontFamily: fonts.text,
     fontSize: 14,
     lineHeight: 20,

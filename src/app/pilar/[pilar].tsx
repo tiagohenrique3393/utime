@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   track: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(244, 240, 232, 0.08)',
+    backgroundColor: colors.track,
     overflow: 'hidden',
   },
   fill: {
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     marginTop: -2,
     borderLeftWidth: 1.5,
     borderBottomWidth: 1.5,
-    borderColor: colors.background,
+    borderColor: colors.onPrimary,
     transform: [{ rotate: '-45deg' }],
   },
   taskCopy: {
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   homeButtonLabel: {
-    color: colors.background,
+    color: colors.onPrimary,
     fontFamily: fonts.text,
     fontSize: 16,
     letterSpacing: 0.2,

@@ -1,12 +1,15 @@
 export const colors = {
-  background: '#09090B',
-  ivory: '#F4F0E8',
-  muted: '#A39C92',
-  gold: '#C6A36A',
-  line: 'rgba(198, 163, 106, 0.55)',
-  card: '#141416',
-  cardBorder: 'rgba(244, 240, 232, 0.08)',
-  iconBorder: 'rgba(198, 163, 106, 0.45)',
+  background: '#F5F5F3',
+  ivory: '#111111',
+  muted: '#4A4A47',
+  gold: '#111111',
+  line: 'rgba(17, 17, 17, 0.16)',
+  card: '#FFFFFF',
+  cardBorder: '#E2E2DE',
+  iconBorder: '#B9B9B4',
+  track: '#E4E4E0',
+  onPrimary: '#FFFFFF',
+  danger: '#8C3A3A',
 } as const;
 
 export const fonts = {

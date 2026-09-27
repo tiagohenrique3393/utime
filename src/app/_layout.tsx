@@ -1,6 +1,6 @@
 import { CormorantGaramond_500Medium } from '@expo-google-fonts/cormorant-garamond';
 import { Outfit_400Regular } from '@expo-google-fonts/outfit';
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
@@ -15,9 +15,9 @@ SplashScreen.preventAutoHideAsync();
 void SystemUI.setBackgroundColorAsync(colors.background);
 
 const theme = {
-  ...DarkTheme,
+  ...DefaultTheme,
   colors: {
-    ...DarkTheme.colors,
+    ...DefaultTheme.colors,
     background: colors.background,
     card: colors.background,
     text: colors.ivory,

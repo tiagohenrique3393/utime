@@ -24,9 +24,9 @@ const weeks = [
 ] as const;
 
 const statusStyle = {
-  green: { border: '#9BB192', fill: 'rgba(155, 177, 146, 0.34)', ink: '#9BB192' },
-  yellow: { border: '#D4B15F', fill: 'rgba(212, 177, 95, 0.34)', ink: '#D4B15F' },
-  red: { border: '#C48B8B', fill: 'rgba(196, 139, 139, 0.38)', ink: '#C48B8B' },
+  green: { border: '#3E6B48', fill: '#E7F0E6', ink: '#245232' },
+  yellow: { border: '#8A6A1E', fill: '#F8F1DC', ink: '#6A5010' },
+  red: { border: '#8C4545', fill: '#F8E8E8', ink: '#7A3030' },
   locked: { border: colors.cardBorder, fill: colors.card, ink: colors.muted },
 } as const;
 
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   track: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(244, 240, 232, 0.08)',
+    backgroundColor: colors.track,
     overflow: 'hidden',
   },
   fill: {
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   homeButtonLabel: {
-    color: colors.background,
+    color: colors.onPrimary,
     fontFamily: fonts.text,
     fontSize: 16,
     letterSpacing: 0.2,

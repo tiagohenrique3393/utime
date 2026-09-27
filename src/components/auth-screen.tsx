@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     color: colors.ivory,
   },
   noticeError: {
-    color: colors.gold,
+    color: colors.danger,
   },
   pressed: {
     opacity: 0.7,

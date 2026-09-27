@@ -61,7 +61,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <SafeAreaView style={[styles.safe, isWide && styles.safeWide]}>
         <ScrollView
           style={styles.scroll}
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     opacity: 0.84,
   },
   buttonLabel: {
-    color: colors.background,
+    color: colors.onPrimary,
     fontFamily: fonts.text,
     fontSize: 16,
     letterSpacing: 0.2,

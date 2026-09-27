@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   track: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(244, 240, 232, 0.08)',
+    backgroundColor: colors.track,
     overflow: 'hidden',
   },
   fill: {
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     opacity: 0.84,
   },
   buttonLabel: {
-    color: colors.background,
+    color: colors.onPrimary,
     fontFamily: fonts.text,
     fontSize: 16,
     letterSpacing: 0.2,

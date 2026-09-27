@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
   track: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(244, 240, 232, 0.08)',
+    backgroundColor: colors.track,
     overflow: 'hidden',
   },
   fill: {
