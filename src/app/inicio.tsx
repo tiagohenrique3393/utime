@@ -10,12 +10,12 @@ import { getSessionUserId, signOut } from '@/lib/accounts';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { pillarStats, pillars, progressPercent, useCompletedTaskIds } from '@/lib/tasks';
 
-const LOGO_ASPECT = 873 / 530;
+const LOGO_ASPECT = 685 / 243;
 
 export default function ProvisionalHomeScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
-  const logoWidth = isWide ? 112 : 92;
+  const logoWidth = isWide ? 65 : 54;
   const firstName = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot).firstName.trim();
   const greeting = firstName ? `Olá, ${firstName}.` : 'Olá.';
   const completed = useCompletedTaskIds();

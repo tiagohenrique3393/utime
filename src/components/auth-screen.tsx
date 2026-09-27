@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts } from '@/constants/theme';
 
-const LOGO_ASPECT = 873 / 530;
+const LOGO_ASPECT = 685 / 243;
 
 type AuthScreenProps = {
   title: string;
@@ -17,7 +17,7 @@ type AuthScreenProps = {
 export function AuthScreen({ title, subtitle, children }: AuthScreenProps) {
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
-  const logoWidth = isWide ? 112 : 92;
+  const logoWidth = isWide ? 65 : 54;
 
   return (
     <View style={styles.screen}>

@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/constants/theme';
 import { loadProfile, saveProfile, type GoalId, type JourneyId } from '@/lib/profile';
 
-const LOGO_ASPECT = 873 / 530;
+const LOGO_ASPECT = 685 / 243;
 
 const journeys: { id: JourneyId; title: string; text: string }[] = [
   {
@@ -34,7 +34,7 @@ export default function WelcomeFlowScreen() {
   const saved = loadProfile();
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
-  const logoWidth = isWide ? 104 : 84;
+  const logoWidth = isWide ? 61 : 49;
   const [step, setStep] = useState(1);
   const [firstName, setFirstName] = useState(saved.firstName);
   const [journey, setJourney] = useState<JourneyId | null>(saved.journey);

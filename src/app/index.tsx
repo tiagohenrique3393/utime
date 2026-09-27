@@ -10,7 +10,7 @@ import { getSessionUserId } from '@/lib/accounts';
 import { isOnboardingComplete } from '@/lib/profile';
 import { consumeRecoveryRedirect, hasPendingRecovery } from '@/lib/session';
 
-const LOGO_ASPECT = 873 / 530;
+const LOGO_ASPECT = 685 / 243;
 
 const pillars = [
   { key: 'corpo', label: 'Corpo', icon: 'body' },
@@ -42,7 +42,7 @@ function PillarIcon({ name }: { name: (typeof pillars)[number]['icon'] }) {
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
-  const logoWidth = width < 360 ? 118 : isWide ? 186 : 146;
+  const logoWidth = width < 360 ? 69 : isWide ? 109 : 85;
   const resumeSession = getSessionUserId() !== null || hasPendingRecovery();
 
   useEffect(() => {
