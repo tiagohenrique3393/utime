@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,7 +23,7 @@ const weeks = [
   { title: 'Semana 5', range: 'Dias 29 a 30', days: [29, 30] },
 ] as const;
 
-const CHART_HEIGHT = 112;
+const CHART_HEIGHT = 128;
 const days = Array.from({ length: DAY_COUNT }, (_, index) => index + 1);
 
 function formatOverallPercent(value: number) {
@@ -50,6 +50,13 @@ export default function ProgressScreen() {
   const monthly = overallProgress(journey);
   const concluded = completedDayCount(journey);
   const hasProgress = dayPercents.some((percent) => percent > 0);
+  const [chosenDay, setChosenDay] = useState<number | null>(null);
+  const latestWithProgress = dayPercents.reduce(
+    (found, percent, index) => (percent > 0 ? index + 1 : found),
+    1,
+  );
+  const activeDay = chosenDay ?? latestWithProgress;
+  const activePercent = dayPercents[activeDay - 1] ?? 0;
 
   useEffect(() => {
     if (!getSessionUserId()) {
@@ -146,26 +153,56 @@ export default function ProgressScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Gráfico de evolução</Text>
               <View style={styles.card}>
-                <View style={styles.chart} accessibilityRole="image">
-                  {days.map((day, index) => {
-                    const percent = dayPercents[index];
-                    const height = percent === 0 ? 2 : Math.round((percent / 100) * CHART_HEIGHT);
-                    return (
-                      <View key={day} accessibilityLabel={`Dia ${day}, ${percent}%`} style={styles.barSlot}>
-                        <View
-                          style={[
-                            styles.bar,
-                            percent === 0 ? styles.barEmpty : styles.barFilled,
-                            { height },
-                          ]}
-                        />
-                      </View>
-                    );
-                  })}
+                <View style={styles.progressHeader}>
+                  <Text style={styles.weekTitle}>Dia {activeDay}</Text>
+                  <Text style={styles.progressValue}>{activePercent}%</Text>
                 </View>
-                <View style={styles.chartAxis}>
-                  <Text style={styles.axisLabel}>Dia 1</Text>
-                  <Text style={styles.axisLabel}>Dia 30</Text>
+                <View style={styles.chartBody}>
+                  <View style={styles.yAxis}>
+                    <Text style={[styles.yLabel, styles.yLabelTop]}>100%</Text>
+                    <Text style={[styles.yLabel, styles.yLabelMid]}>50%</Text>
+                    <Text style={[styles.yLabel, styles.yLabelBase]}>0%</Text>
+                  </View>
+                  <View style={styles.plot}>
+                    <View style={styles.guides}>
+                      <View style={[styles.guide, styles.guideTop]} />
+                      <View style={[styles.guide, styles.guideMid]} />
+                      <View style={[styles.guide, styles.guideBase]} />
+                    </View>
+                    <View style={styles.bars}>
+                      {days.map((day, index) => {
+                        const percent = dayPercents[index];
+                        const height = percent === 0 ? 2 : Math.round((percent / 100) * CHART_HEIGHT);
+                        const selected = day === activeDay;
+                        return (
+                          <Pressable
+                            key={day}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Dia ${day}, ${percent}%`}
+                            accessibilityState={{ selected }}
+                            onPress={() => setChosenDay(day)}
+                            style={[styles.barSlot, selected && styles.barSlotSelected]}>
+                            <View
+                              style={[
+                                styles.bar,
+                                percent === 0 ? styles.barEmpty : styles.barFilled,
+                                selected && percent === 0 && styles.barSelectedEmpty,
+                                { height },
+                              ]}
+                            />
+                            {selected ? <View style={styles.selectedDot} /> : null}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.chartAxisRow}>
+                  <View style={styles.yAxisSpacer} />
+                  <View style={styles.chartAxis}>
+                    <Text style={styles.axisLabel}>Dia 1</Text>
+                    <Text style={styles.axisLabel}>Dia 30</Text>
+                  </View>
                 </View>
                 {hasProgress ? null : (
                   <Text style={styles.emptyNote}>A evolução aparece conforme os dias forem preenchidos.</Text>
@@ -339,7 +376,66 @@ const styles = StyleSheet.create({
     fontFamily: fonts.text,
     fontSize: 14,
   },
-  chart: {
+  chartBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  yAxis: {
+    width: 36,
+    height: CHART_HEIGHT,
+    marginRight: 8,
+  },
+  yAxisSpacer: {
+    width: 44,
+  },
+  yLabel: {
+    position: 'absolute',
+    right: 0,
+    color: colors.muted,
+    fontFamily: fonts.text,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  yLabelTop: {
+    top: -7,
+  },
+  yLabelMid: {
+    top: CHART_HEIGHT / 2 - 7,
+  },
+  yLabelBase: {
+    bottom: -7,
+  },
+  plot: {
+    flex: 1,
+    height: CHART_HEIGHT,
+  },
+  guides: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    pointerEvents: 'none',
+  },
+  guide: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: colors.track,
+  },
+  guideTop: {
+    top: 0,
+  },
+  guideMid: {
+    top: CHART_HEIGHT / 2,
+  },
+  guideBase: {
+    bottom: 0,
+    backgroundColor: colors.line,
+  },
+  bars: {
+    flex: 1,
     height: CHART_HEIGHT,
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -350,6 +446,10 @@ const styles = StyleSheet.create({
     height: CHART_HEIGHT,
     justifyContent: 'flex-end',
     alignItems: 'center',
+    borderRadius: 3,
+  },
+  barSlotSelected: {
+    backgroundColor: 'rgba(17, 17, 17, 0.08)',
   },
   bar: {
     width: '70%',
@@ -363,8 +463,24 @@ const styles = StyleSheet.create({
   barEmpty: {
     backgroundColor: colors.iconBorder,
   },
+  barSelectedEmpty: {
+    backgroundColor: colors.ivory,
+  },
+  selectedDot: {
+    position: 'absolute',
+    bottom: -10,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.ivory,
+  },
+  chartAxisRow: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   chartAxis: {
-    marginTop: 10,
+    flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
