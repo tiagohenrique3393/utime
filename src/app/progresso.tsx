@@ -1,4 +1,4 @@
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,14 +7,24 @@ import { BottomNav } from '@/components/bottom-nav';
 import { colors, fonts } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import {
+  DAY_COUNT,
   completedDayCount,
+  dayProgress,
   overallProgress,
-  pillarStats,
-  pillars,
-  progressPercent,
-  useCompletedTaskIds,
   useJourneyBoard,
+  type JourneyBoard,
 } from '@/lib/tasks';
+
+const weeks = [
+  { title: 'Semana 1', range: 'Dias 1 a 7', days: [1, 2, 3, 4, 5, 6, 7] },
+  { title: 'Semana 2', range: 'Dias 8 a 14', days: [8, 9, 10, 11, 12, 13, 14] },
+  { title: 'Semana 3', range: 'Dias 15 a 21', days: [15, 16, 17, 18, 19, 20, 21] },
+  { title: 'Semana 4', range: 'Dias 22 a 28', days: [22, 23, 24, 25, 26, 27, 28] },
+  { title: 'Semana 5', range: 'Dias 29 a 30', days: [29, 30] },
+] as const;
+
+const CHART_HEIGHT = 112;
+const days = Array.from({ length: DAY_COUNT }, (_, index) => index + 1);
 
 function formatOverallPercent(value: number) {
   const rounded = Math.round(value * 10) / 10;
@@ -22,15 +32,24 @@ function formatOverallPercent(value: number) {
   return `${text}%`;
 }
 
+function averageOfDays(source: JourneyBoard, dayNumbers: readonly number[]) {
+  let total = 0;
+  for (const day of dayNumbers) {
+    total += dayProgress(source, day);
+  }
+  return Math.round((total / dayNumbers.length) * 10) / 10;
+}
+
 export default function ProgressScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
   const signedIn = getSessionUserId() !== null;
-  const completed = useCompletedTaskIds();
-  const today = progressPercent(completed.length);
   const journey = useJourneyBoard();
-  const general = overallProgress(journey);
+  const dayPercents = days.map((day) => dayProgress(journey, day));
+  const weekPercents = weeks.map((week) => averageOfDays(journey, week.days));
+  const monthly = overallProgress(journey);
   const concluded = completedDayCount(journey);
+  const hasProgress = dayPercents.some((percent) => percent > 0);
 
   useEffect(() => {
     if (!getSessionUserId()) {
@@ -61,57 +80,97 @@ export default function ProgressScreen() {
             <Text accessibilityRole="header" style={[styles.title, isWide && styles.titleWide]}>
               Progresso
             </Text>
-            <Text style={styles.lead}>O dia de hoje, os três pilares e a jornada de 30 dias.</Text>
+            <Text style={styles.lead}>Cada dia da jornada, as semanas e a média dos 30 dias.</Text>
 
-            <View style={styles.progressCard}>
-              <View style={styles.progressHeader}>
-                <Text style={styles.progressTitle}>Progresso de hoje</Text>
-                <Text style={styles.progressValue}>{today}%</Text>
-              </View>
-              <View style={styles.track}>
-                <View style={[styles.fill, { width: `${today}%` }]} />
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Progresso diário</Text>
+              <View style={styles.card}>
+                {days.map((day, index) => {
+                  const percent = dayPercents[index];
+                  return (
+                    <View
+                      key={day}
+                      accessibilityLabel={`Dia ${day}, ${percent}%`}
+                      style={styles.dayRow}>
+                      <Text style={styles.dayLabel}>Dia {day}</Text>
+                      <View style={[styles.track, styles.dayTrack]}>
+                        <View style={[styles.fill, { width: `${percent}%` }]} />
+                      </View>
+                      <Text style={styles.dayValue}>{percent}%</Text>
+                    </View>
+                  );
+                })}
               </View>
             </View>
 
-            <View style={[styles.pillars, isWide && styles.pillarsWide]}>
-              {pillars.map((pillar) => {
-                const stats = pillarStats(completed, pillar.id);
-                return (
-                  <Pressable
-                    key={pillar.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${pillar.label}, ${stats.percent}%, ${stats.done} de ${stats.total}`}
-                    onPress={() => router.push(`/pilar/${pillar.id}` as Href)}
-                    style={({ pressed }) => [
-                      styles.pillar,
-                      isWide && styles.pillarWide,
-                      pressed && styles.pressed,
-                    ]}>
-                    <View style={styles.pillarHeader}>
-                      <View style={styles.stem} />
-                      <Text style={styles.pillarLabel}>{pillar.label}</Text>
-                      <Text style={styles.pillarPercent}>{stats.percent}%</Text>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Progresso semanal</Text>
+              <View style={styles.card}>
+                {weeks.map((week, index) => {
+                  const percent = weekPercents[index];
+                  return (
+                    <View
+                      key={week.title}
+                      accessibilityLabel={`${week.title}, ${week.range}, ${formatOverallPercent(percent)}`}
+                      style={index > 0 ? styles.weekBlock : undefined}>
+                      <View style={styles.progressHeader}>
+                        <View style={styles.weekCopy}>
+                          <Text style={styles.weekTitle}>{week.title}</Text>
+                          <Text style={styles.weekRange}>{week.range}</Text>
+                        </View>
+                        <Text style={styles.progressValue}>{formatOverallPercent(percent)}</Text>
+                      </View>
+                      <View style={styles.track}>
+                        <View style={[styles.fill, { width: `${percent}%` }]} />
+                      </View>
                     </View>
-                    <View style={[styles.track, styles.pillarTrack]}>
-                      <View style={[styles.fill, { width: `${stats.percent}%` }]} />
-                    </View>
-                    <Text style={styles.pillarCount}>
-                      {stats.done} de {stats.total}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                  );
+                })}
+              </View>
             </View>
 
-            <View style={styles.progressCard}>
-              <View style={styles.progressHeader}>
-                <Text style={styles.progressTitle}>Progresso geral</Text>
-                <Text style={styles.progressValue}>{formatOverallPercent(general)}</Text>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Progresso mensal</Text>
+              <View style={styles.card}>
+                <View style={styles.progressHeader}>
+                  <Text style={styles.monthLabel}>Média dos 30 dias</Text>
+                  <Text style={styles.progressValue}>{formatOverallPercent(monthly)}</Text>
+                </View>
+                <View style={styles.track}>
+                  <View style={[styles.fill, { width: `${monthly}%` }]} />
+                </View>
+                <Text style={styles.count}>{concluded} de 30 dias concluídos</Text>
               </View>
-              <View style={styles.track}>
-                <View style={[styles.fill, { width: `${general}%` }]} />
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Gráfico de evolução</Text>
+              <View style={styles.card}>
+                <View style={styles.chart} accessibilityRole="image">
+                  {days.map((day, index) => {
+                    const percent = dayPercents[index];
+                    const height = percent === 0 ? 2 : Math.round((percent / 100) * CHART_HEIGHT);
+                    return (
+                      <View key={day} accessibilityLabel={`Dia ${day}, ${percent}%`} style={styles.barSlot}>
+                        <View
+                          style={[
+                            styles.bar,
+                            percent === 0 ? styles.barEmpty : styles.barFilled,
+                            { height },
+                          ]}
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
+                <View style={styles.chartAxis}>
+                  <Text style={styles.axisLabel}>Dia 1</Text>
+                  <Text style={styles.axisLabel}>Dia 30</Text>
+                </View>
+                {hasProgress ? null : (
+                  <Text style={styles.emptyNote}>A evolução aparece conforme os dias forem preenchidos.</Text>
+                )}
               </View>
-              <Text style={styles.count}>{concluded} de 30 dias concluídos</Text>
             </View>
           </View>
         </ScrollView>
@@ -188,25 +247,76 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
   },
-  progressCard: {
+  section: {
     marginTop: 28,
+  },
+  sectionTitle: {
+    marginBottom: 12,
+    color: colors.ivory,
+    fontFamily: fonts.text,
+    fontSize: 16,
+    letterSpacing: 0.2,
+  },
+  card: {
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     backgroundColor: colors.card,
     paddingHorizontal: 18,
-    paddingVertical: 18,
+    paddingVertical: 16,
+  },
+  dayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 7,
+  },
+  dayLabel: {
+    width: 52,
+    color: colors.ivory,
+    fontFamily: fonts.text,
+    fontSize: 14,
+  },
+  dayTrack: {
+    flex: 1,
+  },
+  dayValue: {
+    width: 44,
+    color: colors.ivory,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    textAlign: 'right',
+  },
+  weekBlock: {
+    marginTop: 18,
+  },
+  weekCopy: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  weekTitle: {
+    color: colors.ivory,
+    fontFamily: fonts.text,
+    fontSize: 15,
+  },
+  weekRange: {
+    marginTop: 2,
+    color: colors.muted,
+    fontFamily: fonts.text,
+    fontSize: 13,
   },
   progressHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  progressTitle: {
+  monthLabel: {
+    flex: 1,
     color: colors.muted,
     fontFamily: fonts.text,
     fontSize: 14,
+    paddingRight: 12,
   },
   progressValue: {
     color: colors.ivory,
@@ -229,56 +339,45 @@ const styles = StyleSheet.create({
     fontFamily: fonts.text,
     fontSize: 14,
   },
-  pillars: {
-    marginTop: 12,
-    gap: 12,
-  },
-  pillarsWide: {
+  chart: {
+    height: CHART_HEIGHT,
     flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 2,
   },
-  pillar: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.card,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-  },
-  pillarWide: {
+  barSlot: {
     flex: 1,
-  },
-  pillarHeader: {
-    flexDirection: 'row',
+    height: CHART_HEIGHT,
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 12,
   },
-  stem: {
-    width: 1,
-    height: 18,
-    backgroundColor: colors.gold,
+  bar: {
+    width: '70%',
+    minWidth: 2,
+    maxWidth: 10,
+    borderRadius: 2,
   },
-  pillarLabel: {
-    flex: 1,
-    color: colors.ivory,
-    fontFamily: fonts.text,
-    fontSize: 16,
-    letterSpacing: 0.4,
+  barFilled: {
+    backgroundColor: colors.ivory,
   },
-  pillarPercent: {
-    color: colors.ivory,
-    fontFamily: fonts.text,
-    fontSize: 14,
+  barEmpty: {
+    backgroundColor: colors.iconBorder,
   },
-  pillarTrack: {
-    marginTop: 14,
-  },
-  pillarCount: {
+  chartAxis: {
     marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  axisLabel: {
     color: colors.muted,
     fontFamily: fonts.text,
-    fontSize: 13,
+    fontSize: 12,
   },
-  pressed: {
-    opacity: 0.84,
+  emptyNote: {
+    marginTop: 14,
+    color: colors.muted,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
