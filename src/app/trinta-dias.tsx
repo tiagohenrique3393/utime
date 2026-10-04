@@ -24,10 +24,10 @@ const weeks = [
 ] as const;
 
 const statusStyle = {
-  green: { border: '#3E6B48', fill: '#E7F0E6', ink: '#245232' },
-  yellow: { border: '#8A6A1E', fill: '#F8F1DC', ink: '#6A5010' },
-  red: { border: '#8C4545', fill: '#F8E8E8', ink: '#7A3030' },
-  locked: { border: colors.cardBorder, fill: colors.card, ink: colors.muted },
+  green: { border: colors.ivory, fill: colors.card, ink: colors.ivory },
+  yellow: { border: colors.muted, fill: colors.card, ink: colors.muted },
+  red: { border: colors.iconBorder, fill: colors.card, ink: colors.iconBorder },
+  locked: { border: colors.cardBorder, fill: colors.background, ink: colors.muted },
 } as const;
 
 function goBack() {

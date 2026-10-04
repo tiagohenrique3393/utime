@@ -6,19 +6,19 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "youtime",
-    "userInterfaceStyle": "light",
-    "backgroundColor": "#F5F5F3",
-    "primaryColor": "#111111",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "primaryColor": "#FFFFFF",
     "ios": {
       "bundleIdentifier": "app.youtime.mobile",
       "supportsTablet": true,
-      "backgroundColor": "#F5F5F3",
-      "userInterfaceStyle": "light"
+      "backgroundColor": "#000000",
+      "userInterfaceStyle": "dark"
     },
     "android": {
       "package": "app.youtime.mobile",
-      "backgroundColor": "#F5F5F3",
-      "userInterfaceStyle": "light",
+      "backgroundColor": "#000000",
+      "userInterfaceStyle": "dark",
       "predictiveBackGestureEnabled": true,
       "adaptiveIcon": {
         "backgroundColor": "#09090B",
@@ -29,14 +29,14 @@
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png",
-      "backgroundColor": "#F5F5F3"
+      "backgroundColor": "#000000"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F5F5F3",
+          "backgroundColor": "#000000",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 120
         }

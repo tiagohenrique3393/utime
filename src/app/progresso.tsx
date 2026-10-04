@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   barSlotSelected: {
-    backgroundColor: 'rgba(17, 17, 17, 0.08)',
+    backgroundColor: colors.wash,
   },
   bar: {
     width: '70%',

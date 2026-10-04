@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     borderTopWidth: 1,
     borderTopColor: colors.cardBorder,
-    backgroundColor: colors.card,
+    backgroundColor: colors.background,
     paddingTop: 10,
     paddingHorizontal: 8,
   },

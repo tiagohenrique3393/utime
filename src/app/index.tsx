@@ -61,7 +61,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <SafeAreaView style={[styles.safe, isWide && styles.safeWide]}>
         <ScrollView
           style={styles.scroll}
