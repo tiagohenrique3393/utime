@@ -8,6 +8,7 @@ const tabs: { label: string; href: Href }[] = [
   { label: 'Início', href: '/inicio' },
   { label: 'Jornada', href: '/trinta-dias' },
   { label: 'Progresso', href: '/progresso' },
+  { label: 'Ranking', href: '/ranking' },
   { label: 'Perfil', href: '/perfil' },
 ];
 
@@ -67,7 +68,7 @@ const styles = StyleSheet.create({
   label: {
     color: colors.muted,
     fontFamily: fonts.text,
-    fontSize: 13,
+    fontSize: 12,
     letterSpacing: 0.2,
   },
   labelSelected: {
