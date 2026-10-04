@@ -143,12 +143,12 @@ as $$
     people.user_id,
     people.display_name,
     coalesce(totals.score, 0)::integer as score,
-    row_number() over (
-      order by coalesce(totals.score, 0) desc, people.display_name asc, people.user_id asc
+    rank() over (
+      order by coalesce(totals.score, 0) desc
     )::integer as rank_position
   from people
   left join totals on totals.user_id = people.user_id
-  order by rank_position;
+  order by rank_position, people.display_name asc, people.user_id asc;
 $$;
 
 revoke all on function public.utime_ranking() from public;
