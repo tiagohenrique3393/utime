@@ -112,6 +112,7 @@ export default function RankingScreen() {
               <View style={styles.summary}>
                 <Text style={styles.summaryLabel}>Sua posição</Text>
                 <Text style={styles.summaryValue}>
+                  {self.position === 1 ? '👑 ' : ''}
                   {self.position}º · {self.score} pts
                 </Text>
               </View>
@@ -135,7 +136,10 @@ export default function RankingScreen() {
                       accessibilityLabel={`${entry.position}º, ${entry.name}, ${entry.score} pontos${isSelf ? ', você' : ''}`}
                       accessibilityState={{ selected: isSelf }}
                       style={[styles.row, isSelf && styles.rowSelf]}>
-                      <Text style={[styles.position, isSelf && styles.onSelf]}>{entry.position}</Text>
+                      <View style={styles.place}>
+                        {entry.position === 1 ? <Text style={styles.crown}>👑</Text> : null}
+                        <Text style={[styles.position, isSelf && styles.onSelf]}>{entry.position}º</Text>
+                      </View>
                       <Text numberOfLines={1} style={[styles.name, isSelf && styles.onSelf]}>
                         {entry.name}
                       </Text>
@@ -291,8 +295,17 @@ const styles = StyleSheet.create({
     borderColor: colors.ivory,
     backgroundColor: colors.ivory,
   },
+  place: {
+    minWidth: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  crown: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
   position: {
-    width: 28,
     color: colors.muted,
     fontFamily: fonts.text,
     fontSize: 15,

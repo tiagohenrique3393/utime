@@ -3,9 +3,11 @@
 -- The function only reads those tables and returns name, score, and position.
 --
 -- Score, kept in step with src/lib/score.ts:
---   10 points per known habit completed
--- The same habit on the same day counts once. Unchecking removes those points.
--- This is not the personal progress percentage.
+--   10 points per habit saved in journey_days.completed_task_ids.
+--   The same id on the same day counts once.
+--   If that list is empty, the stored progress_percent still records how many
+--   of the 15 habits were completed. That count is used so a finished day
+--   cannot stay at 0. The score is the point total, not the percentage.
 
 create or replace function public.utime_ranking()
 returns table (
@@ -19,25 +21,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  with known(id) as (
-    values
-      ('manha-agradecimento'),
-      ('manha-banho'),
-      ('manha-cafe'),
-      ('manha-leitura'),
-      ('manha-agua'),
-      ('tarde-almoco'),
-      ('tarde-atividade'),
-      ('tarde-lanche'),
-      ('tarde-assistir'),
-      ('tarde-agua'),
-      ('noite-jantar'),
-      ('noite-agua'),
-      ('noite-leitura'),
-      ('noite-ceia'),
-      ('noite-oracao')
-  ),
-  people as (
+  with people as (
     select
       p.user_id,
       coalesce(nullif(btrim(p.first_name), ''), 'Sem nome') as display_name
@@ -47,7 +31,8 @@ as $$
     select
       people.user_id,
       gs.day_number,
-      coalesce(j.completed_task_ids, '{}'::text[]) as ids
+      coalesce(j.completed_task_ids, '{}'::text[]) as ids,
+      coalesce(j.progress_percent, 0) as progress_percent
     from people
     cross join generate_series(1, 30) as gs(day_number)
     left join public.journey_days j
@@ -58,10 +43,13 @@ as $$
     select
       d.user_id,
       d.day_number,
-      (
-        select count(distinct task_id)::integer
-        from unnest(d.ids) as task_id
-        where task_id in (select known.id from known)
+      greatest(
+        (
+          select count(distinct btrim(task_id))::integer
+          from unnest(d.ids) as task_id
+          where btrim(task_id) <> ''
+        ),
+        round(d.progress_percent * 15 / 100.0)::integer
       ) as habits
     from days d
   ),
