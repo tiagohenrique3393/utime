@@ -546,6 +546,10 @@ export function pushJourney(userId: string) {
   return journeyPush ?? Promise.resolve();
 }
 
+export function flushJourneyPush() {
+  return journeyPush ?? Promise.resolve();
+}
+
 function scheduleJourneyPush() {
   const userId = ownerId;
   if (!userId) {

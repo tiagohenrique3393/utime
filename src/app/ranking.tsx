@@ -7,7 +7,7 @@ import { BottomNav } from '@/components/bottom-nav';
 import { colors, fonts } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import { fetchRanking, rankingErrorMessage, type RankingEntry } from '@/lib/ranking';
-import { pushJourney } from '@/lib/tasks';
+import { flushJourneyPush } from '@/lib/tasks';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -34,14 +34,10 @@ export default function RankingScreen() {
     setLoadState('loading');
     setNotice('');
     try {
-      await pushJourney(userId);
-    } catch {
-      // The list still reads the scores already stored for each account.
-    }
-    if (!activeRef.current) {
-      return;
-    }
-    try {
+      await flushJourneyPush();
+      if (!activeRef.current) {
+        return;
+      }
       const next = await fetchRanking();
       if (!activeRef.current) {
         return;
