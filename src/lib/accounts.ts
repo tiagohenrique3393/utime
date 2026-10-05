@@ -151,13 +151,10 @@ export async function signInWithEmail(email: string, password: string): Promise<
   }
 
   try {
-    const { data, error } = await withDeadline(
-      supabase.auth.signInWithPassword({
-        email: normalized,
-        password,
-      }),
-      15000,
-    );
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalized,
+      password,
+    });
 
     if (error || !data.session) {
       return { ok: false, message: authErrorMessage(error?.message ?? 'invalid credentials') };

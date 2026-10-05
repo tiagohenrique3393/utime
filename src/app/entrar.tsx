@@ -1,29 +1,11 @@
 import { router } from 'expo-router';
-import { useRef, useState, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AuthNotice, AuthScreen } from '@/components/auth-screen';
 import { colors, fonts } from '@/constants/theme';
 import { signInWithEmail, signInWithGoogle } from '@/lib/accounts';
 import { isOnboardingComplete } from '@/lib/profile';
-
-function LoginFields({ onSubmit, children }: { onSubmit: () => void; children: ReactNode }) {
-  if (Platform.OS !== 'web') {
-    return <>{children}</>;
-  }
-
-  return (
-    <form
-      noValidate
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSubmit();
-      }}
-      style={{ display: 'contents' }}>
-      {children}
-    </form>
-  );
-}
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
@@ -82,7 +64,6 @@ export default function SignInScreen() {
         <View style={styles.dividerLine} />
       </View>
 
-      <LoginFields onSubmit={handleSubmit}>
       <Text style={styles.label}>E-mail</Text>
       <TextInput
         value={email}
@@ -130,7 +111,6 @@ export default function SignInScreen() {
         style={({ pressed }) => [styles.primary, pressed && styles.pressed, submitting && styles.pressed]}>
         <Text style={styles.primaryLabel}>{submitting ? 'Entrando...' : 'Entrar'}</Text>
       </Pressable>
-      </LoginFields>
 
       <Pressable
         accessibilityRole="button"

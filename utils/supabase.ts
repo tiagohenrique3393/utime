@@ -1,24 +1,44 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { createClient } from '@supabase/supabase-js'
 
+const memory = new Map<string, string>()
+
 const storage = {
-  getItem: (key: string) => {
+  getItem: async (key: string) => {
     if (typeof window === 'undefined') {
-      return Promise.resolve(null)
+      return null
     }
-    return AsyncStorage.getItem(key)
+    try {
+      const value = await AsyncStorage.getItem(key)
+      if (value != null) {
+        return value
+      }
+    } catch {
+      // No celular, o armazenamento do navegador pode falhar. A sessão desta aba fica na memória.
+    }
+    return memory.get(key) ?? null
   },
-  setItem: (key: string, value: string) => {
+  setItem: async (key: string, value: string) => {
+    memory.set(key, value)
     if (typeof window === 'undefined') {
-      return Promise.resolve()
+      return
     }
-    return AsyncStorage.setItem(key, value)
+    try {
+      await AsyncStorage.setItem(key, value)
+    } catch {
+      // Mantém a sessão na memória quando o navegador recusa o armazenamento.
+    }
   },
-  removeItem: (key: string) => {
+  removeItem: async (key: string) => {
+    memory.delete(key)
     if (typeof window === 'undefined') {
-      return Promise.resolve()
+      return
     }
-    return AsyncStorage.removeItem(key)
+    try {
+      await AsyncStorage.removeItem(key)
+    } catch {
+      // A chave já foi removida da memória.
+    }
   },
 }
 
