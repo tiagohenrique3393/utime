@@ -159,7 +159,7 @@ export async function requestPasswordReset(email: string): Promise<AuthResult> {
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(normalized, {
-    redirectTo: appRedirect('/redefinir-senha'),
+    redirectTo: 'https://utime.app.br/redefinir-senha',
   });
 
   if (error) {

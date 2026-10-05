@@ -3,7 +3,29 @@ import * as Linking from 'expo-linking';
 import { supabase } from '../../utils/supabase';
 import { applySessionOwner } from '@/lib/accounts';
 
+const RECOVERY_URL_KEY = 'utime.recovery-url';
+
 let pendingRecovery = false;
+
+function readStashedRecoveryUrl() {
+  if (typeof sessionStorage === 'undefined') {
+    return null;
+  }
+  const value = sessionStorage.getItem(RECOVERY_URL_KEY);
+  if (!value) {
+    return null;
+  }
+  sessionStorage.removeItem(RECOVERY_URL_KEY);
+  return value;
+}
+
+function isRecoveryUrl(url: string, hash: URLSearchParams, query: URLSearchParams) {
+  return (
+    hash.get('type') === 'recovery' ||
+    query.get('type') === 'recovery' ||
+    url.includes('/redefinir-senha')
+  );
+}
 
 function readParams(url: string) {
   const hashStart = url.indexOf('#');
@@ -29,7 +51,21 @@ export async function establishSessionFromUrl(url: string) {
     if (error || !data.session) {
       return false;
     }
-    pendingRecovery = hash.get('type') === 'recovery';
+    pendingRecovery = isRecoveryUrl(url, hash, query);
+    await applySessionOwner(data.session.user.id);
+    return true;
+  }
+
+  const tokenHash = query.get('token_hash');
+  if (tokenHash && query.get('type') === 'recovery') {
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: 'recovery',
+    });
+    if (error || !data.session) {
+      return false;
+    }
+    pendingRecovery = true;
     await applySessionOwner(data.session.user.id);
     return true;
   }
@@ -42,7 +78,7 @@ export async function establishSessionFromUrl(url: string) {
   if (error || !data.session) {
     return false;
   }
-  pendingRecovery = query.get('type') === 'recovery';
+  pendingRecovery = isRecoveryUrl(url, hash, query);
   await applySessionOwner(data.session.user.id);
   return true;
 }
@@ -62,20 +98,23 @@ export function consumeRecoveryRedirect() {
 }
 
 async function captureSessionFromUrl() {
+  const stashed = readStashedRecoveryUrl();
   if (typeof window === 'undefined') {
-    const initialUrl = await Linking.getInitialURL();
+    const initialUrl = stashed ?? (await Linking.getInitialURL());
     return initialUrl ? establishSessionFromUrl(initialUrl) : false;
   }
 
-  const established = await establishSessionFromUrl(window.location.href);
+  const established = await establishSessionFromUrl(stashed ?? window.location.href);
   if (!established) {
     return false;
   }
   const query = new URLSearchParams(window.location.search);
   query.delete('code');
   query.delete('type');
+  query.delete('token_hash');
   const nextQuery = query.toString();
-  window.history.replaceState(null, '', `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}`);
+  const path = window.location.pathname === '/redefinir-senha' ? '/redefinir-senha' : window.location.pathname;
+  window.history.replaceState(null, '', `${path}${nextQuery ? `?${nextQuery}` : ''}`);
   return true;
 }
 
