@@ -32,8 +32,21 @@ export default function SignInScreen() {
     }
     submittingRef.current = true;
     setSubmitting(true);
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     try {
-      const result = await signInWithEmail(email, password);
+      const result = await Promise.race([
+        signInWithEmail(email, password),
+        new Promise<Awaited<ReturnType<typeof signInWithEmail>>>((resolve) => {
+          setTimeout(() => {
+            resolve({
+              ok: false,
+              message: 'Não foi possível concluir agora. Tente novamente.',
+            });
+          }, 26000);
+        }),
+      ]);
       if (!result.ok || result.next !== 'app') {
         setNotice({ message: result.message, positive: false });
         return;

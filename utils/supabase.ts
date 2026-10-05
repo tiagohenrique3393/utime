@@ -68,10 +68,23 @@ function supabaseKey() {
   )
 }
 
+function fetchWithTokenTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  if (!url.includes('/auth/v1/token')) {
+    return fetch(input, init)
+  }
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 10000)
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
+}
+
 export const supabase = createClient(
   supabaseUrl(),
   supabaseKey(),
   {
+    global: {
+      fetch: fetchWithTokenTimeout,
+    },
     auth: {
       storage,
       autoRefreshToken: true,

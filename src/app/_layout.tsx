@@ -53,7 +53,10 @@ export default function RootLayout() {
       if (event === 'INITIAL_SESSION') {
         return;
       }
-      applySessionOwner(session?.user.id ?? null);
+      const userId = session?.user.id ?? null;
+      setTimeout(() => {
+        void applySessionOwner(userId);
+      }, 0);
     });
     return () => {
       active = false;

@@ -151,20 +151,69 @@ export async function signInWithEmail(email: string, password: string): Promise<
   }
 
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalized,
-      password,
-    });
+    const first = await withDeadline(
+      supabase.auth.signInWithPassword({
+        email: normalized,
+        password,
+      }),
+      10000,
+    ).catch(() => null);
 
-    if (error || !data.session) {
-      return { ok: false, message: authErrorMessage(error?.message ?? 'invalid credentials') };
+    const result =
+      first && !isTransientAuthError(first.error?.message) ? first : await withDeadline(
+        supabase.auth.signInWithPassword({
+          email: normalized,
+          password,
+        }),
+        10000,
+      );
+
+    if (result.error || !result.data.session) {
+      if (isTransientAuthError(result.error?.message)) {
+        const recovered = await recoverSessionAfterHang();
+        if (recovered) {
+          return recovered;
+        }
+      }
+      return { ok: false, message: authErrorMessage(result.error?.message ?? 'invalid credentials') };
     }
 
-    await withDeadline(Promise.resolve(applySessionOwner(data.user?.id ?? null)), 8000).catch(() => undefined);
+    await withDeadline(Promise.resolve(applySessionOwner(result.data.user?.id ?? null)), 4000).catch(() => undefined);
     return { ok: true, next: 'app', message: 'Entrada confirmada.' };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    return { ok: false, message: authErrorMessage(message || 'timeout') };
+  } catch {
+    const recovered = await recoverSessionAfterHang();
+    if (recovered) {
+      return recovered;
+    }
+    return { ok: false, message: authErrorMessage('timeout') };
+  }
+}
+
+function isTransientAuthError(message: string | undefined) {
+  if (!message) {
+    return false;
+  }
+  const text = message.toLowerCase();
+  return (
+    text.includes('timeout') ||
+    text.includes('abort') ||
+    text.includes('fetch') ||
+    text.includes('load failed') ||
+    text.includes('network')
+  );
+}
+
+async function recoverSessionAfterHang(): Promise<AuthResult | null> {
+  try {
+    const { data } = await withDeadline(supabase.auth.getSession(), 2000);
+    const userId = data.session?.user.id;
+    if (!userId) {
+      return null;
+    }
+    await withDeadline(Promise.resolve(applySessionOwner(userId)), 2000).catch(() => undefined);
+    return { ok: true, next: 'app', message: 'Entrada confirmada.' };
+  } catch {
+    return null;
   }
 }
 
