@@ -42,7 +42,7 @@ Crie um arquivo `.env.local` na raiz (ele não entra no Git):
 
 ```bash
 EXPO_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
-EXPO_PUBLIC_SUPABASE_KEY=sua-chave-publicavel
+EXPO_PUBLIC_SUPABASE_ANON_KEY=sua-chave-publicavel
 ```
 
 Use a chave publicável do projeto, nunca a chave secreta. No painel do Supabase, em Authentication → URL Configuration, inclua o endereço em que o app está aberto para os links de confirmação e de nova senha abrirem o YouTime.
