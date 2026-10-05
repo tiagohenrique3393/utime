@@ -22,9 +22,35 @@ const storage = {
   },
 }
 
+const PROJECT_URL = 'https://svsxqpejzqejcvlshost.supabase.co'
+const STALE_HOST = 'crqxzqilnhghhctwnvta.supabase.co'
+
+function supabaseUrl() {
+  const configured = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim()
+  if (!configured) {
+    return PROJECT_URL
+  }
+  try {
+    if (new URL(configured).hostname === STALE_HOST) {
+      return PROJECT_URL
+    }
+  } catch {
+    return PROJECT_URL
+  }
+  return configured.replace(/\/$/, '')
+}
+
+function supabaseKey() {
+  return (
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.EXPO_PUBLIC_SUPABASE_KEY ||
+    ''
+  )
+}
+
 export const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL!,
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+  supabaseUrl(),
+  supabaseKey(),
   {
     auth: {
       storage,
