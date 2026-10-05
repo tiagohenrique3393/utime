@@ -1,16 +1,36 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRef, useState, type ReactNode } from 'react';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AuthNotice, AuthScreen } from '@/components/auth-screen';
 import { colors, fonts } from '@/constants/theme';
 import { signInWithEmail, signInWithGoogle } from '@/lib/accounts';
 import { isOnboardingComplete } from '@/lib/profile';
 
+function LoginFields({ onSubmit, children }: { onSubmit: () => void; children: ReactNode }) {
+  if (Platform.OS !== 'web') {
+    return <>{children}</>;
+  }
+
+  return (
+    <form
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+      style={{ display: 'contents' }}>
+      {children}
+    </form>
+  );
+}
+
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [notice, setNotice] = useState<{ message: string; positive: boolean } | null>(null);
 
   async function handleGoogle() {
@@ -25,12 +45,24 @@ export default function SignInScreen() {
   }
 
   async function handleSubmit() {
-    const result = await signInWithEmail(email, password);
-    if (!result.ok || result.next !== 'app') {
-      setNotice({ message: result.message, positive: false });
+    if (submittingRef.current) {
       return;
     }
-    router.push(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      const result = await signInWithEmail(email, password);
+      if (!result.ok || result.next !== 'app') {
+        setNotice({ message: result.message, positive: false });
+        return;
+      }
+      router.replace(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
+    } catch {
+      setNotice({ message: 'Não foi possível concluir agora. Tente novamente.', positive: false });
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -50,6 +82,7 @@ export default function SignInScreen() {
         <View style={styles.dividerLine} />
       </View>
 
+      <LoginFields onSubmit={handleSubmit}>
       <Text style={styles.label}>E-mail</Text>
       <TextInput
         value={email}
@@ -92,10 +125,12 @@ export default function SignInScreen() {
 
       <Pressable
         accessibilityRole="button"
+        disabled={submitting}
         onPress={handleSubmit}
-        style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
-        <Text style={styles.primaryLabel}>Entrar</Text>
+        style={({ pressed }) => [styles.primary, pressed && styles.pressed, submitting && styles.pressed]}>
+        <Text style={styles.primaryLabel}>{submitting ? 'Entrando...' : 'Entrar'}</Text>
       </Pressable>
+      </LoginFields>
 
       <Pressable
         accessibilityRole="button"

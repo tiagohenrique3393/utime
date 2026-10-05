@@ -123,6 +123,22 @@ export async function signUpWithEmail(email: string, password: string): Promise<
   return { ok: true, next: 'app', message: 'Conta criada.' };
 }
 
+function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export async function signInWithEmail(email: string, password: string): Promise<AuthResult> {
   const normalized = normalizeEmail(email);
 
@@ -134,17 +150,25 @@ export async function signInWithEmail(email: string, password: string): Promise<
     return { ok: false, message: 'A senha precisa ter ao menos 6 caracteres.' };
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: normalized,
-    password,
-  });
+  try {
+    const { data, error } = await withDeadline(
+      supabase.auth.signInWithPassword({
+        email: normalized,
+        password,
+      }),
+      15000,
+    );
 
-  if (error || !data.session) {
-    return { ok: false, message: authErrorMessage(error?.message ?? 'invalid credentials') };
+    if (error || !data.session) {
+      return { ok: false, message: authErrorMessage(error?.message ?? 'invalid credentials') };
+    }
+
+    await withDeadline(Promise.resolve(applySessionOwner(data.user?.id ?? null)), 8000).catch(() => undefined);
+    return { ok: true, next: 'app', message: 'Entrada confirmada.' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    return { ok: false, message: authErrorMessage(message || 'timeout') };
   }
-
-  await applySessionOwner(data.user?.id ?? null);
-  return { ok: true, next: 'app', message: 'Entrada confirmada.' };
 }
 
 function supabaseErrorText(error: { message: string; code?: string }) {
