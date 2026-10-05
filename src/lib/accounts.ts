@@ -123,22 +123,6 @@ export async function signUpWithEmail(email: string, password: string): Promise<
   return { ok: true, next: 'app', message: 'Conta criada.' };
 }
 
-function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timeout')), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error: unknown) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
 export async function signInWithEmail(email: string, password: string): Promise<AuthResult> {
   const normalized = normalizeEmail(email);
 
@@ -150,71 +134,23 @@ export async function signInWithEmail(email: string, password: string): Promise<
     return { ok: false, message: 'A senha precisa ter ao menos 6 caracteres.' };
   }
 
-  try {
-    const first = await withDeadline(
-      supabase.auth.signInWithPassword({
-        email: normalized,
-        password,
-      }),
-      10000,
-    ).catch(() => null);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalized,
+    password,
+  });
 
-    const result =
-      first && !isTransientAuthError(first.error?.message) ? first : await withDeadline(
-        supabase.auth.signInWithPassword({
-          email: normalized,
-          password,
-        }),
-        10000,
-      );
-
-    if (result.error || !result.data.session) {
-      if (isTransientAuthError(result.error?.message)) {
-        const recovered = await recoverSessionAfterHang();
-        if (recovered) {
-          return recovered;
-        }
-      }
-      return { ok: false, message: authErrorMessage(result.error?.message ?? 'invalid credentials') };
-    }
-
-    await withDeadline(Promise.resolve(applySessionOwner(result.data.user?.id ?? null)), 4000).catch(() => undefined);
-    return { ok: true, next: 'app', message: 'Entrada confirmada.' };
-  } catch {
-    const recovered = await recoverSessionAfterHang();
-    if (recovered) {
-      return recovered;
-    }
-    return { ok: false, message: authErrorMessage('timeout') };
+  if (error) {
+    const mapped = authErrorMessage(error.message);
+    const message = mapped === 'Não foi possível concluir agora. Tente novamente.' ? error.message : mapped;
+    return { ok: false, message };
   }
-}
 
-function isTransientAuthError(message: string | undefined) {
-  if (!message) {
-    return false;
+  if (!data.session) {
+    return { ok: false, message: 'A entrada não criou uma sessão. Tente novamente.' };
   }
-  const text = message.toLowerCase();
-  return (
-    text.includes('timeout') ||
-    text.includes('abort') ||
-    text.includes('fetch') ||
-    text.includes('load failed') ||
-    text.includes('network')
-  );
-}
 
-async function recoverSessionAfterHang(): Promise<AuthResult | null> {
-  try {
-    const { data } = await withDeadline(supabase.auth.getSession(), 2000);
-    const userId = data.session?.user.id;
-    if (!userId) {
-      return null;
-    }
-    await withDeadline(Promise.resolve(applySessionOwner(userId)), 2000).catch(() => undefined);
-    return { ok: true, next: 'app', message: 'Entrada confirmada.' };
-  } catch {
-    return null;
-  }
+  await applySessionOwner(data.user?.id ?? null);
+  return { ok: true, next: 'app', message: 'Entrada confirmada.' };
 }
 
 function supabaseErrorText(error: { message: string; code?: string }) {

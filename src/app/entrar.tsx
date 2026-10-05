@@ -32,28 +32,16 @@ export default function SignInScreen() {
     }
     submittingRef.current = true;
     setSubmitting(true);
-    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
     try {
-      const result = await Promise.race([
-        signInWithEmail(email, password),
-        new Promise<Awaited<ReturnType<typeof signInWithEmail>>>((resolve) => {
-          setTimeout(() => {
-            resolve({
-              ok: false,
-              message: 'Não foi possível concluir agora. Tente novamente.',
-            });
-          }, 26000);
-        }),
-      ]);
+      const result = await signInWithEmail(email, password);
       if (!result.ok || result.next !== 'app') {
         setNotice({ message: result.message, positive: false });
         return;
       }
       router.replace(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
-    } catch {
-      setNotice({ message: 'Não foi possível concluir agora. Tente novamente.', positive: false });
+    } catch (error) {
+      const message = error instanceof Error && error.message ? error.message : 'Não foi possível concluir agora. Tente novamente.';
+      setNotice({ message, positive: false });
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
