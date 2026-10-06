@@ -1,7 +1,7 @@
 import { Image, type ImageStyle } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { createElement, useEffect, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,6 +11,10 @@ import { isOnboardingComplete } from '@/lib/profile';
 import { consumeRecoveryRedirect, hasPendingRecovery } from '@/lib/session';
 
 const LOGO_ASPECT = 685 / 243;
+const VB_W = 480;
+const VB_H = 230;
+const CREST = 18;
+const RISE = 62;
 
 const ink = {
   background: '#050505',
@@ -19,45 +23,149 @@ const ink = {
   buttonText: '#161412',
 };
 
-function Horizon() {
-  const { width } = useWindowDimensions();
-  const rise = 12;
-  const span = Math.max(width, 320);
-  const radius = (span * span) / (8 * rise) + rise / 2;
-  const diameter = radius * 2;
-  const limbGlow = Platform.OS === 'web'
-    ? ({
-        backgroundColor: ink.background,
-        backgroundImage:
-          'radial-gradient(150px 34px at 50% -8px, rgba(245,241,234,0.2) 0%, rgba(232,201,155,0.09) 32%, rgba(232,201,155,0.035) 58%, rgba(232,201,155,0) 76%), radial-gradient(280px 22px at 50% 0px, rgba(232,201,155,0.055) 0%, rgba(232,201,155,0) 70%)',
-      } as unknown as ViewStyle)
-    : { backgroundColor: ink.background };
+function node(type: string, props: Record<string, unknown> | null, ...children: ReactNode[]) {
+  return createElement(type, props, ...children);
+}
+
+function Planet({ height }: { height: number }) {
+  const half = VB_W / 2;
+  const radius = (half * half + RISE * RISE) / (2 * RISE);
+  const cy = CREST + radius;
+
+  if (Platform.OS !== 'web') {
+    return <View style={{ height, width: '100%' }} />;
+  }
 
   return (
-    <View pointerEvents="none" style={styles.horizon}>
-      <View
-        style={[
-          styles.planet,
-          limbGlow,
-          {
-            width: diameter,
-            height: diameter,
-            borderRadius: radius,
-            transform: [{ translateX: -radius }],
-          },
-        ]}
-      />
-      {Platform.OS === 'web' ? <View style={styles.corona} /> : <View style={styles.coronaNative} />}
-      <View style={styles.pointHalo} />
-      <View style={styles.point} />
+    <View pointerEvents="none" style={[styles.planetSlot, { height }]}>
+      {node(
+        'svg',
+        {
+          viewBox: `0 0 ${VB_W} ${VB_H}`,
+          width: '100%',
+          height: '100%',
+          preserveAspectRatio: 'xMidYMin meet',
+        },
+        node(
+          'defs',
+          null,
+          node(
+            'radialGradient',
+            { id: 'utime-surf', cx: '50%', cy: '0%', r: '78%' },
+            node('stop', { offset: '0%', stopColor: '#1c1914' }),
+            node('stop', { offset: '22%', stopColor: '#12110e' }),
+            node('stop', { offset: '58%', stopColor: '#080808' }),
+            node('stop', { offset: '100%', stopColor: '#050505' }),
+          ),
+          node(
+            'linearGradient',
+            { id: 'utime-rim', x1: '0', y1: '0', x2: '1', y2: '0' },
+            node('stop', { offset: '0%', stopColor: '#E8C99B', stopOpacity: '0' }),
+            node('stop', { offset: '30%', stopColor: '#E8C99B', stopOpacity: '0.28' }),
+            node('stop', { offset: '50%', stopColor: '#F6EFE2', stopOpacity: '0.95' }),
+            node('stop', { offset: '70%', stopColor: '#E8C99B', stopOpacity: '0.28' }),
+            node('stop', { offset: '100%', stopColor: '#E8C99B', stopOpacity: '0' }),
+          ),
+          node(
+            'radialGradient',
+            { id: 'utime-sun', cx: '50%', cy: '50%', r: '50%' },
+            node('stop', { offset: '0%', stopColor: '#F7F1E6', stopOpacity: '0.95' }),
+            node('stop', { offset: '16%', stopColor: '#E8C99B', stopOpacity: '0.55' }),
+            node('stop', { offset: '46%', stopColor: '#E8C99B', stopOpacity: '0.12' }),
+            node('stop', { offset: '100%', stopColor: '#E8C99B', stopOpacity: '0' }),
+          ),
+          node(
+            'filter',
+            { id: 'utime-grain', x: '-20%', y: '-20%', width: '140%', height: '140%' },
+            node('feTurbulence', {
+              type: 'fractalNoise',
+              baseFrequency: '0.85',
+              numOctaves: '2',
+              result: 'noise',
+            }),
+            node('feColorMatrix', {
+              type: 'matrix',
+              values: '0 0 0 0 0.08  0 0 0 0 0.07  0 0 0 0 0.05  0 0 0 0.05 0',
+            }),
+          ),
+          node(
+            'linearGradient',
+            { id: 'utime-sides', x1: '0', y1: '0', x2: '1', y2: '0' },
+            node('stop', { offset: '0%', stopColor: '#050505' }),
+            node('stop', { offset: '10%', stopColor: '#050505', stopOpacity: '0.82' }),
+            node('stop', { offset: '24%', stopColor: '#050505', stopOpacity: '0' }),
+            node('stop', { offset: '76%', stopColor: '#050505', stopOpacity: '0' }),
+            node('stop', { offset: '90%', stopColor: '#050505', stopOpacity: '0.82' }),
+            node('stop', { offset: '100%', stopColor: '#050505' }),
+          ),
+          node(
+            'linearGradient',
+            { id: 'utime-down', x1: '0', y1: '0', x2: '0', y2: '1' },
+            node('stop', { offset: '0%', stopColor: '#050505', stopOpacity: '0' }),
+            node('stop', { offset: '100%', stopColor: '#050505' }),
+          ),
+          node(
+            'filter',
+            { id: 'utime-glow', x: '-40%', y: '-80%', width: '180%', height: '260%' },
+            node('feGaussianBlur', { stdDeviation: '2.2' }),
+          ),
+        ),
+        node('circle', { cx: half, cy, r: radius, fill: 'url(#utime-surf)' }),
+        node('circle', {
+          cx: half,
+          cy,
+          r: radius,
+          fill: '#000',
+          filter: 'url(#utime-grain)',
+          opacity: 0.55,
+        }),
+        node('rect', { x: 0, y: 0, width: VB_W, height: VB_H, fill: 'url(#utime-sides)' }),
+        node('rect', { x: 0, y: 78, width: VB_W, height: VB_H - 78, fill: 'url(#utime-down)' }),
+        node('circle', {
+          cx: half,
+          cy,
+          r: radius,
+          fill: 'none',
+          stroke: 'url(#utime-rim)',
+          strokeWidth: 6,
+          filter: 'url(#utime-glow)',
+          opacity: 0.85,
+        }),
+        node('circle', {
+          cx: half,
+          cy,
+          r: radius,
+          fill: 'none',
+          stroke: 'url(#utime-rim)',
+          strokeWidth: 1.15,
+        }),
+        node('ellipse', {
+          cx: half,
+          cy: CREST + 1,
+          rx: 78,
+          ry: 16,
+          fill: 'url(#utime-sun)',
+          filter: 'url(#utime-glow)',
+        }),
+        node('ellipse', {
+          cx: half,
+          cy: CREST + 0.5,
+          rx: 18,
+          ry: 4.5,
+          fill: '#F4E7CF',
+          opacity: 0.85,
+        }),
+      )}
     </View>
   );
 }
 
 export default function HomeScreen() {
-  const { height } = useWindowDimensions();
-  const isShort = height < 700;
-  const logoWidth = isShort ? 62 : 74;
+  const { width, height } = useWindowDimensions();
+  const isShort = height < 740;
+  const frameWidth = Math.min(width, width >= 840 ? 470 : width);
+  const logoWidth = isShort ? 56 : Math.min(72, frameWidth * 0.18);
+  const planetHeight = Math.round(Math.min(frameWidth * 0.46, isShort ? 150 : 210));
   const resumeSession = getSessionUserId() !== null || hasPendingRecovery();
 
   useEffect(() => {
@@ -76,40 +184,47 @@ export default function HomeScreen() {
 
   const logoStyle: ImageStyle = Platform.OS === 'web'
     ? ({
-        width: 'clamp(60px, 16vw, 78px)',
-        height: `calc(clamp(60px, 16vw, 78px) * ${LOGO_ASPECT})`,
+        width: 'clamp(56px, 16vw, 74px)',
+        height: `calc(clamp(56px, 16vw, 74px) * ${LOGO_ASPECT})`,
       } as unknown as ImageStyle)
     : { width: logoWidth, height: logoWidth * LOGO_ASPECT };
 
   return (
     <View style={styles.screen}>
       <StatusBar style="light" />
+      <View pointerEvents="none" style={styles.ambient} />
       <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
         <View style={styles.stage}>
-          <View style={[styles.cluster, isShort && styles.clusterShort]}>
-            <Image
-              accessibilityLabel="YouTime"
-              source={require('@/assets/youtime-logo.png')}
-              style={logoStyle}
-              contentFit="contain"
-            />
-            <View style={styles.inscription}>
-              <Text style={styles.line}>DISCIPLINA NO HOJE.</Text>
-              <Text style={styles.line}>CONSTÂNCIA NO CAMINHO.</Text>
+          <View style={[styles.frame, { maxWidth: frameWidth }]}>
+            <View style={[styles.lit, isShort && styles.litShort]}>
+              <View pointerEvents="none" style={styles.beamGlow} />
+              <View pointerEvents="none" style={styles.beam} />
+              <Image
+                accessibilityLabel="YouTime"
+                source={require('@/assets/youtime-logo.png')}
+                style={[logoStyle, styles.logo]}
+                contentFit="contain"
+              />
+              <View style={styles.inscription}>
+                <Text style={styles.line}>DISCIPLINA NO HOJE.</Text>
+                <Text style={styles.line}>CONSTÂNCIA NO CAMINHO.</Text>
+              </View>
+              <View style={styles.beforeHorizon} />
             </View>
-            <Horizon />
-          </View>
 
-          <View style={styles.breath} />
+            <Planet height={planetHeight} />
 
-          <View style={styles.buttonSlot}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Iniciar minha jornada"
-              onPress={() => router.push('/cadastro')}
-              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
-              <Text style={styles.buttonLabel}>INICIAR MINHA JORNADA →</Text>
-            </Pressable>
+            <View style={styles.breath} />
+
+            <View style={styles.buttonSlot}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Iniciar minha jornada"
+                onPress={() => router.push('/cadastro')}
+                style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
+                <Text style={styles.buttonLabel}>INICIAR MINHA JORNADA →</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -117,16 +232,16 @@ export default function HomeScreen() {
   );
 }
 
-const webCluster = Platform.OS === 'web'
-  ? ({ paddingTop: 'clamp(12px, 4vh, 40px)' } as unknown as ViewStyle)
+const webLit = Platform.OS === 'web'
+  ? ({ paddingTop: 'clamp(18px, 5vh, 52px)' } as unknown as ViewStyle)
   : null;
 
 const webInscription = Platform.OS === 'web'
-  ? ({ marginTop: 'clamp(22px, 3.2vh, 34px)' } as unknown as ViewStyle)
+  ? ({ marginTop: 'clamp(20px, 3vh, 32px)' } as unknown as ViewStyle)
   : null;
 
-const webHorizon = Platform.OS === 'web'
-  ? ({ marginTop: 'clamp(18px, 2.8vh, 30px)' } as unknown as ViewStyle)
+const webBefore = Platform.OS === 'web'
+  ? ({ height: 'clamp(28px, 5vh, 56px)' } as unknown as ViewStyle)
   : null;
 
 const webLine = Platform.OS === 'web'
@@ -144,6 +259,31 @@ const webButtonLabel = Platform.OS === 'web'
     } as unknown as TextStyle)
   : null;
 
+const beamGlowWeb = Platform.OS === 'web'
+  ? ({
+      backgroundColor: 'transparent',
+      backgroundImage:
+        'linear-gradient(to top, rgba(232,201,155,0.28) 0%, rgba(232,201,155,0.08) 30%, rgba(232,201,155,0) 72%)',
+      filter: 'blur(10px)',
+    } as unknown as ViewStyle)
+  : null;
+
+const beamWeb = Platform.OS === 'web'
+  ? ({
+      backgroundColor: 'transparent',
+      backgroundImage:
+        'linear-gradient(to top, rgba(236,214,176,0.42) 0%, rgba(232,201,155,0.12) 22%, rgba(232,201,155,0.03) 50%, rgba(232,201,155,0) 100%)',
+    } as unknown as ViewStyle)
+  : null;
+
+const ambientWeb = Platform.OS === 'web'
+  ? ({
+      backgroundColor: 'transparent',
+      backgroundImage:
+        'radial-gradient(ellipse at 50% 42%, rgba(186,154,104,0.075), rgba(186,154,104,0) 62%)',
+    } as unknown as ViewStyle)
+  : null;
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -153,6 +293,14 @@ const styles = StyleSheet.create({
       ? ({ minHeight: '100dvh', height: '100dvh', maxHeight: '100dvh' } as unknown as ViewStyle)
       : null),
   },
+  ambient: {
+    position: 'absolute',
+    left: '18%',
+    right: '18%',
+    top: '18%',
+    bottom: '28%',
+    ...ambientWeb,
+  },
   safe: {
     flex: 1,
   },
@@ -161,19 +309,47 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  cluster: {
+  frame: {
+    flex: 1,
     width: '100%',
+  },
+  lit: {
     alignItems: 'center',
     paddingTop: 28,
-    ...webCluster,
+    position: 'relative',
+    ...webLit,
   },
-  clusterShort: {
+  litShort: {
     paddingTop: 12,
   },
+  beamGlow: {
+    position: 'absolute',
+    left: '50%',
+    top: '6%',
+    bottom: 0,
+    width: 28,
+    marginLeft: -14,
+    backgroundColor: 'rgba(232, 201, 155, 0.05)',
+    ...beamGlowWeb,
+  },
+  beam: {
+    position: 'absolute',
+    left: '50%',
+    top: '4%',
+    bottom: 0,
+    width: 1,
+    marginLeft: -0.5,
+    backgroundColor: 'rgba(232, 201, 155, 0.28)',
+    ...beamWeb,
+  },
+  logo: {
+    zIndex: 1,
+  },
   inscription: {
-    marginTop: 28,
+    marginTop: 26,
     alignItems: 'center',
     gap: 8,
+    zIndex: 1,
     transform: [{ scaleX: 0.92 }],
     ...webInscription,
   },
@@ -186,68 +362,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     ...webLine,
   },
-  horizon: {
-    width: '100%',
+  beforeHorizon: {
     height: 36,
-    marginTop: 24,
-    overflow: 'hidden',
-    ...webHorizon,
+    width: '100%',
+    ...webBefore,
   },
-  planet: {
-    position: 'absolute',
-    top: 7,
-    left: '50%',
-  },
-  corona: {
-    position: 'absolute',
-    top: 0,
-    left: '50%',
-    width: 180,
-    height: 18,
-    marginLeft: -90,
-    ...({
-      backgroundImage:
-        'radial-gradient(ellipse 80px 14px at 50% 100%, rgba(232,201,155,0.12), rgba(232,201,155,0) 72%)',
-    } as unknown as ViewStyle),
-  },
-  coronaNative: {
-    position: 'absolute',
-    top: 2,
-    left: '50%',
-    width: 150,
-    height: 16,
-    marginLeft: -75,
-    borderRadius: 80,
-    backgroundColor: 'rgba(232, 201, 155, 0.05)',
-  },
-  pointHalo: {
-    position: 'absolute',
-    top: 5,
-    left: '50%',
-    width: 7,
-    height: 7,
-    marginLeft: -3.5,
-    borderRadius: 4,
-    backgroundColor: 'rgba(232, 201, 155, 0.2)',
-  },
-  point: {
-    position: 'absolute',
-    top: 7,
-    left: '50%',
-    width: 3,
-    height: 3,
-    marginLeft: -1.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(245, 241, 234, 0.78)',
+  planetSlot: {
+    width: '100%',
+    alignSelf: 'center',
+    marginTop: -1,
   },
   breath: {
     flexGrow: 1,
     flexShrink: 1,
-    minHeight: 20,
+    minHeight: 12,
   },
   buttonSlot: {
     width: '100%',
-    maxWidth: 400,
     paddingHorizontal: 24,
     paddingBottom: 18,
   },
