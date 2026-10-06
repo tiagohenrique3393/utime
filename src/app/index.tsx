@@ -11,22 +11,49 @@ import { isOnboardingComplete } from '@/lib/profile';
 import { consumeRecoveryRedirect, hasPendingRecovery } from '@/lib/session';
 
 const LOGO_ASPECT = 685 / 243;
+const HORIZON_STEPS = 42;
 
 const ink = {
   background: '#050505',
-  inscription: 'rgba(232, 224, 210, 0.78)',
-  horizon: 'rgba(214, 196, 168, 0.32)',
-  horizonFill: 'rgba(214, 196, 168, 0.045)',
-  button: '#E6D7C3',
-  buttonText: '#141210',
+  champagne: '#E8C99B',
+  warm: '#F5F1EA',
+  buttonText: '#111111',
 };
+
+function Horizon() {
+  return (
+    <View pointerEvents="none" style={styles.horizon}>
+      {Array.from({ length: HORIZON_STEPS }, (_, index) => {
+        const t = index / (HORIZON_STEPS - 1);
+        const presence = Math.sin(t * Math.PI);
+        return (
+          <View
+            key={index}
+            style={{
+              position: 'absolute',
+              left: `${t * 100}%`,
+              bottom: 4 + presence * 14,
+              width: '3.4%',
+              height: 1,
+              marginLeft: '-1.7%',
+              backgroundColor: ink.champagne,
+              opacity: Math.pow(presence, 1.45) * 0.92,
+            }}
+          />
+        );
+      })}
+      <View style={styles.horizonHalo} />
+      <View style={styles.horizonPoint} />
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
-  const isWide = width >= 700;
+  const isWide = width >= 800;
   const isNarrow = width < 390;
-  const isShort = height < 740;
-  const logoWidth = isWide ? 112 : isNarrow || isShort ? 74 : 92;
+  const isShort = height < 700;
+  const logoWidth = isWide ? 104 : isShort || isNarrow ? 70 : 88;
   const resumeSession = getSessionUserId() !== null || hasPendingRecovery();
 
   useEffect(() => {
@@ -46,22 +73,22 @@ export default function HomeScreen() {
   return (
     <View style={styles.screen}>
       <StatusBar style="light" />
-      <SafeAreaView style={[styles.safe, isWide && styles.safeWide]} edges={['top', 'right', 'bottom', 'left']}>
+      <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           bounces={false}>
           <View style={[styles.column, isWide && styles.columnWide]}>
-            <View style={[styles.hero, isShort && styles.heroShort]}>
+            <View style={styles.composition}>
               <View style={styles.logoWrap}>
                 <View
                   pointerEvents="none"
                   style={[
                     styles.glow,
                     {
-                      width: logoWidth * 0.92,
-                      height: logoWidth * LOGO_ASPECT * 1.18,
+                      width: logoWidth * 0.7,
+                      height: logoWidth * LOGO_ASPECT * 1.2,
                     },
                   ]}
                 />
@@ -73,10 +100,6 @@ export default function HomeScreen() {
                 />
               </View>
 
-              <View pointerEvents="none" style={styles.horizonSlot}>
-                <View style={styles.horizonArc} />
-              </View>
-
               <View style={styles.inscription}>
                 <Text style={[styles.line, isWide && styles.lineWide, isNarrow && styles.lineNarrow]}>
                   DISCIPLINA NO HOJE.
@@ -85,15 +108,18 @@ export default function HomeScreen() {
                   CONSTÂNCIA NO CAMINHO.
                 </Text>
               </View>
+
+              <Horizon />
             </View>
+
+            <View style={styles.space} />
 
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Iniciar minha jornada"
               onPress={() => router.push('/cadastro')}
               style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
-              <Text style={[styles.buttonLabel, isNarrow && styles.buttonLabelNarrow]}>INICIAR MINHA JORNADA</Text>
-              <Text style={styles.buttonArrow}>→</Text>
+              <Text style={[styles.buttonLabel, isNarrow && styles.buttonLabelNarrow]}>INICIAR MINHA JORNADA  →</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -101,20 +127,6 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-const glowWeb = Platform.OS === 'web'
-  ? ({
-      backgroundColor: 'transparent',
-      backgroundImage:
-        'linear-gradient(to bottom, rgba(198,174,138,0) 0%, rgba(198,174,138,0.11) 48%, rgba(198,174,138,0) 100%)',
-    } as ViewStyle)
-  : null;
-
-const horizonWeb = Platform.OS === 'web'
-  ? ({
-      boxShadow: '0 0 22px rgba(214, 196, 168, 0.14)',
-    } as ViewStyle)
-  : null;
 
 const styles = StyleSheet.create({
   screen: {
@@ -126,10 +138,7 @@ const styles = StyleSheet.create({
   },
   safe: {
     flex: 1,
-    paddingHorizontal: 24,
-  },
-  safeWide: {
-    paddingHorizontal: 40,
+    paddingHorizontal: 28,
   },
   scroll: {
     flex: 1,
@@ -140,24 +149,18 @@ const styles = StyleSheet.create({
   column: {
     flex: 1,
     width: '100%',
-    maxWidth: 440,
+    maxWidth: 420,
     alignSelf: 'center',
-    paddingTop: 8,
-    paddingBottom: 12,
+    paddingTop: 12,
+    paddingBottom: 18,
   },
   columnWide: {
-    maxWidth: 480,
-    paddingTop: 20,
-    paddingBottom: 28,
+    maxWidth: 460,
+    paddingBottom: 32,
   },
-  hero: {
-    flexGrow: 1,
+  composition: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 48,
-  },
-  heroShort: {
-    paddingBottom: 28,
+    paddingTop: 28,
   },
   logoWrap: {
     alignItems: 'center',
@@ -166,81 +169,82 @@ const styles = StyleSheet.create({
   glow: {
     position: 'absolute',
     borderRadius: 999,
-    backgroundColor: 'rgba(198, 174, 138, 0.07)',
-    ...glowWeb,
-  },
-  horizonSlot: {
-    width: '88%',
-    maxWidth: 420,
-    height: 26,
-    marginTop: 26,
-    overflow: 'hidden',
-    alignItems: 'center',
-  },
-  horizonArc: {
-    position: 'absolute',
-    top: 0,
-    width: '156%',
-    height: 260,
-    borderTopLeftRadius: 999,
-    borderTopRightRadius: 999,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: ink.horizon,
-    backgroundColor: ink.horizonFill,
-    ...horizonWeb,
+    backgroundColor: 'rgba(232, 201, 155, 0.075)',
   },
   inscription: {
-    marginTop: 28,
+    marginTop: 36,
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
+    transform: [{ scaleX: 0.92 }],
   },
   line: {
-    color: ink.inscription,
-    fontFamily: fonts.display,
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 2.1,
+    color: ink.warm,
+    fontFamily: fonts.text,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 2.4,
     textAlign: 'center',
   },
   lineWide: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 13,
+    lineHeight: 18,
     letterSpacing: 3.2,
   },
   lineNarrow: {
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 1.1,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 1.2,
+  },
+  horizon: {
+    width: '100%',
+    height: 32,
+    marginTop: 34,
+  },
+  horizonHalo: {
+    position: 'absolute',
+    left: '50%',
+    bottom: 12,
+    width: 10,
+    height: 10,
+    marginLeft: -5,
+    borderRadius: 5,
+    backgroundColor: 'rgba(232, 201, 155, 0.28)',
+  },
+  horizonPoint: {
+    position: 'absolute',
+    left: '50%',
+    bottom: 15,
+    width: 4,
+    height: 4,
+    marginLeft: -2,
+    borderRadius: 2,
+    backgroundColor: ink.warm,
+  },
+  space: {
+    flexGrow: 1,
+    minHeight: 48,
   },
   button: {
-    minHeight: 56,
+    minHeight: 58,
     borderRadius: 999,
-    backgroundColor: ink.button,
-    flexDirection: 'row',
+    backgroundColor: ink.champagne,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
     paddingHorizontal: 22,
     paddingVertical: 16,
   },
   buttonPressed: {
-    opacity: 0.86,
+    opacity: 0.88,
   },
   buttonLabel: {
     color: ink.buttonText,
     fontFamily: fonts.text,
     fontSize: 13,
-    letterSpacing: 1.3,
+    letterSpacing: 1.4,
+    textAlign: 'center',
   },
   buttonLabelNarrow: {
     fontSize: 11,
-    letterSpacing: 0.7,
-  },
-  buttonArrow: {
-    color: ink.buttonText,
-    fontFamily: fonts.text,
-    fontSize: 16,
-    lineHeight: 18,
+    letterSpacing: 0.6,
   },
 });
