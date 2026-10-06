@@ -53,8 +53,8 @@ function Planet({ height }: { height: number }) {
           node(
             'radialGradient',
             { id: 'utime-sun', cx: '50%', cy: '50%', r: '50%' },
-            node('stop', { offset: '0%', stopColor: '#F7F1E6', stopOpacity: '0.55' }),
-            node('stop', { offset: '22%', stopColor: '#E8C99B', stopOpacity: '0.16' }),
+            node('stop', { offset: '0%', stopColor: '#F6EFE2', stopOpacity: '0.72' }),
+            node('stop', { offset: '28%', stopColor: '#E8C99B', stopOpacity: '0.22' }),
             node('stop', { offset: '100%', stopColor: '#E8C99B', stopOpacity: '0' }),
           ),
         ),
@@ -68,18 +68,9 @@ function Planet({ height }: { height: number }) {
         node('ellipse', {
           cx: 600,
           cy: 6,
-          rx: 240,
-          ry: 14,
+          rx: 54,
+          ry: 4.5,
           fill: 'url(#utime-sun)',
-          opacity: 0.42,
-        }),
-        node('ellipse', {
-          cx: 600,
-          cy: 6,
-          rx: 22,
-          ry: 2.2,
-          fill: 'url(#utime-sun)',
-          opacity: 0.7,
         }),
       )}
     </View>
@@ -169,9 +160,9 @@ const webBefore = Platform.OS === 'web'
 
 const webLine = Platform.OS === 'web'
   ? ({
-      fontSize: 'clamp(8px, 1.9vw, 10px)',
-      lineHeight: 'clamp(11px, 2.2vw, 13px)',
-      letterSpacing: 'clamp(1.8px, 0.55vw, 3.6px)',
+      fontSize: 'clamp(6px, 1.42vw, 7.5px)',
+      lineHeight: 'clamp(8px, 1.65vw, 10px)',
+      letterSpacing: 'clamp(2.1px, 0.62vw, 4px)',
     } as unknown as TextStyle)
   : null;
 
@@ -227,9 +218,9 @@ const styles = StyleSheet.create({
     color: 'rgba(214, 208, 198, 0.82)',
     fontFamily: fonts.text,
     fontWeight: '300',
-    fontSize: 9,
-    lineHeight: 12,
-    letterSpacing: 3.1,
+    fontSize: 7,
+    lineHeight: 9,
+    letterSpacing: 3.6,
     textAlign: 'center',
     ...webLine,
   },
