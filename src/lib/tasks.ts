@@ -370,11 +370,17 @@ export function useJourneyBoard() {
   return useSyncExternalStore(subscribeBoard, getBoardSnapshot, getBoardServerSnapshot);
 }
 
-export function isDayUnlocked(day: number, testMode: boolean) {
+export function isDayUnlocked(day: number, testMode: boolean, source: JourneyBoard = board) {
   if (day === 1) {
     return true;
   }
-  return day >= 2 && day <= DAY_COUNT && __DEV__ && testMode;
+  if (day < 2 || day > DAY_COUNT) {
+    return false;
+  }
+  if (__DEV__ && testMode) {
+    return true;
+  }
+  return dayProgress(source, day - 1) === 100;
 }
 
 export function dayStatus(percent: number, locked: boolean): DayStatus {

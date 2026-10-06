@@ -51,7 +51,7 @@ export default function JourneyScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
   const journey = useJourneyBoard();
-  const unlocked = isDayUnlocked(day, journey.testMode);
+  const unlocked = isDayUnlocked(day, journey.testMode, journey);
   const completed = completedIdsForDay(journey, day);
   const completedSet = new Set(completed);
   const percent = progressPercent(completed.length);

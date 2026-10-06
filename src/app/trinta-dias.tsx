@@ -112,7 +112,7 @@ export default function ThirtyDaysScreen() {
                   <Text style={styles.weekTitle}>{week.title}</Text>
                   <View style={styles.weekRow}>
                     {week.days.map((day) => {
-                      const locked = !isDayUnlocked(day, journey.testMode);
+                      const locked = !isDayUnlocked(day, journey.testMode, journey);
                       const dayPercent = dayProgress(journey, day);
                       const status = dayStatus(dayPercent, locked);
                       const palette = statusStyle[status];
