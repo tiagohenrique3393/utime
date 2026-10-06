@@ -2,47 +2,31 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, fonts } from '@/constants/theme';
+import { fonts } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import { isOnboardingComplete } from '@/lib/profile';
 import { consumeRecoveryRedirect, hasPendingRecovery } from '@/lib/session';
 
 const LOGO_ASPECT = 685 / 243;
 
-const pillars = [
-  { key: 'corpo', label: 'Corpo', icon: 'body' },
-  { key: 'mente', label: 'Mente', icon: 'mind' },
-  { key: 'espirito', label: 'Espírito', icon: 'spirit' },
-] as const;
-
-function PillarIcon({ name }: { name: (typeof pillars)[number]['icon'] }) {
-  if (name === 'body') {
-    return (
-      <View style={iconStyles.body}>
-        <View style={iconStyles.head} />
-        <View style={iconStyles.shoulders} />
-      </View>
-    );
-  }
-
-  if (name === 'mind') {
-    return (
-      <View style={iconStyles.mind}>
-        <View style={iconStyles.mindDot} />
-      </View>
-    );
-  }
-
-  return <View style={iconStyles.spirit} />;
-}
+const ink = {
+  background: '#050505',
+  inscription: 'rgba(232, 224, 210, 0.78)',
+  horizon: 'rgba(214, 196, 168, 0.32)',
+  horizonFill: 'rgba(214, 196, 168, 0.045)',
+  button: '#E6D7C3',
+  buttonText: '#141210',
+};
 
 export default function HomeScreen() {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isWide = width >= 700;
-  const logoWidth = width < 360 ? 69 : isWide ? 109 : 85;
+  const isNarrow = width < 390;
+  const isShort = height < 740;
+  const logoWidth = isWide ? 112 : isNarrow || isShort ? 74 : 92;
   const resumeSession = getSessionUserId() !== null || hasPendingRecovery();
 
   useEffect(() => {
@@ -62,40 +46,54 @@ export default function HomeScreen() {
   return (
     <View style={styles.screen}>
       <StatusBar style="light" />
-      <SafeAreaView style={[styles.safe, isWide && styles.safeWide]}>
+      <SafeAreaView style={[styles.safe, isWide && styles.safeWide]} edges={['top', 'right', 'bottom', 'left']}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           bounces={false}>
           <View style={[styles.column, isWide && styles.columnWide]}>
-            <View style={styles.header}>
-              <Image
-                accessibilityLabel="YouTime"
-                source={require('@/assets/youtime-logo.png')}
-                style={{ width: logoWidth, height: logoWidth * LOGO_ASPECT }}
-                contentFit="contain"
-              />
-              <Text style={[styles.tagline, isWide && styles.taglineWide]}>Seu tempo. Sua evolução.</Text>
-              <View style={styles.rule} />
-            </View>
+            <View style={[styles.hero, isShort && styles.heroShort]}>
+              <View style={styles.logoWrap}>
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.glow,
+                    {
+                      width: logoWidth * 0.92,
+                      height: logoWidth * LOGO_ASPECT * 1.18,
+                    },
+                  ]}
+                />
+                <Image
+                  accessibilityLabel="YouTime"
+                  source={require('@/assets/youtime-logo.png')}
+                  style={{ width: logoWidth, height: logoWidth * LOGO_ASPECT }}
+                  contentFit="contain"
+                />
+              </View>
 
-            <View style={[styles.cards, isWide && styles.cardsWide]}>
-              {pillars.map((pillar) => (
-                <View key={pillar.key} style={[styles.card, isWide ? styles.cardWide : styles.cardCompact]}>
-                  <View style={styles.iconWell}>
-                    <PillarIcon name={pillar.icon} />
-                  </View>
-                  <Text style={[styles.cardLabel, isWide && styles.cardLabelWide]}>{pillar.label}</Text>
-                </View>
-              ))}
+              <View pointerEvents="none" style={styles.horizonSlot}>
+                <View style={styles.horizonArc} />
+              </View>
+
+              <View style={styles.inscription}>
+                <Text style={[styles.line, isWide && styles.lineWide, isNarrow && styles.lineNarrow]}>
+                  DISCIPLINA NO HOJE.
+                </Text>
+                <Text style={[styles.line, isWide && styles.lineWide, isNarrow && styles.lineNarrow]}>
+                  CONSTÂNCIA NO CAMINHO.
+                </Text>
+              </View>
             </View>
 
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Iniciar minha jornada"
               onPress={() => router.push('/cadastro')}
               style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
-              <Text style={styles.buttonLabel}>Começar minha jornada</Text>
+              <Text style={[styles.buttonLabel, isNarrow && styles.buttonLabelNarrow]}>INICIAR MINHA JORNADA</Text>
+              <Text style={styles.buttonArrow}>→</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -104,10 +102,27 @@ export default function HomeScreen() {
   );
 }
 
+const glowWeb = Platform.OS === 'web'
+  ? ({
+      backgroundColor: 'transparent',
+      backgroundImage:
+        'linear-gradient(to bottom, rgba(198,174,138,0) 0%, rgba(198,174,138,0.11) 48%, rgba(198,174,138,0) 100%)',
+    } as ViewStyle)
+  : null;
+
+const horizonWeb = Platform.OS === 'web'
+  ? ({
+      boxShadow: '0 0 22px rgba(214, 196, 168, 0.14)',
+    } as ViewStyle)
+  : null;
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: ink.background,
+    ...(Platform.OS === 'web'
+      ? ({ minHeight: '100dvh', height: '100dvh' } as unknown as ViewStyle)
+      : null),
   },
   safe: {
     flex: 1,
@@ -127,147 +142,105 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 440,
     alignSelf: 'center',
-    paddingTop: 12,
-    paddingBottom: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   columnWide: {
-    maxWidth: 760,
-    paddingTop: 28,
-    paddingBottom: 24,
+    maxWidth: 480,
+    paddingTop: 20,
+    paddingBottom: 28,
   },
-  header: {
+  hero: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 48,
+  },
+  heroShort: {
+    paddingBottom: 28,
+  },
+  logoWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glow: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(198, 174, 138, 0.07)',
+    ...glowWeb,
+  },
+  horizonSlot: {
+    width: '88%',
+    maxWidth: 420,
+    height: 26,
+    marginTop: 26,
+    overflow: 'hidden',
     alignItems: 'center',
   },
-  tagline: {
-    marginTop: 10,
-    color: colors.muted,
-    fontFamily: fonts.text,
-    fontSize: 16,
-    lineHeight: 22,
+  horizonArc: {
+    position: 'absolute',
+    top: 0,
+    width: '156%',
+    height: 260,
+    borderTopLeftRadius: 999,
+    borderTopRightRadius: 999,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: ink.horizon,
+    backgroundColor: ink.horizonFill,
+    ...horizonWeb,
+  },
+  inscription: {
+    marginTop: 28,
+    alignItems: 'center',
+    gap: 8,
+  },
+  line: {
+    color: ink.inscription,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    lineHeight: 18,
+    letterSpacing: 2.1,
     textAlign: 'center',
   },
-  taglineWide: {
-    fontSize: 18,
-    lineHeight: 26,
+  lineWide: {
+    fontSize: 16,
+    lineHeight: 22,
+    letterSpacing: 3.2,
   },
-  rule: {
-    width: 36,
-    height: 1,
-    marginTop: 20,
-    backgroundColor: colors.line,
-  },
-  cards: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    gap: 12,
-    marginVertical: 28,
-  },
-  cardsWide: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 16,
-    marginVertical: 36,
-  },
-  card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 18,
-  },
-  cardCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-  },
-  cardWide: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 18,
-    minHeight: 176,
-    paddingVertical: 28,
-    paddingHorizontal: 16,
-  },
-  iconWell: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: colors.iconBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardLabel: {
-    color: colors.ivory,
-    fontFamily: fonts.text,
-    fontSize: 17,
-    letterSpacing: 0.2,
-  },
-  cardLabelWide: {
-    fontSize: 18,
+  lineNarrow: {
+    fontSize: 11,
+    lineHeight: 15,
+    letterSpacing: 1.1,
   },
   button: {
-    height: 58,
-    borderRadius: 16,
-    backgroundColor: colors.ivory,
+    minHeight: 56,
+    borderRadius: 999,
+    backgroundColor: ink.button,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    gap: 10,
+    paddingHorizontal: 22,
+    paddingVertical: 16,
   },
   buttonPressed: {
-    opacity: 0.84,
+    opacity: 0.86,
   },
   buttonLabel: {
-    color: colors.onPrimary,
+    color: ink.buttonText,
+    fontFamily: fonts.text,
+    fontSize: 13,
+    letterSpacing: 1.3,
+  },
+  buttonLabelNarrow: {
+    fontSize: 11,
+    letterSpacing: 0.7,
+  },
+  buttonArrow: {
+    color: ink.buttonText,
     fontFamily: fonts.text,
     fontSize: 16,
-    letterSpacing: 0.2,
-  },
-});
-
-const iconStyles = StyleSheet.create({
-  body: {
-    alignItems: 'center',
-  },
-  head: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1.25,
-    borderColor: colors.gold,
-  },
-  shoulders: {
-    width: 16,
-    height: 7,
-    marginTop: 2,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderWidth: 1.25,
-    borderBottomWidth: 0,
-    borderColor: colors.gold,
-  },
-  mind: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1.25,
-    borderColor: colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mindDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.gold,
-  },
-  spirit: {
-    width: 11,
-    height: 11,
-    borderWidth: 1.25,
-    borderColor: colors.gold,
-    transform: [{ rotate: '45deg' }],
+    lineHeight: 18,
   },
 });
