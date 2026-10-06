@@ -11,38 +11,44 @@ import { isOnboardingComplete } from '@/lib/profile';
 import { consumeRecoveryRedirect, hasPendingRecovery } from '@/lib/session';
 
 const LOGO_ASPECT = 685 / 243;
-const HORIZON_STEPS = 96;
 
 const ink = {
   background: '#050505',
   champagne: '#E6D2AE',
-  line: 'rgba(232, 201, 155, 0.42)',
   warm: '#F5F1EA',
   buttonText: '#161412',
 };
 
 function Horizon() {
+  const { width } = useWindowDimensions();
+  const rise = 12;
+  const span = Math.max(width, 320);
+  const radius = (span * span) / (8 * rise) + rise / 2;
+  const diameter = radius * 2;
+  const limbGlow = Platform.OS === 'web'
+    ? ({
+        backgroundColor: ink.background,
+        backgroundImage:
+          'radial-gradient(150px 34px at 50% -8px, rgba(245,241,234,0.2) 0%, rgba(232,201,155,0.09) 32%, rgba(232,201,155,0.035) 58%, rgba(232,201,155,0) 76%), radial-gradient(280px 22px at 50% 0px, rgba(232,201,155,0.055) 0%, rgba(232,201,155,0) 70%)',
+      } as unknown as ViewStyle)
+    : { backgroundColor: ink.background };
+
   return (
     <View pointerEvents="none" style={styles.horizon}>
-      {Array.from({ length: HORIZON_STEPS }, (_, index) => {
-        const t = index / (HORIZON_STEPS - 1);
-        const presence = Math.sin(t * Math.PI);
-        return (
-          <View
-            key={index}
-            style={{
-              position: 'absolute',
-              left: `${t * 100}%`,
-              bottom: presence * 10,
-              width: '2.4%',
-              height: 1,
-              marginLeft: '-1.2%',
-              backgroundColor: ink.line,
-              opacity: Math.pow(presence, 1.85),
-            }}
-          />
-        );
-      })}
+      <View
+        style={[
+          styles.planet,
+          limbGlow,
+          {
+            width: diameter,
+            height: diameter,
+            borderRadius: radius,
+            transform: [{ translateX: -radius }],
+          },
+        ]}
+      />
+      {Platform.OS === 'web' ? <View style={styles.corona} /> : <View style={styles.coronaNative} />}
+      <View style={styles.pointHalo} />
       <View style={styles.point} />
     </View>
   );
@@ -182,19 +188,57 @@ const styles = StyleSheet.create({
   },
   horizon: {
     width: '100%',
-    height: 18,
+    height: 36,
     marginTop: 24,
+    overflow: 'hidden',
     ...webHorizon,
+  },
+  planet: {
+    position: 'absolute',
+    top: 7,
+    left: '50%',
+  },
+  corona: {
+    position: 'absolute',
+    top: 0,
+    left: '50%',
+    width: 180,
+    height: 18,
+    marginLeft: -90,
+    ...({
+      backgroundImage:
+        'radial-gradient(ellipse 80px 14px at 50% 100%, rgba(232,201,155,0.12), rgba(232,201,155,0) 72%)',
+    } as unknown as ViewStyle),
+  },
+  coronaNative: {
+    position: 'absolute',
+    top: 2,
+    left: '50%',
+    width: 150,
+    height: 16,
+    marginLeft: -75,
+    borderRadius: 80,
+    backgroundColor: 'rgba(232, 201, 155, 0.05)',
+  },
+  pointHalo: {
+    position: 'absolute',
+    top: 5,
+    left: '50%',
+    width: 7,
+    height: 7,
+    marginLeft: -3.5,
+    borderRadius: 4,
+    backgroundColor: 'rgba(232, 201, 155, 0.2)',
   },
   point: {
     position: 'absolute',
+    top: 7,
     left: '50%',
-    bottom: 9,
-    width: 2,
-    height: 2,
-    marginLeft: -1,
-    borderRadius: 1,
-    backgroundColor: 'rgba(245, 241, 234, 0.55)',
+    width: 3,
+    height: 3,
+    marginLeft: -1.5,
+    borderRadius: 2,
+    backgroundColor: 'rgba(245, 241, 234, 0.78)',
   },
   breath: {
     flexGrow: 1,
