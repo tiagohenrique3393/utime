@@ -11,10 +11,6 @@ import { isOnboardingComplete } from '@/lib/profile';
 import { consumeRecoveryRedirect, hasPendingRecovery } from '@/lib/session';
 
 const LOGO_ASPECT = 685 / 243;
-const VB_W = 480;
-const VB_H = 230;
-const CREST = 18;
-const RISE = 62;
 
 const ink = {
   background: '#050505',
@@ -28,10 +24,6 @@ function node(type: string, props: Record<string, unknown> | null, ...children: 
 }
 
 function Planet({ height }: { height: number }) {
-  const half = VB_W / 2;
-  const radius = (half * half + RISE * RISE) / (2 * RISE);
-  const cy = CREST + radius;
-
   if (Platform.OS !== 'web') {
     return <View style={{ height, width: '100%' }} />;
   }
@@ -41,119 +33,57 @@ function Planet({ height }: { height: number }) {
       {node(
         'svg',
         {
-          viewBox: `0 0 ${VB_W} ${VB_H}`,
+          viewBox: '0 0 1200 100',
           width: '100%',
           height: '100%',
           preserveAspectRatio: 'xMidYMin meet',
+          style: { display: 'block', background: 'transparent' },
         },
         node(
           'defs',
           null,
           node(
-            'radialGradient',
-            { id: 'utime-surf', cx: '50%', cy: '0%', r: '78%' },
-            node('stop', { offset: '0%', stopColor: '#050505' }),
-            node('stop', { offset: '22%', stopColor: '#050505' }),
-            node('stop', { offset: '58%', stopColor: '#050505' }),
-            node('stop', { offset: '100%', stopColor: '#050505' }),
-          ),
-          node(
             'linearGradient',
             { id: 'utime-rim', x1: '0', y1: '0', x2: '1', y2: '0' },
             node('stop', { offset: '0%', stopColor: '#E8C99B', stopOpacity: '0' }),
-            node('stop', { offset: '30%', stopColor: '#E8C99B', stopOpacity: '0.28' }),
-            node('stop', { offset: '50%', stopColor: '#F6EFE2', stopOpacity: '0.95' }),
-            node('stop', { offset: '70%', stopColor: '#E8C99B', stopOpacity: '0.28' }),
+            node('stop', { offset: '38%', stopColor: '#E8C99B', stopOpacity: '0.22' }),
+            node('stop', { offset: '50%', stopColor: '#F6EFE2', stopOpacity: '0.8' }),
+            node('stop', { offset: '62%', stopColor: '#E8C99B', stopOpacity: '0.22' }),
             node('stop', { offset: '100%', stopColor: '#E8C99B', stopOpacity: '0' }),
           ),
           node(
             'radialGradient',
             { id: 'utime-sun', cx: '50%', cy: '50%', r: '50%' },
-            node('stop', { offset: '0%', stopColor: '#F7F1E6', stopOpacity: '0.95' }),
-            node('stop', { offset: '16%', stopColor: '#E8C99B', stopOpacity: '0.55' }),
-            node('stop', { offset: '46%', stopColor: '#E8C99B', stopOpacity: '0.12' }),
+            node('stop', { offset: '0%', stopColor: '#F7F1E6', stopOpacity: '0.7' }),
+            node('stop', { offset: '28%', stopColor: '#E8C99B', stopOpacity: '0.28' }),
             node('stop', { offset: '100%', stopColor: '#E8C99B', stopOpacity: '0' }),
           ),
           node(
             'filter',
-            { id: 'utime-grain', x: '-20%', y: '-20%', width: '140%', height: '140%' },
-            node('feTurbulence', {
-              type: 'fractalNoise',
-              baseFrequency: '0.85',
-              numOctaves: '2',
-              result: 'noise',
-            }),
-            node('feColorMatrix', {
-              type: 'matrix',
-              values: '0 0 0 0 0.08  0 0 0 0 0.07  0 0 0 0 0.05  0 0 0 0.05 0',
-            }),
-          ),
-          node(
-            'linearGradient',
-            { id: 'utime-sides', x1: '0', y1: '0', x2: '1', y2: '0' },
-            node('stop', { offset: '0%', stopColor: '#050505' }),
-            node('stop', { offset: '10%', stopColor: '#050505', stopOpacity: '0.82' }),
-            node('stop', { offset: '24%', stopColor: '#050505', stopOpacity: '0' }),
-            node('stop', { offset: '76%', stopColor: '#050505', stopOpacity: '0' }),
-            node('stop', { offset: '90%', stopColor: '#050505', stopOpacity: '0.82' }),
-            node('stop', { offset: '100%', stopColor: '#050505' }),
-          ),
-          node(
-            'linearGradient',
-            { id: 'utime-down', x1: '0', y1: '0', x2: '0', y2: '1' },
-            node('stop', { offset: '0%', stopColor: '#050505', stopOpacity: '0' }),
-            node('stop', { offset: '100%', stopColor: '#050505' }),
-          ),
-          node(
-            'filter',
-            { id: 'utime-glow', x: '-40%', y: '-80%', width: '180%', height: '260%' },
-            node('feGaussianBlur', { stdDeviation: '2.2' }),
+            { id: 'utime-glow', x: '-20%', y: '-80%', width: '140%', height: '260%' },
+            node('feGaussianBlur', { stdDeviation: '1.4' }),
           ),
         ),
-        node('circle', { cx: half, cy, r: radius, fill: 'url(#utime-surf)' }),
-        node('circle', {
-          cx: half,
-          cy,
-          r: radius,
-          fill: '#050505',
-          filter: 'url(#utime-grain)',
-          opacity: 0,
-        }),
-        node('rect', { x: 0, y: 0, width: VB_W, height: VB_H, fill: 'url(#utime-sides)' }),
-        node('rect', { x: 0, y: 78, width: VB_W, height: VB_H - 78, fill: 'url(#utime-down)' }),
-        node('circle', {
-          cx: half,
-          cy,
-          r: radius,
+        node('path', {
+          d: 'M 0 74 Q 600 12 1200 74',
           fill: 'none',
           stroke: 'url(#utime-rim)',
-          strokeWidth: 6,
+          strokeWidth: 3.2,
           filter: 'url(#utime-glow)',
-          opacity: 0.85,
+          opacity: 0.7,
         }),
-        node('circle', {
-          cx: half,
-          cy,
-          r: radius,
+        node('path', {
+          d: 'M 0 74 Q 600 12 1200 74',
           fill: 'none',
           stroke: 'url(#utime-rim)',
-          strokeWidth: 1.15,
+          strokeWidth: 1.05,
         }),
         node('ellipse', {
-          cx: half,
-          cy: CREST + 1,
-          rx: 78,
-          ry: 16,
+          cx: 600,
+          cy: 14,
+          rx: 70,
+          ry: 9,
           fill: 'url(#utime-sun)',
-          filter: 'url(#utime-glow)',
-        }),
-        node('ellipse', {
-          cx: half,
-          cy: CREST + 0.5,
-          rx: 18,
-          ry: 4.5,
-          fill: '#F4E7CF',
-          opacity: 0.85,
         }),
       )}
     </View>
@@ -368,9 +298,12 @@ const styles = StyleSheet.create({
     ...webBefore,
   },
   planetSlot: {
-    width: '100%',
-    alignSelf: 'center',
+    width: '118vw',
+    position: 'relative',
+    left: '50%',
+    marginLeft: '-59vw',
     marginTop: -1,
+    backgroundColor: 'transparent',
   },
   breath: {
     flexGrow: 1,
