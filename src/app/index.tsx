@@ -47,15 +47,15 @@ function Planet({ height }: { height: number }) {
             { id: 'utime-rim', x1: '0', y1: '0', x2: '1', y2: '0' },
             node('stop', { offset: '0%', stopColor: '#E8C99B', stopOpacity: '0' }),
             node('stop', { offset: '8%', stopColor: '#E8C99B', stopOpacity: '0.2' }),
-            node('stop', { offset: '50%', stopColor: '#F6EFE2', stopOpacity: '0.85' }),
+            node('stop', { offset: '50%', stopColor: '#F6EFE2', stopOpacity: '0.95' }),
             node('stop', { offset: '92%', stopColor: '#E8C99B', stopOpacity: '0.2' }),
             node('stop', { offset: '100%', stopColor: '#E8C99B', stopOpacity: '0' }),
           ),
           node(
             'radialGradient',
             { id: 'utime-sun', cx: '50%', cy: '50%', r: '50%' },
-            node('stop', { offset: '0%', stopColor: '#F7F1E6', stopOpacity: '0.8' }),
-            node('stop', { offset: '35%', stopColor: '#E8C99B', stopOpacity: '0.2' }),
+            node('stop', { offset: '0%', stopColor: '#F7F1E6', stopOpacity: '0.55' }),
+            node('stop', { offset: '22%', stopColor: '#E8C99B', stopOpacity: '0.16' }),
             node('stop', { offset: '100%', stopColor: '#E8C99B', stopOpacity: '0' }),
           ),
         ),
@@ -69,9 +69,18 @@ function Planet({ height }: { height: number }) {
         node('ellipse', {
           cx: 600,
           cy: 6,
-          rx: 28,
-          ry: 3.2,
+          rx: 240,
+          ry: 14,
           fill: 'url(#utime-sun)',
+          opacity: 0.42,
+        }),
+        node('ellipse', {
+          cx: 600,
+          cy: 6,
+          rx: 22,
+          ry: 2.2,
+          fill: 'url(#utime-sun)',
+          opacity: 0.7,
         }),
       )}
     </View>
@@ -114,8 +123,6 @@ export default function HomeScreen() {
         <View style={styles.stage}>
           <View style={[styles.frame, { maxWidth: frameWidth }]}>
             <View style={[styles.lit, isShort && styles.litShort]}>
-              <View pointerEvents="none" style={styles.beamGlow} />
-              <View pointerEvents="none" style={styles.beam} />
               <Image
                 accessibilityLabel="YouTime"
                 source={require('@/assets/youtime-logo.png')}
@@ -163,9 +170,9 @@ const webBefore = Platform.OS === 'web'
 
 const webLine = Platform.OS === 'web'
   ? ({
-      fontSize: 'clamp(10px, 2.35vw, 12px)',
-      lineHeight: 'clamp(14px, 3vw, 16px)',
-      letterSpacing: 'clamp(1.2px, 0.42vw, 2.8px)',
+      fontSize: 'clamp(8px, 1.9vw, 10px)',
+      lineHeight: 'clamp(11px, 2.2vw, 13px)',
+      letterSpacing: 'clamp(1.8px, 0.55vw, 3.6px)',
     } as unknown as TextStyle)
   : null;
 
@@ -174,23 +181,6 @@ const webButtonLabel = Platform.OS === 'web'
       fontSize: 'clamp(11px, 2.5vw, 12px)',
       letterSpacing: 'clamp(0.8px, 0.28vw, 1.5px)',
     } as unknown as TextStyle)
-  : null;
-
-const beamGlowWeb = Platform.OS === 'web'
-  ? ({
-      backgroundColor: 'transparent',
-      backgroundImage:
-        'linear-gradient(to top, rgba(247,241,230,0.34) 0%, rgba(232,201,155,0.1) 18%, rgba(232,201,155,0.03) 46%, rgba(232,201,155,0) 78%)',
-      filter: 'blur(12px)',
-    } as unknown as ViewStyle)
-  : null;
-
-const beamWeb = Platform.OS === 'web'
-  ? ({
-      backgroundColor: 'transparent',
-      backgroundImage:
-        'linear-gradient(to top, rgba(247,241,230,0.22) 0%, rgba(232,201,155,0.06) 20%, rgba(232,201,155,0) 70%)',
-    } as unknown as ViewStyle)
   : null;
 
 const styles = StyleSheet.create({
@@ -223,26 +213,6 @@ const styles = StyleSheet.create({
   litShort: {
     paddingTop: 12,
   },
-  beamGlow: {
-    position: 'absolute',
-    left: '50%',
-    top: '6%',
-    bottom: '-0.7vw',
-    width: 16,
-    marginLeft: -8,
-    backgroundColor: 'transparent',
-    ...beamGlowWeb,
-  },
-  beam: {
-    position: 'absolute',
-    left: '50%',
-    top: '4%',
-    bottom: '-0.7vw',
-    width: 1,
-    marginLeft: -0.5,
-    backgroundColor: 'transparent',
-    ...beamWeb,
-  },
   logo: {
     zIndex: 1,
   },
@@ -251,15 +221,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     zIndex: 1,
-    transform: [{ scaleX: 0.92 }],
+    transform: [{ scaleX: 0.88 }, { scaleY: 0.92 }],
     ...webInscription,
   },
   line: {
-    color: ink.warm,
+    color: 'rgba(214, 208, 198, 0.82)',
     fontFamily: fonts.text,
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 2.4,
+    fontWeight: '300',
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 3.1,
     textAlign: 'center',
     ...webLine,
   },
