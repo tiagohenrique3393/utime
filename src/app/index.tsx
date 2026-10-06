@@ -14,7 +14,6 @@ const LOGO_ASPECT = 685 / 243;
 
 const ink = {
   champagne: '#E6D2AE',
-  warm: '#F5F1EA',
   buttonText: '#161412',
 };
 
