@@ -32,7 +32,7 @@ function Planet({ height }: { height: number }) {
       {node(
         'svg',
         {
-          viewBox: '0 0 1200 100',
+          viewBox: '0 0 1200 160',
           width: '100%',
           height: '100%',
           fill: 'none',
@@ -46,30 +46,31 @@ function Planet({ height }: { height: number }) {
             'linearGradient',
             { id: 'utime-rim', x1: '0', y1: '0', x2: '1', y2: '0' },
             node('stop', { offset: '0%', stopColor: '#E8C99B', stopOpacity: '0' }),
-            node('stop', { offset: '42%', stopColor: '#E8C99B', stopOpacity: '0.35' }),
-            node('stop', { offset: '50%', stopColor: '#F6EFE2', stopOpacity: '0.9' }),
-            node('stop', { offset: '58%', stopColor: '#E8C99B', stopOpacity: '0.35' }),
+            node('stop', { offset: '8%', stopColor: '#E8C99B', stopOpacity: '0.2' }),
+            node('stop', { offset: '50%', stopColor: '#F6EFE2', stopOpacity: '0.85' }),
+            node('stop', { offset: '92%', stopColor: '#E8C99B', stopOpacity: '0.2' }),
             node('stop', { offset: '100%', stopColor: '#E8C99B', stopOpacity: '0' }),
           ),
           node(
             'radialGradient',
             { id: 'utime-sun', cx: '50%', cy: '50%', r: '50%' },
-            node('stop', { offset: '0%', stopColor: '#F7F1E6', stopOpacity: '0.75' }),
-            node('stop', { offset: '30%', stopColor: '#E8C99B', stopOpacity: '0.22' }),
+            node('stop', { offset: '0%', stopColor: '#F7F1E6', stopOpacity: '0.8' }),
+            node('stop', { offset: '35%', stopColor: '#E8C99B', stopOpacity: '0.2' }),
             node('stop', { offset: '100%', stopColor: '#E8C99B', stopOpacity: '0' }),
           ),
         ),
         node('path', {
-          d: 'M 0 86 Q 600 8 1200 86',
+          d: 'M 0 152 Q 600 -140 1200 152',
           fill: 'none',
           stroke: 'url(#utime-rim)',
-          strokeWidth: 1.15,
+          strokeWidth: 1.1,
+          vectorEffect: 'non-scaling-stroke',
         }),
         node('ellipse', {
           cx: 600,
-          cy: 12,
-          rx: 64,
-          ry: 8,
+          cy: 6,
+          rx: 28,
+          ry: 3.2,
           fill: 'url(#utime-sun)',
         }),
       )}
@@ -179,8 +180,8 @@ const beamGlowWeb = Platform.OS === 'web'
   ? ({
       backgroundColor: 'transparent',
       backgroundImage:
-        'linear-gradient(to top, rgba(232,201,155,0.28) 0%, rgba(232,201,155,0.08) 30%, rgba(232,201,155,0) 72%)',
-      filter: 'blur(10px)',
+        'linear-gradient(to top, rgba(247,241,230,0.34) 0%, rgba(232,201,155,0.1) 18%, rgba(232,201,155,0.03) 46%, rgba(232,201,155,0) 78%)',
+      filter: 'blur(12px)',
     } as unknown as ViewStyle)
   : null;
 
@@ -188,7 +189,7 @@ const beamWeb = Platform.OS === 'web'
   ? ({
       backgroundColor: 'transparent',
       backgroundImage:
-        'linear-gradient(to top, rgba(236,214,176,0.42) 0%, rgba(232,201,155,0.12) 22%, rgba(232,201,155,0.03) 50%, rgba(232,201,155,0) 100%)',
+        'linear-gradient(to top, rgba(247,241,230,0.22) 0%, rgba(232,201,155,0.06) 20%, rgba(232,201,155,0) 70%)',
     } as unknown as ViewStyle)
   : null;
 
@@ -226,20 +227,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: '50%',
     top: '6%',
-    bottom: 0,
-    width: 28,
-    marginLeft: -14,
-    backgroundColor: 'rgba(232, 201, 155, 0.05)',
+    bottom: '-0.7vw',
+    width: 16,
+    marginLeft: -8,
+    backgroundColor: 'transparent',
     ...beamGlowWeb,
   },
   beam: {
     position: 'absolute',
     left: '50%',
     top: '4%',
-    bottom: 0,
+    bottom: '-0.7vw',
     width: 1,
     marginLeft: -0.5,
-    backgroundColor: 'rgba(232, 201, 155, 0.28)',
+    backgroundColor: 'transparent',
     ...beamWeb,
   },
   logo: {
