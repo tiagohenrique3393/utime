@@ -1,8 +1,8 @@
-import { Image } from 'expo-image';
+import { Image, type ImageStyle } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fonts } from '@/constants/theme';
@@ -11,71 +11,47 @@ import { isOnboardingComplete } from '@/lib/profile';
 import { consumeRecoveryRedirect, hasPendingRecovery } from '@/lib/session';
 
 const LOGO_ASPECT = 685 / 243;
-const HORIZON_STEPS = 80;
+const HORIZON_STEPS = 96;
 
 const ink = {
   background: '#050505',
-  champagne: '#E8C99B',
+  champagne: '#E6D2AE',
+  line: 'rgba(232, 201, 155, 0.42)',
   warm: '#F5F1EA',
-  buttonText: '#111111',
+  buttonText: '#161412',
 };
 
-function BackgroundScene({ height }: { height: number }) {
-  const arcTop = height * (height < 700 ? 0.66 : 0.6);
-
+function Horizon() {
   return (
-    <View pointerEvents="none" style={styles.scene}>
-      <View
-        style={[
-          styles.beamSoft,
-          {
-            top: height * 0.1,
-            height: Math.max(0, arcTop - height * 0.1),
-          },
-        ]}
-      />
-      <View
-        style={[
-          styles.beam,
-          {
-            top: height * 0.12,
-            height: Math.max(0, arcTop + 16 - height * 0.12),
-          },
-        ]}
-      />
-      <View style={[styles.arc, { top: arcTop }]}>
-        {Array.from({ length: HORIZON_STEPS }, (_, index) => {
-          const t = index / (HORIZON_STEPS - 1);
-          const presence = Math.sin(t * Math.PI);
-          return (
-            <View
-              key={index}
-              style={{
-                position: 'absolute',
-                left: `${t * 100}%`,
-                bottom: presence * 18,
-                width: '2.2%',
-                height: 1,
-                marginLeft: '-1.1%',
-                backgroundColor: ink.champagne,
-                opacity: Math.pow(presence, 1.7) * 0.85,
-              }}
-            />
-          );
-        })}
-        <View style={styles.pointHalo} />
-        <View style={styles.point} />
-      </View>
+    <View pointerEvents="none" style={styles.horizon}>
+      {Array.from({ length: HORIZON_STEPS }, (_, index) => {
+        const t = index / (HORIZON_STEPS - 1);
+        const presence = Math.sin(t * Math.PI);
+        return (
+          <View
+            key={index}
+            style={{
+              position: 'absolute',
+              left: `${t * 100}%`,
+              bottom: presence * 10,
+              width: '2.4%',
+              height: 1,
+              marginLeft: '-1.2%',
+              backgroundColor: ink.line,
+              opacity: Math.pow(presence, 1.85),
+            }}
+          />
+        );
+      })}
+      <View style={styles.point} />
     </View>
   );
 }
 
 export default function HomeScreen() {
-  const { width, height } = useWindowDimensions();
-  const isWide = width >= 800;
-  const isNarrow = width < 380;
+  const { height } = useWindowDimensions();
   const isShort = height < 700;
-  const logoWidth = isShort ? 66 : isWide ? 96 : 82;
+  const logoWidth = isShort ? 62 : 74;
   const resumeSession = getSessionUserId() !== null || hasPendingRecovery();
 
   useEffect(() => {
@@ -92,161 +68,154 @@ export default function HomeScreen() {
     return <View style={styles.screen} />;
   }
 
+  const logoStyle: ImageStyle = Platform.OS === 'web'
+    ? ({
+        width: 'clamp(60px, 16vw, 78px)',
+        height: `calc(clamp(60px, 16vw, 78px) * ${LOGO_ASPECT})`,
+      } as unknown as ImageStyle)
+    : { width: logoWidth, height: logoWidth * LOGO_ASPECT };
+
   return (
     <View style={styles.screen}>
       <StatusBar style="light" />
-      <BackgroundScene height={height} />
       <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
-        <View style={styles.frame}>
-          <View style={[styles.copy, isShort && styles.copyShort]}>
+        <View style={styles.stage}>
+          <View style={[styles.cluster, isShort && styles.clusterShort]}>
             <Image
               accessibilityLabel="YouTime"
               source={require('@/assets/youtime-logo.png')}
-              tintColor="#F6F1E8"
-              style={{ width: logoWidth, height: logoWidth * LOGO_ASPECT }}
+              style={logoStyle}
               contentFit="contain"
             />
             <View style={styles.inscription}>
-              <Text style={[styles.line, isWide && styles.lineWide, isNarrow && styles.lineNarrow]}>
-                DISCIPLINA NO HOJE.
-              </Text>
-              <Text style={[styles.line, isWide && styles.lineWide, isNarrow && styles.lineNarrow]}>
-                CONSTÂNCIA NO CAMINHO.
-              </Text>
+              <Text style={styles.line}>DISCIPLINA NO HOJE.</Text>
+              <Text style={styles.line}>CONSTÂNCIA NO CAMINHO.</Text>
             </View>
+            <Horizon />
           </View>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Iniciar minha jornada"
-            onPress={() => router.push('/cadastro')}
-            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
-            <Text style={[styles.buttonLabel, isNarrow && styles.buttonLabelNarrow]}>INICIAR MINHA JORNADA</Text>
-            <Text style={styles.buttonArrow}>→</Text>
-          </Pressable>
+          <View style={styles.breath} />
+
+          <View style={styles.buttonSlot}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Iniciar minha jornada"
+              onPress={() => router.push('/cadastro')}
+              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
+              <Text style={styles.buttonLabel}>INICIAR MINHA JORNADA →</Text>
+            </Pressable>
+          </View>
         </View>
       </SafeAreaView>
     </View>
   );
 }
 
-const beamWeb = Platform.OS === 'web'
+const webCluster = Platform.OS === 'web'
+  ? ({ paddingTop: 'clamp(12px, 4vh, 40px)' } as unknown as ViewStyle)
+  : null;
+
+const webInscription = Platform.OS === 'web'
+  ? ({ marginTop: 'clamp(22px, 3.2vh, 34px)' } as unknown as ViewStyle)
+  : null;
+
+const webHorizon = Platform.OS === 'web'
+  ? ({ marginTop: 'clamp(18px, 2.8vh, 30px)' } as unknown as ViewStyle)
+  : null;
+
+const webLine = Platform.OS === 'web'
   ? ({
-      backgroundColor: 'transparent',
-      backgroundImage:
-        'linear-gradient(to bottom, rgba(232,201,155,0) 0%, rgba(232,201,155,0.08) 42%, rgba(232,201,155,0.42) 100%)',
-    } as unknown as ViewStyle)
+      fontSize: 'clamp(10px, 2.35vw, 12px)',
+      lineHeight: 'clamp(14px, 3vw, 16px)',
+      letterSpacing: 'clamp(1.2px, 0.42vw, 2.8px)',
+    } as unknown as TextStyle)
+  : null;
+
+const webButtonLabel = Platform.OS === 'web'
+  ? ({
+      fontSize: 'clamp(11px, 2.5vw, 12px)',
+      letterSpacing: 'clamp(0.8px, 0.28vw, 1.5px)',
+    } as unknown as TextStyle)
   : null;
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: ink.background,
+    overflow: 'hidden',
     ...(Platform.OS === 'web'
-      ? ({ minHeight: '100dvh', height: '100dvh' } as unknown as ViewStyle)
+      ? ({ minHeight: '100dvh', height: '100dvh', maxHeight: '100dvh' } as unknown as ViewStyle)
       : null),
-  },
-  scene: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-  },
-  beam: {
-    position: 'absolute',
-    left: '50%',
-    width: 1,
-    marginLeft: -0.5,
-    backgroundColor: 'rgba(232, 201, 155, 0.28)',
-    ...beamWeb,
-  },
-  beamSoft: {
-    position: 'absolute',
-    left: '50%',
-    width: 8,
-    marginLeft: -4,
-    backgroundColor: 'rgba(232, 201, 155, 0.035)',
-  },
-  arc: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 28,
-  },
-  pointHalo: {
-    position: 'absolute',
-    left: '50%',
-    bottom: 14,
-    width: 9,
-    height: 9,
-    marginLeft: -4.5,
-    borderRadius: 5,
-    backgroundColor: 'rgba(232, 201, 155, 0.32)',
-  },
-  point: {
-    position: 'absolute',
-    left: '50%',
-    bottom: 16,
-    width: 3,
-    height: 3,
-    marginLeft: -1.5,
-    borderRadius: 2,
-    backgroundColor: ink.warm,
   },
   safe: {
     flex: 1,
   },
-  frame: {
+  stage: {
     flex: 1,
     width: '100%',
-    maxWidth: 400,
-    alignSelf: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 22,
-    justifyContent: 'space-between',
-  },
-  copy: {
     alignItems: 'center',
-    paddingTop: 36,
   },
-  copyShort: {
-    paddingTop: 16,
+  cluster: {
+    width: '100%',
+    alignItems: 'center',
+    paddingTop: 28,
+    ...webCluster,
+  },
+  clusterShort: {
+    paddingTop: 12,
   },
   inscription: {
-    marginTop: 30,
+    marginTop: 28,
     alignItems: 'center',
     gap: 8,
     transform: [{ scaleX: 0.92 }],
+    ...webInscription,
   },
   line: {
     color: ink.warm,
     fontFamily: fonts.text,
     fontSize: 11,
     lineHeight: 15,
-    letterSpacing: 2.6,
+    letterSpacing: 2.4,
     textAlign: 'center',
+    ...webLine,
   },
-  lineWide: {
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 3.1,
+  horizon: {
+    width: '100%',
+    height: 18,
+    marginTop: 24,
+    ...webHorizon,
   },
-  lineNarrow: {
-    fontSize: 10,
-    lineHeight: 13,
-    letterSpacing: 1.3,
+  point: {
+    position: 'absolute',
+    left: '50%',
+    bottom: 9,
+    width: 2,
+    height: 2,
+    marginLeft: -1,
+    borderRadius: 1,
+    backgroundColor: 'rgba(245, 241, 234, 0.55)',
+  },
+  breath: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 20,
+  },
+  buttonSlot: {
+    width: '100%',
+    maxWidth: 400,
+    paddingHorizontal: 24,
+    paddingBottom: 18,
   },
   button: {
-    minHeight: 56,
+    width: '100%',
+    minHeight: 48,
     borderRadius: 999,
     backgroundColor: ink.champagne,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
   },
   buttonPressed: {
     opacity: 0.88,
@@ -255,16 +224,8 @@ const styles = StyleSheet.create({
     color: ink.buttonText,
     fontFamily: fonts.text,
     fontSize: 12,
-    letterSpacing: 1.5,
-  },
-  buttonLabelNarrow: {
-    fontSize: 10,
-    letterSpacing: 0.6,
-  },
-  buttonArrow: {
-    color: ink.buttonText,
-    fontFamily: fonts.text,
-    fontSize: 15,
-    lineHeight: 18,
+    letterSpacing: 1.35,
+    textAlign: 'center',
+    ...webButtonLabel,
   },
 });
