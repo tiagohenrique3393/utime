@@ -81,20 +81,17 @@ export default function TodayScreen() {
   const hello = now ? greeting(now, profile.firstName) : '';
   const dateLine = now ? todayLabel(now) : '';
   const closed = percent >= 100;
-  const pad = width >= 840 ? 32 : 22;
-  const inner = Math.min(Math.max(width - pad * 2, 0), 460);
-  const ring = Math.max(62, Math.min(76, (inner - 16) / 3 - 20));
+  const stacked = width < 760;
 
   if (!signedIn) {
     return <View style={styles.blocked} />;
   }
 
   return (
-    <AppScreen width="narrow" backdrop={<HojePlanet />} navVariant="hoje">
+    <AppScreen width="stage" backdrop={<HojePlanet />} navVariant="hoje">
       <Text accessibilityRole="header" style={styles.hello}>
         {hello}
       </Text>
-      <Text style={styles.motto}>Disciplina hoje{'\n'}constrói o seu amanhã.</Text>
 
       <View style={styles.dateBlock}>
         <Eyebrow>Hoje</Eyebrow>
@@ -109,9 +106,9 @@ export default function TodayScreen() {
         <DayProgress percent={percent} />
       </View>
 
-      <View style={styles.pillars}>
+      <View style={[styles.pillars, stacked && styles.pillarsStacked]}>
         {pillars.map((pillar) => (
-          <PillarCard key={pillar.id} id={pillar.id} label={pillar.label} percent={pillar.percent} size={ring} />
+          <PillarCard key={pillar.id} id={pillar.id} label={pillar.label} percent={pillar.percent} stacked={stacked} />
         ))}
       </View>
 
@@ -146,24 +143,13 @@ const styles = StyleSheet.create({
   hello: {
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 22,
-    lineHeight: 28,
-    letterSpacing: 2.4,
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: 3.2,
     textTransform: 'uppercase',
-    paddingRight: 72,
-  },
-  motto: {
-    marginTop: 12,
-    color: '#A7A29A',
-    fontFamily: fonts.text,
-    fontSize: 11,
-    lineHeight: 17,
-    letterSpacing: 1.7,
-    textTransform: 'uppercase',
-    paddingRight: 88,
   },
   dateBlock: {
-    marginTop: 32,
+    marginTop: 22,
     gap: 6,
   },
   date: {
@@ -176,16 +162,17 @@ const styles = StyleSheet.create({
     paddingRight: 2,
   },
   figure: {
-    marginTop: 36,
+    marginTop: 28,
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 64,
-    lineHeight: 68,
-  },
-  figureCompact: {
-    marginTop: 24,
     fontSize: 52,
     lineHeight: 56,
+    letterSpacing: 0.6,
+  },
+  figureCompact: {
+    marginTop: 20,
+    fontSize: 44,
+    lineHeight: 48,
   },
   figureLabel: {
     marginTop: 4,
@@ -196,14 +183,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   track: {
-    marginTop: 16,
-    width: '72%',
-    maxWidth: 220,
+    marginTop: 14,
+    width: '100%',
+    maxWidth: 360,
   },
   pillars: {
-    marginTop: 34,
+    marginTop: 28,
     flexDirection: 'row',
-    gap: 8,
+    gap: 14,
+  },
+  pillarsStacked: {
+    flexDirection: 'column',
+    gap: 12,
   },
   status: {
     marginTop: 22,

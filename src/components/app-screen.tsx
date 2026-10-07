@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { BottomNav } from '@/components/bottom-nav';
 import { fonts, ui } from '@/constants/theme';
 
-type Width = 'narrow' | 'regular';
+type Width = 'narrow' | 'regular' | 'stage';
 
 export function AppScreen({
   children,
@@ -23,7 +23,7 @@ export function AppScreen({
 }) {
   const window = useWindowDimensions();
   const wide = window.width >= 840;
-  const maxWidth = width === 'narrow' ? 460 : wide ? 720 : 520;
+  const maxWidth = width === 'stage' ? 1120 : width === 'narrow' ? 460 : wide ? 720 : 520;
 
   return (
     <View style={styles.screen}>
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     left: 0,
-    height: 340,
+    bottom: 0,
     zIndex: 0,
     overflow: 'hidden',
   },

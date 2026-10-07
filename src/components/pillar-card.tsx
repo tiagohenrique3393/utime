@@ -6,145 +6,120 @@ import { useReducedMotion, useSettledNumbers } from '@/components/motion';
 import { fonts, ui } from '@/constants/theme';
 import type { PillarId } from '@/lib/tasks';
 
-const ICON = 'rgba(236, 230, 220, 0.86)';
-const TRACK = '#2A2724';
+const INK = 'rgba(236, 230, 220, 0.9)';
+const TRACK = '#2C2926';
 
 function node(type: string, props: Record<string, unknown> | null, ...children: ReactNode[]) {
   return createElement(type, props, ...children);
 }
 
-function BodyIcon() {
-  const stroke = { fill: 'none', stroke: ICON, strokeWidth: 1.35, strokeLinecap: 'round', strokeLinejoin: 'round' };
-  return node(
-    'svg',
-    { width: 22, height: 36, viewBox: '0 0 40 64', 'aria-hidden': true },
-    node('circle', { cx: 20, cy: 7, r: 3.5, ...stroke }),
-    node('path', { d: 'M20 10.6 V14.2', ...stroke }),
-    node('path', { d: 'M10.2 19 C13.2 15.2 16.4 14.2 20 14.2 C23.6 14.2 26.8 15.2 29.8 19', ...stroke }),
-    node('path', { d: 'M10.2 19 L7 33.5', ...stroke }),
-    node('path', { d: 'M29.8 19 L33 33.5', ...stroke }),
-    node('path', { d: 'M15.2 18.8 C15.4 28 16.2 36 16.6 42', ...stroke }),
-    node('path', { d: 'M24.8 18.8 C24.6 28 23.8 36 23.4 42', ...stroke }),
-    node('path', { d: 'M16.6 42 L15 58', ...stroke }),
-    node('path', { d: 'M23.4 42 L25 58', ...stroke }),
-  );
-}
-
-function BrainIcon() {
-  return node(
-    'svg',
-    { width: 30, height: 30, viewBox: '0 0 48 48', fill: 'none', 'aria-hidden': true },
-    node('path', {
-      d: 'M24 8c-3.4 0-6.2 2.2-7.2 5.2C14.2 13 12 15 12 17.8c0 1.6.7 3 1.8 4-1.6.8-2.8 2.4-2.8 4.3 0 2.2 1.5 4 3.6 4.6.7 2.6 3 4.5 5.8 4.8V14.2',
-      stroke: ICON,
-      strokeWidth: 1.3,
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round',
-    }),
-    node('path', {
-      d: 'M24 8c3.4 0 6.2 2.2 7.2 5.2C33.8 13 36 15 36 17.8c0 1.6-.7 3-1.8 4 1.6.8 2.8 2.4 2.8 4.3 0 2.2-1.5 4-3.6 4.6-.7 2.6-3 4.5-5.8 4.8V14.2',
-      stroke: ICON,
-      strokeWidth: 1.3,
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round',
-    }),
-    node('path', {
-      d: 'M18.5 18.5c1.2.8 1.6 2.2.6 3.4M29.5 18.5c-1.2.8-1.6 2.2-.6 3.4M18.2 25.5c1.1.6 1.5 1.8.7 2.8M29.8 25.5c-1.1.6-1.5 1.8-.7 2.8',
-      stroke: ICON,
-      strokeWidth: 1.1,
-      strokeLinecap: 'round',
-    }),
-    node('path', { d: 'M24 12.5v22', stroke: ICON, strokeWidth: 1.1, strokeLinecap: 'round' }),
-  );
-}
-
-function LotusIcon() {
-  const petals = [-62, -32, 0, 32, 62];
-  return node(
-    'svg',
-    { width: 30, height: 30, viewBox: '0 0 48 48', fill: 'none', 'aria-hidden': true },
-    ...petals.map((turn) =>
-      node('ellipse', {
-        key: turn,
-        cx: 24,
-        cy: 18,
-        rx: 3.4,
-        ry: 9,
-        stroke: ICON,
-        strokeWidth: 1.15,
-        transform: `rotate(${turn} 24 32)`,
-      }),
-    ),
-  );
-}
-
-function Texture({ id }: { id: PillarId }) {
+function Figure({ id }: { id: PillarId }) {
   if (Platform.OS !== 'web') {
     return null;
   }
-  const lines =
-    id === 'corpo'
-      ? ['M-4 34 Q40 18 120 36', 'M-8 52 Q48 34 124 56', 'M0 70 Q52 54 120 74']
-      : id === 'mente'
-        ? ['M8 20 Q40 8 78 24', 'M4 48 Q46 28 96 46', 'M20 72 Q58 58 100 78']
-        : ['M18 18c14 8 22 8 36-2', 'M10 46c18 10 34 8 52-6', 'M24 74c12 4 24 2 36-8'];
+  const mask = `hoje-fade-${id}`;
+  const frame = id === 'corpo' ? { w: 220, h: 380 } : { w: 220, h: 210 };
+  const body =
+    id === 'corpo' ? (
+      node(
+        'g',
+        { fill: INK },
+        node('ellipse', { cx: 110, cy: 30, rx: 14, ry: 17 }),
+        node('path', { d: 'M99 44h22l-4 32h-14z' }),
+        node('path', {
+          d: 'M100 72h20l30 26 8 26-10 30-8 24 10 26-32 12H102l-32-12 10-26-10-24-8-30 8-26z',
+        }),
+        node('path', { d: 'M144 104l34 12-4 88-14 4-8-90z' }),
+        node('path', { d: 'M76 104l-34 12 4 88 14 4 8-90z' }),
+        node('path', {
+          d: 'M116 208l38-10v52l-8 50-8 40-2 16 6 12h-20l4-12 4-16 2-40-4-50-16-42z',
+        }),
+        node('path', {
+          d: 'M104 208l-38-10v52l8 50 8 40 2 16-6 12h20l-4-12-4-16-2-40 4-50 16-42z',
+        }),
+      )
+    ) : id === 'mente' ? (
+      node(
+        'g',
+        { fill: 'none', stroke: INK, strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' },
+        node('path', {
+          d: 'M110 28c-22 0-40 16-46 36-14 4-24 18-22 34 2 14 12 24 26 28 6 18 22 32 42 34V42',
+        }),
+        node('path', {
+          d: 'M110 28c22 0 40 16 46 36 14 4 24 18 22 34-2 14-12 24-26 28-6 18-22 32-42 34V42',
+        }),
+        node('path', { d: 'M110 40v112' }),
+        node('path', { d: 'M78 62c10 8 12 22 2 32' }),
+        node('path', { d: 'M142 62c-10 8-12 22-2 32' }),
+        node('path', { d: 'M74 102c12 6 14 20 4 30' }),
+        node('path', { d: 'M146 102c-12 6-14 20-4 30' }),
+        node('path', { d: 'M86 132c8 6 10 16 2 22' }),
+        node('path', { d: 'M134 132c-8 6-10 16-2 22' }),
+      )
+    ) : (
+      node(
+        'g',
+        { fill: 'none', stroke: INK, strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
+        node('path', { d: 'M110 168c-28-10-58-8-78-28 22-2 40 8 52 24' }),
+        node('path', { d: 'M110 168c28-10 58-8 78-28-22-2-40 8-52 24' }),
+        node('path', { d: 'M110 164c-18-22-24-52-8-78 10 24 14 48 16 70' }),
+        node('path', { d: 'M110 164c18-22 24-52 8-78-10 24-14 48-16 70' }),
+        node('path', { d: 'M110 158c-6-28-4-58 8-84 2 28 0 54-2 76' }),
+        node('path', { d: 'M110 158c6-28 4-58-8-84-2 28 0 54 2 76' }),
+        node('path', { d: 'M110 170c-8 10-6 22 2 28' }),
+        node('path', { d: 'M110 170c8 10 6 22-2 28' }),
+      )
+    );
+
   return (
-    <View pointerEvents="none" style={styles.texture}>
+    <View pointerEvents="none" style={styles.figure}>
       {node(
         'svg',
-        { width: '100%', height: '100%', viewBox: '0 0 120 120', preserveAspectRatio: 'xMidYMid slice', 'aria-hidden': true },
+        {
+          width: '100%',
+          height: '100%',
+          viewBox: `0 0 ${frame.w} ${frame.h}`,
+          preserveAspectRatio: 'xMidYMid meet',
+          'aria-hidden': true,
+        },
         node(
           'defs',
           null,
           node(
-            'radialGradient',
-            { id: `hoje-card-${id}`, cx: '50%', cy: '38%', r: '68%' },
-            node('stop', { offset: '0%', stopColor: '#1A1714', stopOpacity: '0.9' }),
-            node('stop', { offset: '100%', stopColor: '#000000', stopOpacity: '0' }),
+            'linearGradient',
+            { id: mask, x1: '0', y1: '0', x2: '1', y2: '0' },
+            node('stop', { offset: '0%', stopColor: '#FFFFFF', stopOpacity: '0' }),
+            node('stop', { offset: '28%', stopColor: '#FFFFFF', stopOpacity: '0.35' }),
+            node('stop', { offset: '100%', stopColor: '#FFFFFF', stopOpacity: '1' }),
+          ),
+          node('mask', { id: `${mask}-m` }, node('rect', { width: frame.w, height: frame.h, fill: `url(#${mask})` })),
+          node(
+            'filter',
+            { id: `${mask}-soft`, x: '-12%', y: '-8%', width: '124%', height: '116%' },
+            node('feGaussianBlur', { stdDeviation: id === 'corpo' ? '1.15' : '0.35' }),
           ),
         ),
-        node('rect', { width: '120', height: '120', fill: `url(#hoje-card-${id})` }),
-        ...lines.map((d) =>
-          node('path', {
-            key: d,
-            d,
-            fill: 'none',
-            stroke: 'rgba(232, 201, 155, 0.07)',
-            strokeWidth: 1,
-          }),
-        ),
+        node('g', { mask: `url(#${mask}-m)`, filter: `url(#${mask}-soft)`, opacity: 0.15 }, body),
       )}
     </View>
   );
 }
 
-function Ring({ id, percent, size }: { id: PillarId; percent: number; size: number }) {
+function Ring({ percent }: { percent: number }) {
   const tone = progressTone(percent);
-  const stroke = 2.2;
+  const size = 54;
+  const stroke = 2;
   const radius = (size - stroke) / 2 - 1;
   const center = size / 2;
   const turn = 2 * Math.PI * radius;
   const offset = turn * (1 - Math.min(100, Math.max(0, percent)) / 100);
-  const icon = id === 'corpo' ? <BodyIcon /> : id === 'mente' ? <BrainIcon /> : <LotusIcon />;
 
   if (Platform.OS !== 'web') {
-    return (
-      <View
-        style={[
-          styles.ringFallback,
-          { width: size, height: size, borderRadius: size / 2, borderColor: tone?.line ?? TRACK },
-        ]}>
-        {icon}
-      </View>
-    );
+    return <View style={[styles.ringFallback, { borderColor: tone?.line ?? TRACK }]} />;
   }
 
-  const end = -Math.PI / 2 + (Math.min(100, Math.max(0, percent)) / 100) * Math.PI * 2;
-  const dotX = center + radius * Math.cos(end);
-  const dotY = center + radius * Math.sin(end);
-
   return (
-    <View style={{ width: size, height: size }}>
+    <View style={styles.ring}>
       {node(
         'svg',
         { width: size, height: size, viewBox: `0 0 ${size} ${size}`, 'aria-hidden': true },
@@ -161,37 +136,39 @@ function Ring({ id, percent, size }: { id: PillarId; percent: number; size: numb
               strokeDasharray: `${turn} ${turn}`,
               strokeDashoffset: offset,
               transform: `rotate(-90 ${center} ${center})`,
-              style: { filter: `drop-shadow(0 0 2.5px ${tone.glow})` },
-            })
-          : null,
-        tone
-          ? node('circle', {
-              cx: dotX,
-              cy: dotY,
-              r: 1.7,
-              fill: '#F8F3EA',
-              style: { filter: `drop-shadow(0 0 3px ${tone.glow})` },
+              style: { filter: `drop-shadow(0 0 2px ${tone.glow})` },
             })
           : null,
       )}
-      <View style={styles.icon}>{icon}</View>
     </View>
   );
 }
 
-export function PillarCard({ id, label, percent, size }: { id: PillarId; label: string; percent: number; size: number }) {
+export function PillarCard({
+  id,
+  label,
+  percent,
+  stacked,
+}: {
+  id: PillarId;
+  label: string;
+  percent: number;
+  stacked: boolean;
+}) {
   const reduced = useReducedMotion();
   const safe = Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
   const [shown = 0] = useSettledNumbers([safe], reduced);
 
   return (
-    <View style={styles.card} accessibilityLabel={`${label} ${Math.round(safe)}%`}>
-      <Texture id={id} />
-      <Ring id={id} percent={shown} size={size} />
-      <Text style={styles.value}>{Math.round(shown)}%</Text>
-      <Text style={styles.name} numberOfLines={1}>
-        {label}
-      </Text>
+    <View style={[styles.card, stacked && styles.cardStacked]} accessibilityLabel={`${label} ${Math.round(safe)}%`}>
+      <Figure id={id} />
+      <View style={styles.copy}>
+        <Text style={styles.name} numberOfLines={1}>
+          {label}
+        </Text>
+        <Text style={styles.value}>{Math.round(safe)}%</Text>
+        <Ring percent={shown} />
+      </View>
     </View>
   );
 }
@@ -200,49 +177,56 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     minWidth: 0,
-    alignItems: 'center',
-    gap: 8,
-    paddingTop: 14,
-    paddingBottom: 12,
-    paddingHorizontal: 4,
-    borderRadius: 18,
+    minHeight: 248,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(243, 239, 232, 0.08)',
-    backgroundColor: 'rgba(14, 12, 11, 0.72)',
+    borderColor: 'rgba(243, 239, 232, 0.07)',
+    backgroundColor: 'rgba(16, 14, 12, 0.72)',
     overflow: 'hidden',
+    paddingHorizontal: 22,
+    paddingVertical: 22,
   },
-  texture: {
+  cardStacked: {
+    minHeight: 188,
+    flex: 0,
+  },
+  figure: {
     position: 'absolute',
     top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
+    right: -10,
+    width: '74%',
+    height: '108%',
   },
-  ringFallback: {
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+  copy: {
+    zIndex: 1,
+    alignItems: 'flex-start',
+    gap: 8,
+    maxWidth: '58%',
   },
-  icon: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+  name: {
+    color: ui.champagne,
+    fontFamily: fonts.text,
+    fontSize: 11,
+    letterSpacing: 2.4,
+    textTransform: 'uppercase',
   },
   value: {
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 40,
+    lineHeight: 44,
+    letterSpacing: 0.4,
   },
-  name: {
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 10,
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
+  ring: {
+    marginTop: 8,
+    width: 54,
+    height: 54,
+  },
+  ringFallback: {
+    marginTop: 8,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 2,
   },
 });
