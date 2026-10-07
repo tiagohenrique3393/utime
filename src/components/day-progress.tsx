@@ -8,20 +8,31 @@ const CORE = '#F8F3EA';
 const tones = {
   red: {
     line: '#C45148',
+    glow: 'rgba(196, 81, 72, 0.55)',
     lineShadow: '0 0 3px rgba(196, 81, 72, 0.28)',
     light: '0 0 2px 0.5px rgba(248, 243, 234, 0.95), 0 0 5px 1px rgba(196, 81, 72, 0.55), 0 0 10px 3px rgba(196, 81, 72, 0.22)',
   },
   gold: {
     line: '#E4C36A',
+    glow: 'rgba(228, 195, 106, 0.5)',
     lineShadow: '0 0 3px rgba(228, 195, 106, 0.26)',
     light: '0 0 2px 0.5px rgba(248, 243, 234, 0.95), 0 0 5px 1px rgba(228, 195, 106, 0.5), 0 0 10px 3px rgba(228, 195, 106, 0.2)',
   },
   green: {
     line: '#6AAA62',
+    glow: 'rgba(106, 170, 98, 0.5)',
     lineShadow: '0 0 3px rgba(106, 170, 98, 0.26)',
     light: '0 0 2px 0.5px rgba(248, 243, 234, 0.95), 0 0 5px 1px rgba(106, 170, 98, 0.5), 0 0 10px 3px rgba(106, 170, 98, 0.2)',
   },
 } as const;
+
+export function progressTone(percent: number) {
+  if (percent < 1) {
+    return null;
+  }
+  const tone = toneFor(percent);
+  return { line: tone.line, glow: tone.glow };
+}
 
 function toneFor(percent: number) {
   if (percent >= 70) {

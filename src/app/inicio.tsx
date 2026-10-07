@@ -1,10 +1,12 @@
 import { router, type Href } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { createElement, useEffect, useState } from 'react';
 import { useSyncExternalStore } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { AppScreen, Eyebrow, PrimaryButton } from '@/components/app-screen';
+import { AppScreen, Eyebrow } from '@/components/app-screen';
 import { DayProgress } from '@/components/day-progress';
+import { HojePlanet } from '@/components/hoje-planet';
+import { PillarCard } from '@/components/pillar-card';
 import { fonts, ui } from '@/constants/theme';
 import { currentJourneyDay, dayPillars } from '@/lib/journey-view';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
@@ -42,9 +44,26 @@ function remainingLine(count: number) {
   return `${count} hábitos ainda te esperam hoje`;
 }
 
+function Chevron() {
+  if (Platform.OS !== 'web') {
+    return <Text style={styles.chevronFallback}>›</Text>;
+  }
+  return createElement(
+    'svg',
+    { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', 'aria-hidden': true },
+    createElement('path', {
+      d: 'M5 2.5 L9.5 7 L5 11.5',
+      stroke: ui.ink,
+      strokeWidth: 1.4,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+    }),
+  );
+}
+
 export default function TodayScreen() {
   const signedIn = useRequireSession();
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const compact = height < 740;
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const journey = useJourneyBoard();
@@ -62,16 +81,21 @@ export default function TodayScreen() {
   const hello = now ? greeting(now, profile.firstName) : '';
   const dateLine = now ? todayLabel(now) : '';
   const closed = percent >= 100;
+  const pad = width >= 840 ? 32 : 22;
+  const inner = Math.min(Math.max(width - pad * 2, 0), 460);
+  const ring = Math.max(62, Math.min(76, (inner - 16) / 3 - 20));
 
   if (!signedIn) {
     return <View style={styles.blocked} />;
   }
 
   return (
-    <AppScreen width="narrow">
+    <AppScreen width="narrow" backdrop={<HojePlanet />} navVariant="hoje">
       <Text accessibilityRole="header" style={styles.hello}>
         {hello}
       </Text>
+      <Text style={styles.motto}>Disciplina hoje{'\n'}constrói o seu amanhã.</Text>
+
       <View style={styles.dateBlock}>
         <Eyebrow>Hoje</Eyebrow>
         {dateLine ? <Text style={styles.date}>{dateLine}</Text> : null}
@@ -87,25 +111,29 @@ export default function TodayScreen() {
 
       <View style={styles.pillars}>
         {pillars.map((pillar) => (
-          <View key={pillar.id} style={styles.pillar} accessibilityLabel={`${pillar.label} ${pillar.percent}%`}>
-            <Text style={styles.pillarName}>{pillar.label}</Text>
-            <Text style={styles.pillarValue}>{pillar.percent}%</Text>
-          </View>
+          <PillarCard key={pillar.id} id={pillar.id} label={pillar.label} percent={pillar.percent} size={ring} />
         ))}
       </View>
 
-      <View style={styles.summary}>
-        <Text style={styles.message}>{dayMessage(percent)}</Text>
-        {closed ? (
-          <Text style={styles.closed}>Você cumpriu tudo o que planejou para hoje.</Text>
-        ) : remaining > 0 ? (
-          <Text style={styles.counter}>{remainingLine(remaining)}</Text>
-        ) : null}
+      <View style={styles.status}>
+        <View style={styles.statusRule} />
+        <View style={styles.statusCopy}>
+          <Text style={styles.message}>{dayMessage(percent)}</Text>
+          {closed ? (
+            <Text style={styles.closed}>Você cumpriu tudo o que planejou para hoje.</Text>
+          ) : remaining > 0 ? (
+            <Text style={styles.counter}>{remainingLine(remaining)}</Text>
+          ) : null}
+        </View>
       </View>
 
-      <View style={styles.action}>
-        <PrimaryButton label="Ver meu dia" onPress={() => router.push(`/jornada?dia=${day}` as Href)} />
-      </View>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push(`/jornada?dia=${day}` as Href)}
+        style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
+        <Text style={styles.buttonLabel}>Ver meu dia</Text>
+        <Chevron />
+      </Pressable>
     </AppScreen>
   );
 }
@@ -122,10 +150,20 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     letterSpacing: 2.4,
     textTransform: 'uppercase',
-    paddingRight: 4,
+    paddingRight: 72,
+  },
+  motto: {
+    marginTop: 12,
+    color: '#A7A29A',
+    fontFamily: fonts.text,
+    fontSize: 11,
+    lineHeight: 17,
+    letterSpacing: 1.7,
+    textTransform: 'uppercase',
+    paddingRight: 88,
   },
   dateBlock: {
-    marginTop: 28,
+    marginTop: 32,
     gap: 6,
   },
   date: {
@@ -163,57 +201,82 @@ const styles = StyleSheet.create({
     maxWidth: 220,
   },
   pillars: {
-    marginTop: 36,
+    marginTop: 34,
     flexDirection: 'row',
+    gap: 8,
   },
-  pillar: {
+  status: {
+    marginTop: 22,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 12,
+    paddingVertical: 16,
+    paddingRight: 16,
+    paddingLeft: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(243, 239, 232, 0.08)',
+    backgroundColor: 'rgba(16, 14, 13, 0.78)',
+  },
+  statusRule: {
+    width: 2,
+    borderRadius: 1,
+    backgroundColor: ui.champagne,
+    opacity: 0.85,
+  },
+  statusCopy: {
     flex: 1,
-    gap: 4,
-  },
-  pillarName: {
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 11,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  pillarValue: {
-    color: ui.text,
-    fontFamily: fonts.display,
-    fontSize: 26,
-    lineHeight: 30,
-  },
-  summary: {
-    marginTop: 40,
-    gap: 10,
-    maxWidth: '100%',
+    minWidth: 0,
+    gap: 8,
   },
   message: {
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 18,
-    lineHeight: 24,
-    letterSpacing: 1.15,
+    fontSize: 16,
+    lineHeight: 21,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
-    paddingRight: 2,
   },
   counter: {
     color: ui.muted,
     fontFamily: fonts.text,
-    fontSize: 13,
-    lineHeight: 18,
-    letterSpacing: 0.4,
+    fontSize: 12,
+    lineHeight: 17,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
   closed: {
     color: ui.muted,
     fontFamily: fonts.text,
-    fontSize: 13,
-    lineHeight: 18,
-    letterSpacing: 0.3,
+    fontSize: 12,
+    lineHeight: 17,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
-  action: {
-    marginTop: 28,
+  button: {
+    marginTop: 18,
+    minHeight: 56,
+    borderRadius: 999,
+    backgroundColor: ui.champagne,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 22,
+  },
+  buttonLabel: {
+    color: ui.ink,
+    fontFamily: fonts.text,
+    fontSize: 13,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+  },
+  chevronFallback: {
+    color: ui.ink,
+    fontSize: 18,
+    lineHeight: 18,
+  },
+  pressed: {
+    opacity: 0.84,
   },
 });

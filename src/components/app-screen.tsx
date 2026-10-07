@@ -12,10 +12,14 @@ export function AppScreen({
   children,
   showNav = true,
   width = 'regular',
+  backdrop,
+  navVariant = 'default',
 }: {
   children: ReactNode;
   showNav?: boolean;
   width?: Width;
+  backdrop?: ReactNode;
+  navVariant?: 'default' | 'hoje';
 }) {
   const window = useWindowDimensions();
   const wide = window.width >= 840;
@@ -23,8 +27,15 @@ export function AppScreen({
 
   return (
     <View style={styles.screen}>
+      {backdrop ? (
+        <View pointerEvents="none" style={styles.backdrop}>
+          {backdrop}
+        </View>
+      ) : null}
       <StatusBar style="light" />
-      <SafeAreaView edges={showNav ? ['top', 'left', 'right'] : ['top', 'right', 'bottom', 'left']} style={styles.safe}>
+      <SafeAreaView
+        edges={showNav ? ['top', 'left', 'right'] : ['top', 'right', 'bottom', 'left']}
+        style={[styles.safe, backdrop ? styles.safeAbove : null]}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[styles.content, wide && styles.contentWide]}
@@ -33,7 +44,7 @@ export function AppScreen({
           <View style={[styles.column, { maxWidth }]}>{children}</View>
         </ScrollView>
       </SafeAreaView>
-      {showNav ? <BottomNav /> : null}
+      {showNav ? <BottomNav variant={navVariant} /> : null}
     </View>
   );
 }
@@ -90,8 +101,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: ui.background,
   },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    height: 340,
+    zIndex: 0,
+    overflow: 'hidden',
+  },
   safe: {
     flex: 1,
+  },
+  safeAbove: {
+    zIndex: 1,
   },
   scroll: {
     flex: 1,
