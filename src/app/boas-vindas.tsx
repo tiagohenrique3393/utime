@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts } from '@/constants/theme';
 import { loadProfile, saveProfile, type GoalId, type JourneyId } from '@/lib/profile';
+import { useRequireSession } from '@/lib/require-session';
 
 const LOGO_ASPECT = 685 / 243;
 
@@ -31,6 +32,7 @@ const goals: { id: GoalId; label: string }[] = [
 ];
 
 export default function WelcomeFlowScreen() {
+  const signedIn = useRequireSession();
   const saved = loadProfile();
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
@@ -93,6 +95,10 @@ export default function WelcomeFlowScreen() {
     }
     persistDraft(true);
     router.replace('/inicio');
+  }
+
+  if (!signedIn) {
+    return <View style={styles.screen} />;
   }
 
   const title =

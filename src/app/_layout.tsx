@@ -1,13 +1,14 @@
 import { CormorantGaramond_500Medium } from '@expo-google-fonts/cormorant-garamond';
 import { Outfit_400Regular } from '@expo-google-fonts/outfit';
-import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider, router, usePathname } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
 
 import { colors } from '@/constants/theme';
-import { applySessionOwner } from '@/lib/accounts';
+import { applySessionOwner, getSessionUserId } from '@/lib/accounts';
+import { isPrivatePath } from '@/lib/require-session';
 import { notePasswordRecovery, prepareAuth } from '@/lib/session';
 import { supabase } from '../../utils/supabase';
 
@@ -32,6 +33,7 @@ export default function RootLayout() {
     Outfit_400Regular,
   });
   const [authReady, setAuthReady] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (loaded || error) {
@@ -60,6 +62,15 @@ export default function RootLayout() {
       data.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+    if (isPrivatePath(pathname) && getSessionUserId() === null) {
+      router.replace('/');
+    }
+  }, [authReady, pathname]);
 
   if ((!loaded && !error) || !authReady) {
     return null;

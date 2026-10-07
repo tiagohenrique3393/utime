@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen, Eyebrow, TextButton, Track } from '@/components/app-screen';
 import { fonts, ui } from '@/constants/theme';
+import { useRequireSession } from '@/lib/require-session';
 import { pillarStats, pillars, toggleDayTask, useCompletedTaskIds, type PillarId } from '@/lib/tasks';
 
 function isPillarId(value: string): value is PillarId {
@@ -11,6 +12,7 @@ function isPillarId(value: string): value is PillarId {
 }
 
 export default function PillarScreen() {
+  const signedIn = useRequireSession();
   const params = useLocalSearchParams<{ pilar?: string }>();
   const raw = Array.isArray(params.pilar) ? params.pilar[0] : params.pilar;
   const pillar = raw && isPillarId(raw) ? pillars.find((item) => item.id === raw) : undefined;
@@ -19,12 +21,13 @@ export default function PillarScreen() {
   const stats = pillar ? pillarStats(completed, pillar.id) : { done: 0, total: 0, percent: 0 };
 
   useEffect(() => {
-    if (!pillar) {
-      router.replace('/inicio');
+    if (!signedIn || pillar) {
+      return;
     }
-  }, [pillar]);
+    router.replace('/inicio');
+  }, [pillar, signedIn]);
 
-  if (!pillar) {
+  if (!signedIn || !pillar) {
     return <View style={styles.blank} />;
   }
 

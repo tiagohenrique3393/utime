@@ -62,7 +62,7 @@ export default function CircleScreen() {
 
   useEffect(() => {
     if (!getSessionUserId()) {
-      router.replace('/entrar');
+      router.replace('/');
     }
   }, []);
 

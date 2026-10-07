@@ -6,9 +6,11 @@ import { AppScreen, Eyebrow, TextButton } from '@/components/app-screen';
 import { ConsistencyCalendar } from '@/components/consistency-calendar';
 import { fonts, ui } from '@/constants/theme';
 import { completionRate, consistentHabits, streakStats } from '@/lib/journey-view';
+import { useRequireSession } from '@/lib/require-session';
 import { useJourneyBoard } from '@/lib/tasks';
 
 export default function ConstancyScreen() {
+  const signedIn = useRequireSession();
   const journey = useJourneyBoard();
   const [today, setToday] = useState<Date | null>(null);
   const streaks = streakStats(journey);
@@ -18,6 +20,10 @@ export default function ConstancyScreen() {
   useEffect(() => {
     setToday(new Date());
   }, []);
+
+  if (!signedIn) {
+    return <View style={styles.blocked} />;
+  }
 
   return (
     <AppScreen width="narrow">
@@ -64,6 +70,10 @@ export default function ConstancyScreen() {
 }
 
 const styles = StyleSheet.create({
+  blocked: {
+    flex: 1,
+    backgroundColor: ui.background,
+  },
   header: {
     marginTop: 18,
   },

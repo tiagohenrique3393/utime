@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 
 import { AppScreen, Eyebrow, TextButton, Track } from '@/components/app-screen';
 import { fonts, ui } from '@/constants/theme';
+import { useRequireSession } from '@/lib/require-session';
 import {
   completedIdsForDay,
   isDayUnlocked,
@@ -25,6 +26,7 @@ function parseDay(value: string | string[] | undefined) {
 }
 
 export default function RoutineScreen() {
+  const signedIn = useRequireSession();
   const params = useLocalSearchParams<{ dia?: string }>();
   const day = parseDay(params.dia);
   const { width } = useWindowDimensions();
@@ -37,14 +39,17 @@ export default function RoutineScreen() {
   const percent = progressPercent(done);
 
   useEffect(() => {
+    if (!signedIn) {
+      return;
+    }
     if (!unlocked) {
       router.replace('/trinta-dias' as Href);
       return;
     }
     markDayStarted(day);
-  }, [day, unlocked]);
+  }, [day, signedIn, unlocked]);
 
-  if (!unlocked) {
+  if (!signedIn || !unlocked) {
     return <View style={styles.blank} />;
   }
 

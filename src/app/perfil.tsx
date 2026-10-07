@@ -1,4 +1,4 @@
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -33,7 +33,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!getSessionUserId()) {
-      router.replace('/entrar');
+      router.replace('/');
     }
   }, []);
 
@@ -102,7 +102,7 @@ export default function ProfileScreen() {
     setNotice('');
     try {
       await signOut();
-      router.replace('/entrar' as Href);
+      router.replace('/');
     } catch {
       setLeaving(false);
       setNotice('Não foi possível sair agora. Tente novamente.');

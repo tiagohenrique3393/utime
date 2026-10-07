@@ -7,6 +7,7 @@ import { AppScreen, Eyebrow, PrimaryButton, Track } from '@/components/app-scree
 import { fonts, ui } from '@/constants/theme';
 import { currentJourneyDay, dayPillars } from '@/lib/journey-view';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
+import { useRequireSession } from '@/lib/require-session';
 import { completedIdsForDay, progressPercent, TASK_TOTAL, useJourneyBoard } from '@/lib/tasks';
 
 function greeting(date: Date, name: string) {
@@ -41,6 +42,7 @@ function remainingLine(count: number) {
 }
 
 export default function TodayScreen() {
+  const signedIn = useRequireSession();
   const { height } = useWindowDimensions();
   const compact = height < 740;
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
@@ -59,6 +61,10 @@ export default function TodayScreen() {
   const hello = now ? greeting(now, profile.firstName) : '';
   const dateLine = now ? todayLabel(now) : '';
   const closed = percent >= 100;
+
+  if (!signedIn) {
+    return <View style={styles.blocked} />;
+  }
 
   return (
     <AppScreen width="narrow">
@@ -104,6 +110,10 @@ export default function TodayScreen() {
 }
 
 const styles = StyleSheet.create({
+  blocked: {
+    flex: 1,
+    backgroundColor: ui.background,
+  },
   hello: {
     color: ui.text,
     fontFamily: fonts.display,

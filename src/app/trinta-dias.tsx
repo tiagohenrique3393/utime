@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen, PageTitle } from '@/components/app-screen';
 import { fonts, ui } from '@/constants/theme';
+import { useRequireSession } from '@/lib/require-session';
 import { setTestMode, useJourneyBoard } from '@/lib/tasks';
 
 const entries: { href: '/progresso' | '/pilares' | '/constancia'; label: string; note: string }[] = [
@@ -12,7 +13,12 @@ const entries: { href: '/progresso' | '/pilares' | '/constancia'; label: string;
 ];
 
 export default function JourneyHubScreen() {
+  const signedIn = useRequireSession();
   const journey = useJourneyBoard();
+
+  if (!signedIn) {
+    return <View style={styles.blocked} />;
+  }
 
   return (
     <AppScreen width="narrow">
@@ -46,6 +52,10 @@ export default function JourneyHubScreen() {
 }
 
 const styles = StyleSheet.create({
+  blocked: {
+    flex: 1,
+    backgroundColor: ui.background,
+  },
   list: {
     marginTop: 36,
   },

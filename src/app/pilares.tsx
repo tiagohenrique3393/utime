@@ -5,11 +5,17 @@ import { AppScreen, Eyebrow, PageTitle, TextButton } from '@/components/app-scre
 import { RadarThreePillars } from '@/components/radar-pillars';
 import { fonts, ui } from '@/constants/theme';
 import { balanceInsight, currentJourneyDay, dayPillars } from '@/lib/journey-view';
+import { useRequireSession } from '@/lib/require-session';
 import { useJourneyBoard } from '@/lib/tasks';
 
 export default function PillarsScreen() {
+  const signedIn = useRequireSession();
   const journey = useJourneyBoard();
   const readings = dayPillars(journey, currentJourneyDay(journey));
+
+  if (!signedIn) {
+    return <View style={styles.blocked} />;
+  }
 
   return (
     <AppScreen width="narrow">
@@ -28,6 +34,10 @@ export default function PillarsScreen() {
 }
 
 const styles = StyleSheet.create({
+  blocked: {
+    flex: 1,
+    backgroundColor: ui.background,
+  },
   header: {
     marginTop: 18,
   },
