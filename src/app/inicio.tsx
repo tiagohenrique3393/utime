@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import { useSyncExternalStore } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { AppScreen, Eyebrow, Meta, PrimaryButton, Track } from '@/components/app-screen';
+import { AppScreen, Eyebrow, PrimaryButton, Track } from '@/components/app-screen';
 import { fonts, ui } from '@/constants/theme';
-import { currentJourneyDay, dayPillars, upcomingHabits } from '@/lib/journey-view';
+import { currentJourneyDay, dayPillars } from '@/lib/journey-view';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { completedIdsForDay, progressPercent, TASK_TOTAL, useJourneyBoard } from '@/lib/tasks';
 
@@ -20,14 +20,24 @@ function todayLabel(date: Date) {
   return new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' }).format(date);
 }
 
-function remainingCopy(count: number) {
-  if (count <= 0) {
-    return 'O dia está fechado.';
+function dayMessage(percent: number) {
+  if (percent >= 100) {
+    return 'Dia concluído.';
   }
+  if (percent >= 70) {
+    return 'Bom rendimento. Você está quase lá.';
+  }
+  if (percent >= 40) {
+    return 'Você está avançando. Continue.';
+  }
+  return 'Seu dia ainda está começando';
+}
+
+function remainingLine(count: number) {
   if (count === 1) {
-    return 'Falta 1 hábito para fechar o dia.';
+    return '1 hábito ainda te espera hoje';
   }
-  return `Faltam ${count} hábitos para fechar o dia.`;
+  return `${count} hábitos ainda te esperam hoje`;
 }
 
 export default function TodayScreen() {
@@ -44,19 +54,20 @@ export default function TodayScreen() {
   const day = currentJourneyDay(journey);
   const done = completedIdsForDay(journey, day).length;
   const percent = progressPercent(done);
+  const remaining = Math.max(0, TASK_TOTAL - done);
   const pillars = dayPillars(journey, day);
-  const next = upcomingHabits(journey, day, 3);
-  const hello = now ? greeting(now, profile.firstName) : 'Olá';
+  const hello = now ? greeting(now, profile.firstName) : '';
   const dateLine = now ? todayLabel(now) : '';
+  const closed = percent >= 100;
 
   return (
     <AppScreen width="narrow">
-      <Text accessibilityRole="header" style={[styles.hello, compact && styles.helloCompact]}>
+      <Text accessibilityRole="header" style={styles.hello}>
         {hello}
       </Text>
       <View style={styles.dateBlock}>
         <Eyebrow>Hoje</Eyebrow>
-        {dateLine ? <Meta style={styles.date}>{dateLine}</Meta> : null}
+        {dateLine ? <Text style={styles.date}>{dateLine}</Text> : null}
       </View>
 
       <Text style={[styles.figure, compact && styles.figureCompact]} accessibilityLabel={`${percent}% do seu dia`}>
@@ -76,21 +87,14 @@ export default function TodayScreen() {
         ))}
       </View>
 
-      <Text style={styles.section}>Próximos hábitos</Text>
-      {next.length === 0 ? (
-        <Meta style={styles.empty}>Nenhum hábito pendente hoje.</Meta>
-      ) : (
-        <View style={styles.list}>
-          {next.map((habit) => (
-            <View key={habit.id} style={styles.habit}>
-              <Text style={styles.habitName}>{habit.label}</Text>
-              <Text style={styles.habitPeriod}>{habit.period}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <Meta style={styles.remaining}>{remainingCopy(TASK_TOTAL - done)}</Meta>
+      <View style={styles.summary}>
+        <Text style={styles.message}>{dayMessage(percent)}</Text>
+        {closed ? (
+          <Text style={styles.closed}>Você cumpriu tudo o que planejou para hoje.</Text>
+        ) : remaining > 0 ? (
+          <Text style={styles.counter}>{remainingLine(remaining)}</Text>
+        ) : null}
+      </View>
 
       <View style={styles.action}>
         <PrimaryButton label="Ver meu dia" onPress={() => router.push(`/jornada?dia=${day}` as Href)} />
@@ -103,19 +107,24 @@ const styles = StyleSheet.create({
   hello: {
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 36,
-    lineHeight: 40,
-  },
-  helloCompact: {
-    fontSize: 30,
-    lineHeight: 34,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: 2.4,
+    textTransform: 'uppercase',
+    paddingRight: 4,
   },
   dateBlock: {
     marginTop: 28,
     gap: 6,
   },
   date: {
-    textTransform: 'capitalize',
+    color: ui.text,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    lineHeight: 20,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    paddingRight: 2,
   },
   figure: {
     marginTop: 36,
@@ -163,45 +172,35 @@ const styles = StyleSheet.create({
     fontSize: 26,
     lineHeight: 30,
   },
-  section: {
+  summary: {
     marginTop: 40,
-    color: ui.champagne,
-    fontFamily: fonts.text,
-    fontSize: 11,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+    gap: 10,
+    maxWidth: '100%',
   },
-  list: {
-    marginTop: 8,
-  },
-  habit: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: ui.lineSoft,
-  },
-  habitName: {
-    flex: 1,
+  message: {
     color: ui.text,
-    fontFamily: fonts.text,
-    fontSize: 15,
-    lineHeight: 20,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    lineHeight: 24,
+    letterSpacing: 1.15,
+    textTransform: 'uppercase',
+    paddingRight: 2,
   },
-  habitPeriod: {
-    color: ui.faint,
+  counter: {
+    color: ui.muted,
     fontFamily: fonts.text,
-    fontSize: 11,
-    letterSpacing: 1.1,
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
-  empty: {
-    marginTop: 12,
-  },
-  remaining: {
-    marginTop: 22,
+  closed: {
+    color: ui.muted,
+    fontFamily: fonts.text,
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   action: {
     marginTop: 28,
