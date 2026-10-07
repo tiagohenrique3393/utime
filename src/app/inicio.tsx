@@ -63,7 +63,7 @@ function Chevron() {
 
 export default function TodayScreen() {
   const signedIn = useRequireSession();
-  const { width, height } = useWindowDimensions();
+  const { height } = useWindowDimensions();
   const compact = height < 740;
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const journey = useJourneyBoard();
@@ -81,7 +81,7 @@ export default function TodayScreen() {
   const hello = now ? greeting(now, profile.firstName) : '';
   const dateLine = now ? todayLabel(now) : '';
   const closed = percent >= 100;
-  const stacked = width < 760;
+  const feminine = profile.journey === 'womantime';
 
   if (!signedIn) {
     return <View style={styles.blocked} />;
@@ -106,9 +106,15 @@ export default function TodayScreen() {
         <DayProgress percent={percent} />
       </View>
 
-      <View style={[styles.pillars, stacked && styles.pillarsStacked]}>
+      <View style={styles.pillars}>
         {pillars.map((pillar) => (
-          <PillarCard key={pillar.id} id={pillar.id} label={pillar.label} percent={pillar.percent} stacked={stacked} />
+          <PillarCard
+            key={pillar.id}
+            id={pillar.id}
+            label={pillar.label}
+            percent={pillar.percent}
+            feminine={feminine}
+          />
         ))}
       </View>
 
@@ -190,11 +196,8 @@ const styles = StyleSheet.create({
   pillars: {
     marginTop: 28,
     flexDirection: 'row',
-    gap: 14,
-  },
-  pillarsStacked: {
-    flexDirection: 'column',
-    gap: 12,
+    alignItems: 'stretch',
+    gap: 10,
   },
   status: {
     marginTop: 22,

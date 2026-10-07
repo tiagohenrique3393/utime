@@ -1,6 +1,6 @@
 import { router, type Href } from 'expo-router';
 import { createElement, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { useReducedMotion, useSettledNumbers } from '@/components/motion';
 import { fonts, ui } from '@/constants/theme';
@@ -13,31 +13,48 @@ function node(type: string, props: Record<string, unknown> | null, ...children: 
   return createElement(type, props, ...children);
 }
 
-function Figure({ id }: { id: PillarId }) {
+function MaleBody() {
+  return node(
+    'g',
+    { fill: INK },
+    node('ellipse', { cx: 110, cy: 28, rx: 13, ry: 16 }),
+    node('path', { d: 'M100 42h20l-3 28h-14z' }),
+    node('path', {
+      d: 'M102 68h16l32 24 8 24-12 28-10 22 12 24-30 12H92l-30-12 12-24-10-22-12-28 8-24z',
+    }),
+    node('path', { d: 'M146 96l32 10-2 78-12 4-10-80z' }),
+    node('path', { d: 'M74 96l-32 10 2 78 12 4 10-80z' }),
+    node('path', { d: 'M114 196l36-8v48l-8 46-6 36-2 14 6 10h-18l-4-12 4-36 2-46-4-48z' }),
+    node('path', { d: 'M106 196l-36-8v48l8 46 6 36 2 14-6 10h18l4-12-4-36-2-46 4-48z' }),
+  );
+}
+
+function FemaleBody() {
+  return node(
+    'g',
+    { fill: INK },
+    node('path', { d: 'M98 8c8-6 18-6 24 2 4 6 2 12-2 16-6 2-8 6-6 12 6 2 10 8 8 16-8 4-22 4-28-2-4-8-2-16 4-20 2-8-2-16 0-24z' }),
+    node('ellipse', { cx: 110, cy: 36, rx: 11, ry: 13 }),
+    node('path', { d: 'M104 48h12l-1 16h-10z' }),
+    node('path', {
+      d: 'M86 78c10-16 18-22 24-22s14 6 24 22c6 10 10 16 8 26-4 14-12 22-8 36 4 12 12 20 18 30 4 8 0 16-8 18l-18 6h-32l-18-6c-8-2-12-10-8-18 6-10 14-18 18-30 4-14-4-22-8-36-2-10 2-16 8-26z',
+    }),
+    node('path', { d: 'M132 92c14 8 18 22 14 40-4 16-8 32-10 46-2 6-8 4-8-2 2-16 4-32 2-44-2-12-6-22-8-30-2-6 4-12 10-10z' }),
+    node('path', { d: 'M88 92c-14 8-18 22-14 40 4 16 8 32 10 46 2 6 8 4 8-2-2-16-4-32-2-44 2-12 6-22 8-30 2-6-4-12-10-10z' }),
+    node('path', { d: 'M122 188c18 4 26 16 24 34-2 28-8 58-12 86-2 10-6 16-2 20h-14c2-8 2-16 0-28-4-24-6-52-4-78 2-16-2-32 8-34z' }),
+    node('path', { d: 'M98 188c-18 4-26 16-24 34 2 28 8 58 12 86 2 10 6 16 2 20h14c-2-8-2-16 0-28 4-24 6-52 4-78-2-16 2-32-8-34z' }),
+  );
+}
+
+function Figure({ id, feminine }: { id: PillarId; feminine: boolean }) {
   if (Platform.OS !== 'web') {
     return null;
   }
   const mask = `hoje-fade-${id}`;
-  const frame = id === 'corpo' ? { w: 220, h: 380 } : { w: 220, h: 210 };
+  const frame = id === 'corpo' ? { w: 220, h: 360 } : { w: 220, h: 210 };
   const body =
     id === 'corpo' ? (
-      node(
-        'g',
-        { fill: INK },
-        node('ellipse', { cx: 110, cy: 30, rx: 14, ry: 17 }),
-        node('path', { d: 'M99 44h22l-4 32h-14z' }),
-        node('path', {
-          d: 'M100 72h20l30 26 8 26-10 30-8 24 10 26-32 12H102l-32-12 10-26-10-24-8-30 8-26z',
-        }),
-        node('path', { d: 'M144 104l34 12-4 88-14 4-8-90z' }),
-        node('path', { d: 'M76 104l-34 12 4 88 14 4 8-90z' }),
-        node('path', {
-          d: 'M116 208l38-10v52l-8 50-8 40-2 16 6 12h-20l4-12 4-16 2-40-4-50-16-42z',
-        }),
-        node('path', {
-          d: 'M104 208l-38-10v52l8 50 8 40 2 16-6 12h20l-4-12-4-16-2-40 4-50 16-42z',
-        }),
-      )
+      feminine ? <FemaleBody /> : <MaleBody />
     ) : id === 'mente' ? (
       node(
         'g',
@@ -79,7 +96,7 @@ function Figure({ id }: { id: PillarId }) {
           width: '100%',
           height: '100%',
           viewBox: `0 0 ${frame.w} ${frame.h}`,
-          preserveAspectRatio: 'xMidYMid meet',
+          preserveAspectRatio: 'xMaxYMid meet',
           'aria-hidden': true,
         },
         node(
@@ -89,17 +106,12 @@ function Figure({ id }: { id: PillarId }) {
             'linearGradient',
             { id: mask, x1: '0', y1: '0', x2: '1', y2: '0' },
             node('stop', { offset: '0%', stopColor: '#FFFFFF', stopOpacity: '0' }),
-            node('stop', { offset: '28%', stopColor: '#FFFFFF', stopOpacity: '0.35' }),
+            node('stop', { offset: '42%', stopColor: '#FFFFFF', stopOpacity: '0.2' }),
             node('stop', { offset: '100%', stopColor: '#FFFFFF', stopOpacity: '1' }),
           ),
           node('mask', { id: `${mask}-m` }, node('rect', { width: frame.w, height: frame.h, fill: `url(#${mask})` })),
-          node(
-            'filter',
-            { id: `${mask}-soft`, x: '-12%', y: '-8%', width: '124%', height: '116%' },
-            node('feGaussianBlur', { stdDeviation: id === 'corpo' ? '1.15' : '0.35' }),
-          ),
         ),
-        node('g', { mask: `url(#${mask}-m)`, filter: `url(#${mask}-soft)`, opacity: 0.15 }, body),
+        node('g', { mask: `url(#${mask}-m)`, opacity: 0.14 }, body),
       )}
     </View>
   );
@@ -120,9 +132,9 @@ function ringTone(percent: number) {
 
 function Ring({ percent }: { percent: number }) {
   const tone = ringTone(percent);
-  const size = 54;
-  const stroke = 2;
-  const radius = (size - stroke) / 2 - 1;
+  const size = 30;
+  const stroke = 1.6;
+  const radius = (size - stroke) / 2 - 0.4;
   const center = size / 2;
   const turn = 2 * Math.PI * radius;
   const offset = turn * (1 - Math.min(100, Math.max(0, percent)) / 100);
@@ -161,14 +173,16 @@ export function PillarCard({
   id,
   label,
   percent,
-  stacked,
+  feminine = false,
 }: {
   id: PillarId;
   label: string;
   percent: number;
-  stacked: boolean;
+  feminine?: boolean;
 }) {
   const reduced = useReducedMotion();
+  const { width } = useWindowDimensions();
+  const tablet = width >= 760;
   const safe = Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
   const [shown = 0] = useSettledNumbers([safe], reduced);
 
@@ -177,8 +191,8 @@ export function PillarCard({
       accessibilityRole="button"
       accessibilityLabel={`${label}, ${Math.round(safe)}%. Ver hábitos`}
       onPress={() => router.push(`/pilar/${id}` as Href)}
-      style={({ pressed }) => [styles.card, stacked && styles.cardStacked, pressed && styles.pressed]}>
-      <Figure id={id} />
+      style={({ pressed }) => [styles.card, tablet ? styles.cardTablet : styles.cardPhone, pressed && styles.pressed]}>
+      <Figure id={id} feminine={feminine} />
       <View style={styles.copy}>
         <Text style={styles.name} numberOfLines={1}>
           {label}
@@ -192,59 +206,64 @@ export function PillarCard({
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '31%',
+    maxWidth: '32.4%',
     minWidth: 0,
-    minHeight: 248,
-    borderRadius: 22,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(243, 239, 232, 0.07)',
-    backgroundColor: 'rgba(16, 14, 12, 0.72)',
+    backgroundColor: 'rgba(16, 14, 12, 0.62)',
     overflow: 'hidden',
-    paddingHorizontal: 22,
-    paddingVertical: 22,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
-  cardStacked: {
-    minHeight: 188,
-    flex: 0,
+  cardPhone: {
+    height: 128,
+  },
+  cardTablet: {
+    height: 146,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   figure: {
     position: 'absolute',
-    top: 0,
-    right: -10,
-    width: '74%',
+    top: 4,
+    right: -4,
+    width: '58%',
     height: '108%',
   },
   copy: {
     zIndex: 1,
     alignItems: 'flex-start',
-    gap: 8,
-    maxWidth: '58%',
+    justifyContent: 'space-between',
+    height: '100%',
+    maxWidth: '72%',
   },
   name: {
     color: ui.champagne,
     fontFamily: fonts.text,
-    fontSize: 11,
-    letterSpacing: 2.4,
+    fontSize: 10,
+    letterSpacing: 1.1,
     textTransform: 'uppercase',
   },
   value: {
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 40,
-    lineHeight: 44,
-    letterSpacing: 0.4,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: 0.3,
   },
   ring: {
-    marginTop: 8,
-    width: 54,
-    height: 54,
+    width: 30,
+    height: 30,
   },
   ringFallback: {
-    marginTop: 8,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    borderWidth: 2,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1.6,
   },
   pressed: {
     opacity: 0.82,
