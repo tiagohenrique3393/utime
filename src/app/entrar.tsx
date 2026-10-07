@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AuthNotice, AuthScreen } from '@/components/auth-screen';
 import { colors, fonts } from '@/constants/theme';
-import { signInWithEmail, signInWithGoogle } from '@/lib/accounts';
+import { signInWithEmail } from '@/lib/accounts';
 import { isOnboardingComplete } from '@/lib/profile';
 
 export default function SignInScreen() {
@@ -14,17 +14,6 @@ export default function SignInScreen() {
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const [notice, setNotice] = useState<{ message: string; positive: boolean } | null>(null);
-
-  async function handleGoogle() {
-    const result = await signInWithGoogle();
-    if (!result.ok) {
-      setNotice({ message: result.message, positive: false });
-      return;
-    }
-    if (result.next === 'app') {
-      router.push(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
-    }
-  }
 
   async function handleSubmit() {
     if (submittingRef.current) {
@@ -49,21 +38,8 @@ export default function SignInScreen() {
   }
 
   return (
-    <AuthScreen title="Entrar" subtitle="Acesse sua conta para continuar.">
+    <AuthScreen title="ENTRAR" subtitle="Acesse sua conta para continuar.">
       {notice ? <AuthNotice message={notice.message} positive={notice.positive} /> : null}
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={handleGoogle}
-        style={({ pressed }) => [styles.google, pressed && styles.pressed]}>
-        <Text style={styles.googleLabel}>Continuar com Google</Text>
-      </Pressable>
-
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerLabel}>ou</Text>
-        <View style={styles.dividerLine} />
-      </View>
 
       <Text style={styles.label}>E-mail</Text>
       <TextInput
@@ -110,50 +86,23 @@ export default function SignInScreen() {
         disabled={submitting}
         onPress={handleSubmit}
         style={({ pressed }) => [styles.primary, pressed && styles.pressed, submitting && styles.pressed]}>
-        <Text style={styles.primaryLabel}>{submitting ? 'Entrando...' : 'Entrar'}</Text>
+        <Text style={styles.primaryLabel}>{submitting ? 'Entrando...' : 'ENTRAR'}</Text>
       </Pressable>
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push('/cadastro')}
-        style={({ pressed }) => [styles.switchLink, pressed && styles.pressed]}>
-        <Text style={styles.switchLabel}>Criar uma conta</Text>
-      </Pressable>
+      <View style={styles.switchBlock}>
+        <Text style={styles.switchHint}>Ainda não tem uma conta?</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/cadastro')}
+          style={({ pressed }) => [styles.switchLink, pressed && styles.pressed]}>
+          <Text style={styles.switchLabel}>CRIAR UMA CONTA</Text>
+        </Pressable>
+      </View>
     </AuthScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  google: {
-    height: 54,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  googleLabel: {
-    color: colors.ivory,
-    fontFamily: fonts.text,
-    fontSize: 16,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginVertical: 22,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.cardBorder,
-  },
-  dividerLabel: {
-    color: colors.muted,
-    fontFamily: fonts.text,
-    fontSize: 13,
-  },
   label: {
     marginBottom: 8,
     color: colors.ivory,
@@ -185,9 +134,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   forgot: {
-    alignSelf: 'flex-end',
-    marginTop: 10,
-    paddingVertical: 4,
+    alignSelf: 'center',
+    marginTop: 14,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
   forgotLabel: {
     color: colors.gold,
@@ -196,7 +147,7 @@ const styles = StyleSheet.create({
   },
   primary: {
     height: 58,
-    marginTop: 22,
+    marginTop: 8,
     borderRadius: 16,
     backgroundColor: colors.ivory,
     alignItems: 'center',
@@ -207,15 +158,26 @@ const styles = StyleSheet.create({
     fontFamily: fonts.text,
     fontSize: 16,
   },
+  switchBlock: {
+    alignItems: 'center',
+    marginTop: 22,
+  },
+  switchHint: {
+    color: colors.muted,
+    fontFamily: fonts.text,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   switchLink: {
-    alignSelf: 'center',
-    marginTop: 18,
-    paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
   switchLabel: {
     color: colors.ivory,
     fontFamily: fonts.text,
-    fontSize: 15,
+    fontSize: 13,
+    letterSpacing: 1.2,
   },
   pressed: {
     opacity: 0.84,
