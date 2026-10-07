@@ -38,7 +38,7 @@ export default function SignInScreen() {
   }
 
   return (
-    <AuthScreen title="ENTRAR" subtitle="Acesse sua conta para continuar.">
+    <AuthScreen subtitle="Acesse sua conta para continuar.">
       {notice ? <AuthNotice message={notice.message} positive={notice.positive} /> : null}
 
       <Text style={styles.label}>E-mail</Text>

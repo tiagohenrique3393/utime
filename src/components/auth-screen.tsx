@@ -9,7 +9,7 @@ import { colors, fonts } from '@/constants/theme';
 const LOGO_ASPECT = 685 / 243;
 
 type AuthScreenProps = {
-  title: string;
+  title?: string;
   subtitle: string;
   children: ReactNode;
 };
@@ -42,10 +42,12 @@ export function AuthScreen({ title, subtitle, children }: AuthScreenProps) {
               contentFit="contain"
             />
 
-            <Text accessibilityRole="header" style={styles.title}>
-              {title}
-            </Text>
-            <Text style={styles.subtitle}>{subtitle}</Text>
+            {title ? (
+              <Text accessibilityRole="header" style={styles.title}>
+                {title}
+              </Text>
+            ) : null}
+            <Text style={[styles.subtitle, title ? null : styles.subtitleUnderLogo]}>{subtitle}</Text>
             {children}
           </View>
         </ScrollView>
@@ -102,6 +104,9 @@ const styles = StyleSheet.create({
     fontSize: 36,
     lineHeight: 40,
     textAlign: 'center',
+  },
+  subtitleUnderLogo: {
+    marginTop: 18,
   },
   subtitle: {
     marginTop: 8,
