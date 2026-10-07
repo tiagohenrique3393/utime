@@ -1,7 +1,7 @@
+import { router, type Href } from 'expo-router';
 import { createElement, type ReactNode } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { progressTone } from '@/components/day-progress';
 import { useReducedMotion, useSettledNumbers } from '@/components/motion';
 import { fonts, ui } from '@/constants/theme';
 import type { PillarId } from '@/lib/tasks';
@@ -105,8 +105,21 @@ function Figure({ id }: { id: PillarId }) {
   );
 }
 
+function ringTone(percent: number) {
+  if (percent < 1) {
+    return null;
+  }
+  if (percent >= 70) {
+    return { line: '#6AAA62', glow: 'rgba(106, 170, 98, 0.5)' };
+  }
+  if (percent >= 50) {
+    return { line: '#E4C36A', glow: 'rgba(228, 195, 106, 0.48)' };
+  }
+  return { line: '#C45148', glow: 'rgba(196, 81, 72, 0.5)' };
+}
+
 function Ring({ percent }: { percent: number }) {
-  const tone = progressTone(percent);
+  const tone = ringTone(percent);
   const size = 54;
   const stroke = 2;
   const radius = (size - stroke) / 2 - 1;
@@ -160,7 +173,11 @@ export function PillarCard({
   const [shown = 0] = useSettledNumbers([safe], reduced);
 
   return (
-    <View style={[styles.card, stacked && styles.cardStacked]} accessibilityLabel={`${label} ${Math.round(safe)}%`}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${Math.round(safe)}%. Ver hábitos`}
+      onPress={() => router.push(`/pilar/${id}` as Href)}
+      style={({ pressed }) => [styles.card, stacked && styles.cardStacked, pressed && styles.pressed]}>
       <Figure id={id} />
       <View style={styles.copy}>
         <Text style={styles.name} numberOfLines={1}>
@@ -169,7 +186,7 @@ export function PillarCard({
         <Text style={styles.value}>{Math.round(safe)}%</Text>
         <Ring percent={shown} />
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -228,5 +245,8 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 27,
     borderWidth: 2,
+  },
+  pressed: {
+    opacity: 0.82,
   },
 });

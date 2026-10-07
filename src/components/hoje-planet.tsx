@@ -69,21 +69,6 @@ export function HojePlanet() {
         node('circle', { cx: 188, cy: 198, r: 96, fill: 'url(#hoje-dawn)', filter: 'url(#hoje-dawn-blur)' }),
         node('circle', { cx: 430, cy: 390, r: 286, fill: 'url(#hoje-sphere)' }),
         node('circle', { cx: 430, cy: 390, r: 286, fill: 'url(#hoje-shade)' }),
-        node('path', {
-          d: 'M230 300 Q430 250 640 330',
-          stroke: 'rgba(232, 201, 155, 0.045)',
-          strokeWidth: 1.2,
-        }),
-        node('path', {
-          d: 'M210 390 Q430 330 660 410',
-          stroke: 'rgba(243, 239, 232, 0.03)',
-          strokeWidth: 1,
-        }),
-        node('path', {
-          d: 'M240 480 Q450 430 650 500',
-          stroke: 'rgba(232, 201, 155, 0.025)',
-          strokeWidth: 1,
-        }),
       )}
     </View>
   );
