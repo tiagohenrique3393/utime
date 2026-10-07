@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { useSyncExternalStore } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { AppScreen, Eyebrow, PrimaryButton, Track } from '@/components/app-screen';
+import { AppScreen, Eyebrow, PrimaryButton } from '@/components/app-screen';
+import { DayProgress } from '@/components/day-progress';
 import { fonts, ui } from '@/constants/theme';
 import { currentJourneyDay, dayPillars } from '@/lib/journey-view';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
@@ -81,7 +82,7 @@ export default function TodayScreen() {
       </Text>
       <Text style={styles.figureLabel}>Seu dia</Text>
       <View style={styles.track}>
-        <Track percent={percent} />
+        <DayProgress percent={percent} />
       </View>
 
       <View style={styles.pillars}>
