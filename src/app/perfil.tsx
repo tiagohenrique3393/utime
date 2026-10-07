@@ -1,10 +1,9 @@
 import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { BottomNav } from '@/components/bottom-nav';
-import { colors, fonts } from '@/constants/theme';
+import { AppScreen, Eyebrow, PageTitle } from '@/components/app-screen';
+import { colors, fonts, ui } from '@/constants/theme';
 import { getSessionEmail, getSessionUserId, signOut } from '@/lib/accounts';
 import { loadProfile, updateProfileName, type JourneyId } from '@/lib/profile';
 
@@ -21,8 +20,6 @@ function journeyLabel(journey: JourneyId | null) {
 }
 
 export default function ProfileScreen() {
-  const { width } = useWindowDimensions();
-  const isWide = width >= 700;
   const signedIn = getSessionUserId() !== null;
   const profile = loadProfile();
   const [email, setEmail] = useState('');
@@ -113,181 +110,119 @@ export default function ProfileScreen() {
   }
 
   if (!signedIn) {
-    return <View style={styles.screen} />;
+    return <View style={styles.blank} />;
   }
 
   const name = profile.firstName.trim() || 'Não informado';
+  const initial = (profile.firstName.trim().charAt(0) || 'U').toUpperCase();
   const emailText =
     emailState === 'loading' ? 'Carregando' : emailState === 'error' ? 'Não foi possível carregar o e-mail.' : email || 'Não informado';
 
   return (
-    <View style={styles.screen}>
-      <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safe, isWide && styles.safeWide]}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
-          <View style={[styles.column, isWide && styles.columnWide]}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => (router.canGoBack() ? router.back() : router.replace('/inicio'))}
-              style={styles.back}>
-              <Text style={styles.backLabel}>Voltar</Text>
-            </Pressable>
+    <AppScreen width="narrow">
+      <Eyebrow>Conta</Eyebrow>
+      <PageTitle compact>Perfil</PageTitle>
+      <View style={styles.mark}>
+        <Text style={styles.initial}>{initial}</Text>
+      </View>
 
-            <Text style={styles.eyebrow}>Conta</Text>
-            <Text accessibilityRole="header" style={[styles.title, isWide && styles.titleWide]}>
-              Perfil
-            </Text>
-
-            <View style={styles.card}>
-              <Text style={styles.fieldLabel}>Nome</Text>
-              {editingName ? (
-                <>
-                  <TextInput
-                    value={nameDraft}
-                    onChangeText={(value) => {
-                      setNameDraft(value);
-                      setNameNotice('');
-                    }}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    autoFocus
-                    editable={!savingName}
-                    textContentType="givenName"
-                    autoComplete="given-name"
-                    placeholder="Seu primeiro nome"
-                    placeholderTextColor={colors.muted}
-                    onSubmitEditing={saveName}
-                    style={styles.input}
-                  />
-                  {nameNotice ? <Text style={styles.nameNotice}>{nameNotice}</Text> : null}
-                  <View style={styles.nameActions}>
-                    <Pressable accessibilityRole="button" disabled={savingName} onPress={cancelNameEdit} style={styles.nameAction}>
-                      <Text style={styles.nameActionMuted}>Cancelar</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={savingName}
-                      onPress={saveName}
-                      style={styles.nameAction}>
-                      <Text style={styles.nameActionLabel}>{savingName ? 'Salvando' : 'Salvar'}</Text>
-                    </Pressable>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.fieldValue}>{name}</Text>
-                  <Pressable accessibilityRole="button" onPress={startNameEdit} style={styles.editName}>
-                    <Text style={styles.editNameLabel}>Editar nome</Text>
-                  </Pressable>
-                </>
-              )}
-              <View style={styles.separator} />
-              <Text style={styles.fieldLabel}>E-mail</Text>
-              <Text style={styles.fieldValue}>{emailText}</Text>
-              <View style={styles.separator} />
-              <Text style={styles.fieldLabel}>Modalidade</Text>
-              <Text style={styles.fieldValue}>{journeyLabel(profile.journey)}</Text>
+      <View style={styles.fields}>
+        <Text style={styles.fieldLabel}>Nome</Text>
+        {editingName ? (
+          <>
+            <TextInput
+              value={nameDraft}
+              onChangeText={(value) => {
+                setNameDraft(value);
+                setNameNotice('');
+              }}
+              autoCapitalize="words"
+              autoCorrect={false}
+              autoFocus
+              editable={!savingName}
+              textContentType="givenName"
+              autoComplete="given-name"
+              placeholder="Seu primeiro nome"
+              placeholderTextColor={ui.faint}
+              onSubmitEditing={saveName}
+              style={styles.input}
+            />
+            {nameNotice ? <Text style={styles.nameNotice}>{nameNotice}</Text> : null}
+            <View style={styles.nameActions}>
+              <Pressable accessibilityRole="button" disabled={savingName} onPress={cancelNameEdit} style={styles.nameAction}>
+                <Text style={styles.nameActionMuted}>Cancelar</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" disabled={savingName} onPress={saveName} style={styles.nameAction}>
+                <Text style={styles.nameActionLabel}>{savingName ? 'Salvando' : 'Salvar'}</Text>
+              </Pressable>
             </View>
-
-            {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-
-            <Pressable
-              accessibilityRole="button"
-              disabled={leaving}
-              onPress={handleSignOut}
-              style={({ pressed }) => [styles.signOut, pressed && styles.pressed, leaving && styles.pressed]}>
-              <Text style={styles.signOutLabel}>{leaving ? 'Saindo' : 'Sair da conta'}</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.fieldValue}>{name}</Text>
+            <Pressable accessibilityRole="button" onPress={startNameEdit} style={styles.editName}>
+              <Text style={styles.editNameLabel}>Editar nome</Text>
             </Pressable>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-      <BottomNav />
-    </View>
+          </>
+        )}
+
+        <View style={styles.separator} />
+        <Text style={styles.fieldLabel}>E-mail</Text>
+        <Text style={styles.fieldValue}>{emailText}</Text>
+        <View style={styles.separator} />
+        <Text style={styles.fieldLabel}>Modalidade</Text>
+        <Text style={styles.fieldValue}>{journeyLabel(profile.journey)}</Text>
+      </View>
+
+      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+
+      <Pressable
+        accessibilityRole="button"
+        disabled={leaving}
+        onPress={handleSignOut}
+        style={({ pressed }) => [styles.signOut, (pressed || leaving) && styles.pressed]}>
+        <Text style={styles.signOutLabel}>{leaving ? 'Saindo' : 'Sair'}</Text>
+      </Pressable>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  blank: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: ui.background,
   },
-  safe: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  safeWide: {
-    paddingHorizontal: 40,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingTop: 8,
-    paddingBottom: 32,
-  },
-  column: {
-    width: '100%',
-    maxWidth: 440,
-    alignSelf: 'center',
-  },
-  columnWide: {
-    maxWidth: 640,
-  },
-  back: {
-    alignSelf: 'flex-start',
-    paddingVertical: 8,
-  },
-  backLabel: {
-    color: colors.muted,
-    fontFamily: fonts.text,
-    fontSize: 14,
-    letterSpacing: 0.3,
-  },
-  eyebrow: {
-    marginTop: 12,
-    color: colors.gold,
-    fontFamily: fonts.text,
-    fontSize: 12,
-    letterSpacing: 1.4,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-  },
-  title: {
-    marginTop: 8,
-    color: colors.ivory,
-    fontFamily: fonts.display,
-    fontSize: 40,
-    lineHeight: 44,
-    textAlign: 'center',
-  },
-  titleWide: {
-    fontSize: 48,
-    lineHeight: 52,
-  },
-  card: {
+  mark: {
     marginTop: 28,
-    borderRadius: 18,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.card,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    borderColor: ui.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  initial: {
+    color: ui.champagne,
+    fontFamily: fonts.display,
+    fontSize: 28,
+    lineHeight: 32,
+  },
+  fields: {
+    marginTop: 28,
   },
   fieldLabel: {
-    marginTop: 14,
-    color: colors.muted,
+    marginTop: 16,
+    color: ui.muted,
     fontFamily: fonts.text,
-    fontSize: 13,
-    letterSpacing: 0.3,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
   },
   fieldValue: {
     marginTop: 6,
     marginBottom: 14,
-    color: colors.ivory,
+    color: ui.text,
     fontFamily: fonts.text,
     fontSize: 18,
     lineHeight: 24,
@@ -295,12 +230,12 @@ const styles = StyleSheet.create({
   input: {
     height: 52,
     marginTop: 8,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.background,
-    paddingHorizontal: 16,
-    color: colors.ivory,
+    borderColor: ui.line,
+    backgroundColor: ui.background,
+    paddingHorizontal: 14,
+    color: ui.text,
     fontFamily: fonts.text,
     fontSize: 16,
   },
@@ -315,37 +250,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 18,
-    marginTop: 12,
-    marginBottom: 14,
+    marginTop: 8,
+    marginBottom: 8,
   },
   nameAction: {
-    paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   nameActionMuted: {
-    color: colors.muted,
+    color: ui.muted,
     fontFamily: fonts.text,
     fontSize: 15,
   },
   nameActionLabel: {
-    color: colors.ivory,
+    color: ui.champagne,
     fontFamily: fonts.text,
     fontSize: 15,
   },
   editName: {
     alignSelf: 'flex-start',
-    marginTop: -6,
-    marginBottom: 14,
-    paddingVertical: 4,
+    marginTop: -8,
+    marginBottom: 10,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   editNameLabel: {
-    color: colors.gold,
+    color: ui.champagne,
     fontFamily: fonts.text,
     fontSize: 14,
-    letterSpacing: 0.2,
+    letterSpacing: 0.4,
   },
   separator: {
     height: 1,
-    backgroundColor: colors.cardBorder,
+    backgroundColor: ui.lineSoft,
   },
   notice: {
     marginTop: 16,
@@ -353,25 +290,24 @@ const styles = StyleSheet.create({
     fontFamily: fonts.text,
     fontSize: 14,
     lineHeight: 20,
-    textAlign: 'center',
   },
   signOut: {
-    height: 58,
     marginTop: 28,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.line,
+    minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: ui.line,
   },
   signOutLabel: {
-    color: colors.ivory,
+    color: ui.text,
     fontFamily: fonts.text,
-    fontSize: 16,
-    letterSpacing: 0.2,
+    fontSize: 13,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
   },
   pressed: {
-    opacity: 0.84,
+    opacity: 0.75,
   },
 });

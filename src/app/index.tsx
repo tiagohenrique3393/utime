@@ -155,7 +155,7 @@ export default function HomeScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Iniciar minha jornada"
-                onPress={() => router.push('/cadastro')}
+                onPress={() => router.push('/inicio')}
                 style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
                 <Text style={styles.buttonLabel}>INICIAR MINHA JORNADA →</Text>
               </Pressable>

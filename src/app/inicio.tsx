@@ -1,317 +1,209 @@
-import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { useSyncExternalStore } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { BottomNav } from '@/components/bottom-nav';
-import { colors, fonts } from '@/constants/theme';
-import { getSessionUserId, signOut } from '@/lib/accounts';
+import { AppScreen, Eyebrow, Meta, PrimaryButton, Track } from '@/components/app-screen';
+import { fonts, ui } from '@/constants/theme';
+import { currentJourneyDay, dayPillars, upcomingHabits } from '@/lib/journey-view';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
-import { pillarStats, pillars, progressPercent, useCompletedTaskIds } from '@/lib/tasks';
+import { completedIdsForDay, progressPercent, TASK_TOTAL, useJourneyBoard } from '@/lib/tasks';
 
-const LOGO_ASPECT = 685 / 243;
+function greeting(date: Date, name: string) {
+  const hour = date.getHours();
+  const hello = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+  const first = name.trim().split(/\s+/)[0];
+  return first ? `${hello}, ${first}` : hello;
+}
 
-export default function ProvisionalHomeScreen() {
-  const { width } = useWindowDimensions();
-  const isWide = width >= 700;
-  const logoWidth = isWide ? 65 : 54;
-  const firstName = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot).firstName.trim();
-  const greeting = firstName ? `Olá, ${firstName}.` : 'Olá.';
-  const completed = useCompletedTaskIds();
-  const percent = progressPercent(completed.length);
-  const signedIn = getSessionUserId() !== null;
+function todayLabel(date: Date) {
+  return new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' }).format(date);
+}
 
-  async function handleSignOut() {
-    await signOut();
-    router.replace('/');
+function remainingCopy(count: number) {
+  if (count <= 0) {
+    return 'O dia está fechado.';
   }
+  if (count === 1) {
+    return 'Falta 1 hábito para fechar o dia.';
+  }
+  return `Faltam ${count} hábitos para fechar o dia.`;
+}
+
+export default function TodayScreen() {
+  const { height } = useWindowDimensions();
+  const compact = height < 740;
+  const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
+  const journey = useJourneyBoard();
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
+
+  const day = currentJourneyDay(journey);
+  const done = completedIdsForDay(journey, day).length;
+  const percent = progressPercent(done);
+  const pillars = dayPillars(journey, day);
+  const next = upcomingHabits(journey, day, 3);
+  const hello = now ? greeting(now, profile.firstName) : 'Olá';
+  const dateLine = now ? todayLabel(now) : '';
 
   return (
-    <View style={styles.screen}>
-      <SafeAreaView
-        edges={signedIn ? ['top', 'left', 'right'] : ['top', 'right', 'bottom', 'left']}
-        style={[styles.safe, isWide && styles.safeWide]}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
-          <View style={[styles.column, isWide && styles.columnWide]}>
-            <Image
-              accessibilityLabel="YouTime"
-              source={require('@/assets/youtime-logo.png')}
-              style={{ width: logoWidth, height: logoWidth * LOGO_ASPECT, alignSelf: 'center' }}
-              contentFit="contain"
-            />
+    <AppScreen width="narrow">
+      <Text accessibilityRole="header" style={[styles.hello, compact && styles.helloCompact]}>
+        {hello}
+      </Text>
+      <View style={styles.dateBlock}>
+        <Eyebrow>Hoje</Eyebrow>
+        {dateLine ? <Meta style={styles.date}>{dateLine}</Meta> : null}
+      </View>
 
-            <Text accessibilityRole="header" style={styles.greeting}>
-              {greeting}
-            </Text>
-            <Text style={styles.lead}>Seu tempo começa agora.</Text>
-            <View style={styles.rule} />
+      <Text style={[styles.figure, compact && styles.figureCompact]} accessibilityLabel={`${percent}% do seu dia`}>
+        {percent}%
+      </Text>
+      <Text style={styles.figureLabel}>Seu dia</Text>
+      <View style={styles.track}>
+        <Track percent={percent} />
+      </View>
 
-            <View style={[styles.pillars, isWide && styles.pillarsWide]}>
-              {pillars.map((pillar) => {
-                const stats = pillarStats(completed, pillar.id);
-                return (
-                  <Pressable
-                    key={pillar.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${pillar.label}, ${stats.percent}%, ${stats.done} de ${stats.total}`}
-                    onPress={() => router.push(`/pilar/${pillar.id}` as Href)}
-                    style={({ pressed }) => [
-                      styles.pillar,
-                      isWide && styles.pillarWide,
-                      pressed && styles.buttonPressed,
-                    ]}>
-                    <View style={styles.pillarHeader}>
-                      <View style={styles.stem} />
-                      <Text style={styles.pillarLabel}>{pillar.label}</Text>
-                      <Text style={styles.pillarPercent}>{stats.percent}%</Text>
-                    </View>
-                    <View style={[styles.track, styles.pillarTrack]}>
-                      <View style={[styles.fill, { width: `${stats.percent}%` }]} />
-                    </View>
-                    <Text style={styles.pillarCount}>
-                      {stats.done} de {stats.total}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <View style={styles.progressCard}>
-              <View style={styles.progressHeader}>
-                <Text style={styles.progressTitle}>Progresso de hoje</Text>
-                <Text style={styles.progressValue}>{percent}%</Text>
-              </View>
-              <View style={styles.track}>
-                <View style={[styles.fill, { width: `${percent}%` }]} />
-              </View>
-            </View>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push('/jornada')}
-              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
-              <Text style={styles.buttonLabel}>Ver tarefas de hoje</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push('/trinta-dias' as Href)}
-              style={({ pressed }) => [styles.secondary, pressed && styles.buttonPressed]}>
-              <Text style={styles.secondaryLabel}>Meus 30 dias</Text>
-            </Pressable>
-            <Text style={styles.motto}>A vida que você quer é construída nos dias comuns.</Text>
-            {signedIn ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push('/perfil')}
-                style={({ pressed }) => [styles.signOut, pressed && styles.buttonPressed]}>
-                <Text style={styles.signOutLabel}>Perfil</Text>
-              </Pressable>
-            ) : null}
-            {signedIn ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleSignOut}
-                style={({ pressed }) => [styles.signOut, pressed && styles.buttonPressed]}>
-                <Text style={styles.signOutLabel}>Sair</Text>
-              </Pressable>
-            ) : null}
+      <View style={styles.pillars}>
+        {pillars.map((pillar) => (
+          <View key={pillar.id} style={styles.pillar} accessibilityLabel={`${pillar.label} ${pillar.percent}%`}>
+            <Text style={styles.pillarName}>{pillar.label}</Text>
+            <Text style={styles.pillarValue}>{pillar.percent}%</Text>
           </View>
-        </ScrollView>
-      </SafeAreaView>
-      {signedIn ? <BottomNav /> : null}
-    </View>
+        ))}
+      </View>
+
+      <Text style={styles.section}>Próximos hábitos</Text>
+      {next.length === 0 ? (
+        <Meta style={styles.empty}>Nenhum hábito pendente hoje.</Meta>
+      ) : (
+        <View style={styles.list}>
+          {next.map((habit) => (
+            <View key={habit.id} style={styles.habit}>
+              <Text style={styles.habitName}>{habit.label}</Text>
+              <Text style={styles.habitPeriod}>{habit.period}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <Meta style={styles.remaining}>{remainingCopy(TASK_TOTAL - done)}</Meta>
+
+      <View style={styles.action}>
+        <PrimaryButton label="Ver meu dia" onPress={() => router.push(`/jornada?dia=${day}` as Href)} />
+      </View>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  safe: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  safeWide: {
-    paddingHorizontal: 40,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingVertical: 24,
-  },
-  column: {
-    width: '100%',
-    maxWidth: 440,
-    alignSelf: 'center',
-  },
-  columnWide: {
-    maxWidth: 720,
-  },
-  greeting: {
-    marginTop: 18,
-    color: colors.ivory,
+  hello: {
+    color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 40,
-    lineHeight: 44,
-    textAlign: 'center',
+    fontSize: 36,
+    lineHeight: 40,
   },
-  lead: {
-    marginTop: 10,
-    color: colors.muted,
+  helloCompact: {
+    fontSize: 30,
+    lineHeight: 34,
+  },
+  dateBlock: {
+    marginTop: 28,
+    gap: 6,
+  },
+  date: {
+    textTransform: 'capitalize',
+  },
+  figure: {
+    marginTop: 36,
+    color: ui.text,
+    fontFamily: fonts.display,
+    fontSize: 64,
+    lineHeight: 68,
+  },
+  figureCompact: {
+    marginTop: 24,
+    fontSize: 52,
+    lineHeight: 56,
+  },
+  figureLabel: {
+    marginTop: 4,
+    color: ui.champagne,
     fontFamily: fonts.text,
-    fontSize: 16,
-    lineHeight: 22,
-    textAlign: 'center',
+    fontSize: 12,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
   },
-  rule: {
-    alignSelf: 'center',
-    width: 36,
-    height: 1,
-    marginTop: 20,
-    marginBottom: 28,
-    backgroundColor: colors.line,
+  track: {
+    marginTop: 16,
+    width: '72%',
+    maxWidth: 220,
   },
   pillars: {
-    gap: 12,
-  },
-  pillarsWide: {
+    marginTop: 36,
     flexDirection: 'row',
   },
   pillar: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.card,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-  },
-  pillarWide: {
     flex: 1,
+    gap: 4,
   },
-  pillarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  stem: {
-    width: 1,
-    height: 18,
-    backgroundColor: colors.gold,
-  },
-  pillarLabel: {
-    flex: 1,
-    color: colors.ivory,
+  pillarName: {
+    color: ui.muted,
     fontFamily: fonts.text,
-    fontSize: 16,
-    letterSpacing: 0.4,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
-  pillarPercent: {
-    color: colors.ivory,
+  pillarValue: {
+    color: ui.text,
+    fontFamily: fonts.display,
+    fontSize: 26,
+    lineHeight: 30,
+  },
+  section: {
+    marginTop: 40,
+    color: ui.champagne,
     fontFamily: fonts.text,
-    fontSize: 14,
+    fontSize: 11,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
-  pillarTrack: {
-    marginTop: 14,
+  list: {
+    marginTop: 8,
   },
-  pillarCount: {
-    marginTop: 10,
-    color: colors.muted,
-    fontFamily: fonts.text,
-    fontSize: 13,
-  },
-  progressCard: {
-    marginTop: 28,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.card,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-  },
-  progressHeader: {
+  habit: {
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    gap: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: ui.lineSoft,
   },
-  progressTitle: {
-    color: colors.muted,
+  habitName: {
+    flex: 1,
+    color: ui.text,
     fontFamily: fonts.text,
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 20,
   },
-  progressValue: {
-    color: colors.ivory,
+  habitPeriod: {
+    color: ui.faint,
     fontFamily: fonts.text,
-    fontSize: 14,
+    fontSize: 11,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
   },
-  track: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.track,
-    overflow: 'hidden',
-  },
-  fill: {
-    height: '100%',
-    backgroundColor: colors.gold,
-  },
-  button: {
-    height: 58,
-    marginTop: 28,
-    borderRadius: 16,
-    backgroundColor: colors.ivory,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  buttonPressed: {
-    opacity: 0.84,
-  },
-  buttonLabel: {
-    color: colors.onPrimary,
-    fontFamily: fonts.text,
-    fontSize: 16,
-    letterSpacing: 0.2,
-  },
-  secondary: {
-    height: 58,
+  empty: {
     marginTop: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
   },
-  secondaryLabel: {
-    color: colors.ivory,
-    fontFamily: fonts.text,
-    fontSize: 16,
-    letterSpacing: 0.2,
+  remaining: {
+    marginTop: 22,
   },
-  motto: {
+  action: {
     marginTop: 28,
-    color: colors.muted,
-    fontFamily: fonts.display,
-    fontSize: 22,
-    lineHeight: 28,
-    textAlign: 'center',
-  },
-  signOut: {
-    alignSelf: 'center',
-    marginTop: 18,
-    paddingVertical: 8,
-  },
-  signOutLabel: {
-    color: colors.muted,
-    fontFamily: fonts.text,
-    fontSize: 14,
   },
 });

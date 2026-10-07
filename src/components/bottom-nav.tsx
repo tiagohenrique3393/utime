@@ -2,14 +2,34 @@ import { router, usePathname, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, fonts } from '@/constants/theme';
+import { fonts, ui } from '@/constants/theme';
 
-const tabs: { label: string; href: Href }[] = [
-  { label: 'Início', href: '/inicio' },
-  { label: 'Jornada', href: '/trinta-dias' },
-  { label: 'Progresso', href: '/progresso' },
-  { label: 'Ranking', href: '/ranking' },
-  { label: 'Perfil', href: '/perfil' },
+const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = [
+  {
+    label: 'Hoje',
+    href: '/inicio',
+    match: (path) => path === '/inicio' || path === '/jornada',
+  },
+  {
+    label: 'Jornada',
+    href: '/trinta-dias',
+    match: (path) =>
+      path === '/trinta-dias' ||
+      path === '/progresso' ||
+      path === '/pilares' ||
+      path === '/constancia' ||
+      path.startsWith('/pilar'),
+  },
+  {
+    label: 'Círculo',
+    href: '/ranking',
+    match: (path) => path === '/ranking',
+  },
+  {
+    label: 'Perfil',
+    href: '/perfil',
+    match: (path) => path === '/perfil',
+  },
 ];
 
 export function BottomNav() {
@@ -17,14 +37,15 @@ export function BottomNav() {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       {tabs.map((tab) => {
-        const selected = pathname === tab.href;
+        const selected = tab.match(pathname);
         return (
           <Pressable
             key={tab.label}
-            accessibilityRole="button"
+            accessibilityRole="tab"
             accessibilityState={{ selected }}
+            accessibilityLabel={tab.label}
             onPress={() => {
               if (!selected) {
                 router.navigate(tab.href);
@@ -45,36 +66,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-    backgroundColor: colors.background,
-    paddingTop: 10,
-    paddingHorizontal: 8,
+    borderTopColor: ui.lineSoft,
+    backgroundColor: ui.background,
+    paddingTop: 8,
+    paddingHorizontal: 6,
   },
   item: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    minHeight: 46,
-    gap: 8,
+    minHeight: 48,
+    gap: 7,
   },
   mark: {
-    width: 18,
+    width: 16,
     height: 1,
     backgroundColor: 'transparent',
   },
   markSelected: {
-    backgroundColor: colors.gold,
+    backgroundColor: ui.champagne,
   },
   label: {
-    color: colors.muted,
+    color: ui.faint,
     fontFamily: fonts.text,
-    fontSize: 12,
-    letterSpacing: 0.2,
+    fontSize: 10,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
   },
   labelSelected: {
-    color: colors.gold,
+    color: ui.champagne,
   },
   pressed: {
-    opacity: 0.84,
+    opacity: 0.8,
   },
 });

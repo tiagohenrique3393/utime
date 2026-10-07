@@ -17,3 +17,17 @@ export const fonts = {
   display: 'CormorantGaramond_500Medium',
   text: 'Outfit_400Regular',
 } as const;
+
+export const ui = {
+  background: '#000000',
+  text: '#F3EFE8',
+  muted: '#8C8882',
+  faint: '#5E5A55',
+  champagne: '#E8C99B',
+  champagneDeep: '#C4A574',
+  ink: '#141210',
+  line: 'rgba(232, 201, 155, 0.2)',
+  lineSoft: 'rgba(243, 239, 232, 0.08)',
+  veil: 'rgba(232, 201, 155, 0.14)',
+  track: '#1A1917',
+} as const;
