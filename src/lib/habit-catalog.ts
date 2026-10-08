@@ -2,6 +2,7 @@ import { supabase } from '../../utils/supabase';
 
 export type HabitPeriod = 'manha' | 'tarde' | 'noite';
 export type HabitPillar = 'corpo' | 'mente' | 'espirito';
+export type HabitRelevance = 'alta' | 'media' | 'baixa';
 
 export type CatalogHabit = {
   id: string;
@@ -19,6 +20,7 @@ export type UserHabit = {
   pillar: HabitPillar;
   sortOrder: number;
   active: boolean;
+  relevance: HabitRelevance | null;
 };
 
 export type HabitResult = {
@@ -46,10 +48,14 @@ type HabitRow = {
   pillar: string;
   sort_order: number;
   active: boolean | null;
+  relevance: string | null;
 };
+
+const habitColumns = 'id,catalog_habit_id,custom_label,period,pillar,sort_order,active,relevance';
 
 const periods = new Set<HabitPeriod>(['manha', 'tarde', 'noite']);
 const pillars = new Set<HabitPillar>(['corpo', 'mente', 'espirito']);
+const relevances = new Set<HabitRelevance>(['alta', 'media', 'baixa']);
 
 let ownerId: string | null = null;
 let revision = 0;
@@ -98,6 +104,14 @@ function isPillar(value: string): value is HabitPillar {
   return pillars.has(value as HabitPillar);
 }
 
+function isRelevance(value: string): value is HabitRelevance {
+  return relevances.has(value as HabitRelevance);
+}
+
+function relevanceFromValue(value: string | null | undefined): HabitRelevance | null {
+  return value && isRelevance(value) ? value : null;
+}
+
 function catalogFromRow(row: CatalogRow): CatalogHabit | null {
   if (!isPeriod(row.period) || !isPillar(row.pillar) || row.label.trim().length === 0) {
     return null;
@@ -131,6 +145,7 @@ function habitFromRow(row: HabitRow): UserHabit | null {
     pillar: row.pillar,
     sortOrder: row.sort_order,
     active: row.active !== false,
+    relevance: relevanceFromValue(row.relevance),
   };
 }
 
@@ -146,7 +161,7 @@ export async function hydrateHabitRoutine(userId: string) {
       supabase.from('habit_routines').select('personalized').eq('user_id', userId).maybeSingle(),
       supabase
         .from('user_habits')
-        .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+        .select(habitColumns)
         .eq('user_id', userId)
         .order('sort_order', { ascending: true }),
     ]);
@@ -180,7 +195,10 @@ async function markPersonalized(userId: string) {
   return !error;
 }
 
-export async function chooseCatalogHabit(catalogHabitId: string): Promise<HabitResult> {
+export async function chooseCatalogHabit(
+  catalogHabitId: string,
+  relevance: HabitRelevance | null = null,
+): Promise<HabitResult> {
   const userId = ownerId;
   if (!userId) {
     return { ok: false, message: 'Entre na sua conta para escolher um hábito.' };
@@ -191,6 +209,9 @@ export async function chooseCatalogHabit(catalogHabitId: string): Promise<HabitR
   }
   if (habits.some((habit) => habit.catalogHabitId === catalogHabitId)) {
     return { ok: true, message: 'Esse hábito já está na sua rotina.' };
+  }
+  if (relevance !== null && !isRelevance(relevance)) {
+    return { ok: false, message: 'Escolha a relevância alta, média ou baixa.' };
   }
   revision += 1;
   const { data, error } = await supabase
@@ -203,8 +224,9 @@ export async function chooseCatalogHabit(catalogHabitId: string): Promise<HabitR
       pillar: source.pillar,
       sort_order: nextSortOrder(),
       active: true,
+      relevance,
     })
-    .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+    .select(habitColumns)
     .single();
   if (error || !data) {
     return { ok: false, message: 'Não foi possível escolher esse hábito.' };
@@ -231,6 +253,7 @@ export async function addCustomHabit(input: {
   label: string;
   period: HabitPeriod;
   pillar: HabitPillar;
+  relevance?: HabitRelevance | null;
 }): Promise<HabitResult> {
   const userId = ownerId;
   const label = input.label.trim();
@@ -239,6 +262,10 @@ export async function addCustomHabit(input: {
   }
   if (label.length === 0 || !isPeriod(input.period) || !isPillar(input.pillar)) {
     return { ok: false, message: 'Informe o nome, o período e o pilar do hábito.' };
+  }
+  const relevance = input.relevance ?? null;
+  if (relevance !== null && !isRelevance(relevance)) {
+    return { ok: false, message: 'Escolha a relevância alta, média ou baixa.' };
   }
   revision += 1;
   const { data, error } = await supabase
@@ -251,8 +278,9 @@ export async function addCustomHabit(input: {
       pillar: input.pillar,
       sort_order: nextSortOrder(),
       active: true,
+      relevance,
     })
-    .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+    .select(habitColumns)
     .single();
   if (error || !data) {
     return { ok: false, message: 'Não foi possível adicionar esse hábito.' };
@@ -277,7 +305,14 @@ export async function addCustomHabit(input: {
 
 export async function updateUserHabit(
   habitId: string,
-  patch: { label?: string; period?: HabitPeriod; pillar?: HabitPillar; sortOrder?: number; active?: boolean },
+  patch: {
+    label?: string;
+    period?: HabitPeriod;
+    pillar?: HabitPillar;
+    sortOrder?: number;
+    active?: boolean;
+    relevance?: HabitRelevance | null;
+  },
 ): Promise<HabitResult> {
   const userId = ownerId;
   const current = habits.find((habit) => habit.id === habitId);
@@ -286,14 +321,19 @@ export async function updateUserHabit(
   }
   const nextPeriod = patch.period ?? current.period;
   const nextPillar = patch.pillar ?? current.pillar;
+  const nextRelevance = patch.relevance === undefined ? current.relevance : patch.relevance;
   if (!isPeriod(nextPeriod) || !isPillar(nextPillar)) {
     return { ok: false, message: 'Informe um período e um pilar válidos.' };
+  }
+  if (nextRelevance !== null && !isRelevance(nextRelevance)) {
+    return { ok: false, message: 'Escolha a relevância alta, média ou baixa.' };
   }
   const changes: Record<string, string | number | boolean | null> = {
     period: nextPeriod,
     pillar: nextPillar,
     sort_order: patch.sortOrder ?? current.sortOrder,
     active: patch.active ?? current.active,
+    relevance: nextRelevance,
   };
   if (current.catalogHabitId) {
     changes.custom_label = null;
@@ -310,7 +350,7 @@ export async function updateUserHabit(
     .update(changes)
     .eq('id', habitId)
     .eq('user_id', userId)
-    .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+    .select(habitColumns)
     .single();
   if (error || !data || ownerId !== userId) {
     return { ok: false, message: 'Não foi possível editar esse hábito.' };
