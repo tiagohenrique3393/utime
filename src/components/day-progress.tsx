@@ -3,26 +3,27 @@ import { StyleSheet, View } from 'react-native';
 import { useReducedMotion, useSettledNumbers } from '@/components/motion';
 import { ui } from '@/constants/theme';
 
-const CORE = '#F8F3EA';
-
 const tones = {
   red: {
-    line: '#7C403C',
-    glow: 'rgba(124, 64, 60, 0.55)',
-    lineShadow: '0 0 3px rgba(124, 64, 60, 0.28)',
-    light: '0 0 2px 0.5px rgba(248, 243, 234, 0.9), 0 0 5px 1px rgba(124, 64, 60, 0.4)',
+    line: '#E15A4C',
+    core: '#F4D2CC',
+    glow: 'rgba(225, 90, 76, 0.7)',
+    lineShadow: '0 0 4px rgba(225, 90, 76, 0.55)',
+    light: '0 0 2px 0.5px rgba(244, 210, 204, 0.95), 0 0 6px 1px rgba(225, 90, 76, 0.65)',
   },
   gold: {
-    line: '#C6AE86',
-    glow: 'rgba(198, 174, 134, 0.45)',
-    lineShadow: '0 0 3px rgba(198, 174, 134, 0.28)',
-    light: '0 0 2px 0.5px rgba(248, 243, 234, 0.9), 0 0 5px 1px rgba(198, 174, 134, 0.4)',
+    line: '#E4C36A',
+    core: '#F8F0D2',
+    glow: 'rgba(228, 195, 106, 0.7)',
+    lineShadow: '0 0 4px rgba(228, 195, 106, 0.5)',
+    light: '0 0 2px 0.5px rgba(248, 240, 210, 0.95), 0 0 6px 1px rgba(228, 195, 106, 0.65)',
   },
   green: {
-    line: '#3E6848',
-    glow: 'rgba(62, 104, 72, 0.5)',
-    lineShadow: '0 0 3px rgba(62, 104, 72, 0.28)',
-    light: '0 0 2px 0.5px rgba(248, 243, 234, 0.9), 0 0 5px 1px rgba(62, 104, 72, 0.4)',
+    line: '#5FCB68',
+    core: '#DDF6DF',
+    glow: 'rgba(95, 203, 104, 0.72)',
+    lineShadow: '0 0 4px rgba(95, 203, 104, 0.55)',
+    light: '0 0 2px 0.5px rgba(221, 246, 223, 0.95), 0 0 6px 1px rgba(95, 203, 104, 0.65)',
   },
 } as const;
 
@@ -49,16 +50,19 @@ export function DayProgress({ percent }: { percent: number }) {
   const safe = Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
   const [value = 0] = useSettledNumbers([safe], reduced);
   const lit = value >= 0.5;
+  const tone = toneFor(safe);
 
   return (
     <View
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(safe) }}
       style={styles.rail}>
-      {lit ? <View style={[styles.fill, { width: `${value}%` }]} /> : null}
+      {lit ? (
+        <View style={[styles.fill, { width: `${value}%`, backgroundColor: tone.line, boxShadow: tone.lineShadow }]} />
+      ) : null}
       {lit ? (
         <View pointerEvents="none" style={[styles.anchor, { left: `${value}%` }]}>
-          <View style={styles.core} />
+          <View style={[styles.core, { backgroundColor: tone.core, boxShadow: tone.light }]} />
         </View>
       ) : null}
     </View>
@@ -75,8 +79,6 @@ const styles = StyleSheet.create({
   fill: {
     height: 2,
     borderRadius: 1,
-    backgroundColor: '#E4D2B0',
-    boxShadow: '0 0 4px rgba(228, 210, 176, 0.28)',
   },
   anchor: {
     position: 'absolute',
@@ -91,7 +93,5 @@ const styles = StyleSheet.create({
     left: -1.5,
     top: -0.5,
     borderRadius: 2,
-    backgroundColor: CORE,
-    boxShadow: '0 0 2px 0.5px rgba(248, 243, 234, 0.9), 0 0 6px 2px rgba(228, 210, 176, 0.32)',
   },
 });

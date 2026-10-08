@@ -3,11 +3,11 @@ import { createElement, useEffect, useState } from 'react';
 import { useSyncExternalStore } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { AppScreen, Eyebrow } from '@/components/app-screen';
+import { AppScreen } from '@/components/app-screen';
 import { DayProgress } from '@/components/day-progress';
 import { HojePlanet } from '@/components/hoje-planet';
 import { PillarCard } from '@/components/pillar-card';
-import { fonts, ui } from '@/constants/theme';
+import { hojeType, ui } from '@/constants/theme';
 import { currentJourneyDay, dayPillars } from '@/lib/journey-view';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
@@ -44,6 +44,28 @@ function remainingLine(count: number) {
   return `${count} hábitos ainda te esperam hoje`;
 }
 
+function Trophy() {
+  if (Platform.OS !== 'web') {
+    return <View style={styles.trophyFallback} />;
+  }
+  return createElement(
+    'svg',
+    { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+    createElement('path', {
+      d: 'M5.2 2.4h5.6v2.2c0 1.7-1.1 2.9-2.4 3.2v1.5h1.7v1.2H5.9v-1.2h1.7V7.8C6.3 7.5 5.2 6.3 5.2 4.6V2.4z',
+      stroke: ui.champagne,
+      strokeWidth: 1.15,
+      strokeLinejoin: 'round',
+    }),
+    createElement('path', {
+      d: 'M5.2 3.2H3.3c.2 1.5.9 2.3 2.1 2.6M10.8 3.2h1.9c-.2 1.5-.9 2.3-2.1 2.6',
+      stroke: ui.champagne,
+      strokeWidth: 1.15,
+      strokeLinecap: 'round',
+    }),
+  );
+}
+
 function Chevron() {
   if (Platform.OS !== 'web') {
     return <Text style={styles.chevronFallback}>›</Text>;
@@ -63,8 +85,9 @@ function Chevron() {
 
 export default function TodayScreen() {
   const signedIn = useRequireSession();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const compact = height < 740;
+  const statusSize = width < 400 ? 8 : width < 520 ? 9 : width < 760 ? 11 : 13;
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const journey = useJourneyBoard();
   const [now, setNow] = useState<Date | null>(null);
@@ -94,7 +117,7 @@ export default function TodayScreen() {
       </Text>
 
       <View style={styles.dateBlock}>
-        <Eyebrow>Hoje</Eyebrow>
+        <Text style={styles.kicker}>Hoje</Text>
         {dateLine ? <Text style={styles.date}>{dateLine}</Text> : null}
       </View>
 
@@ -120,14 +143,20 @@ export default function TodayScreen() {
 
       <View style={styles.status}>
         <View style={styles.statusRule} />
-        <View style={styles.statusCopy}>
-          <Text style={styles.message}>{dayMessage(percent)}</Text>
-          {closed ? (
-            <Text style={styles.closed}>Você cumpriu tudo o que planejou para hoje.</Text>
-          ) : remaining > 0 ? (
-            <Text style={styles.counter}>{remainingLine(remaining)}</Text>
-          ) : null}
-        </View>
+        <Trophy />
+        <Text style={[styles.message, { fontSize: statusSize, lineHeight: statusSize + 4 }]} numberOfLines={1}>
+          {dayMessage(percent)}
+        </Text>
+        {closed || remaining > 0 ? <View style={styles.statusSplit} /> : null}
+        {closed ? (
+          <Text style={[styles.counter, { fontSize: statusSize, lineHeight: statusSize + 4 }]} numberOfLines={1}>
+            Você cumpriu tudo o que planejou para hoje.
+          </Text>
+        ) : remaining > 0 ? (
+          <Text style={[styles.counter, { fontSize: statusSize, lineHeight: statusSize + 4 }]} numberOfLines={1}>
+            {remainingLine(remaining)}
+          </Text>
+        ) : null}
       </View>
 
       <Pressable
@@ -148,44 +177,52 @@ const styles = StyleSheet.create({
   },
   hello: {
     color: ui.text,
-    fontFamily: fonts.display,
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: 3.2,
+    fontFamily: hojeType.text,
+    fontSize: 18,
+    lineHeight: 22,
+    letterSpacing: 3.8,
     textTransform: 'uppercase',
   },
   dateBlock: {
-    marginTop: 22,
-    gap: 6,
+    marginTop: 26,
+    gap: 4,
+  },
+  kicker: {
+    color: ui.champagne,
+    fontFamily: hojeType.text,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 2.6,
+    textTransform: 'uppercase',
   },
   date: {
     color: ui.text,
-    fontFamily: fonts.text,
+    fontFamily: hojeType.text,
     fontSize: 14,
-    lineHeight: 20,
-    letterSpacing: 1.1,
+    lineHeight: 18,
+    letterSpacing: 1.8,
     textTransform: 'uppercase',
     paddingRight: 2,
   },
   figure: {
-    marginTop: 28,
+    marginTop: 26,
     color: ui.text,
-    fontFamily: fonts.display,
-    fontSize: 52,
-    lineHeight: 56,
-    letterSpacing: 0.6,
+    fontFamily: hojeType.strong,
+    fontSize: 56,
+    lineHeight: 58,
+    letterSpacing: -0.4,
   },
   figureCompact: {
-    marginTop: 20,
-    fontSize: 44,
-    lineHeight: 48,
+    marginTop: 18,
+    fontSize: 48,
+    lineHeight: 50,
   },
   figureLabel: {
-    marginTop: 4,
+    marginTop: 2,
     color: ui.champagne,
-    fontFamily: fonts.text,
+    fontFamily: hojeType.text,
     fontSize: 12,
-    letterSpacing: 2.2,
+    letterSpacing: 2.8,
     textTransform: 'uppercase',
   },
   track: {
@@ -200,13 +237,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   status: {
-    marginTop: 22,
+    marginTop: 18,
     flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 12,
-    paddingVertical: 16,
-    paddingRight: 16,
-    paddingLeft: 14,
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 42,
+    paddingVertical: 9,
+    paddingRight: 8,
+    paddingLeft: 8,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(243, 239, 232, 0.08)',
@@ -214,42 +252,42 @@ const styles = StyleSheet.create({
   },
   statusRule: {
     width: 2,
+    height: 18,
     borderRadius: 1,
     backgroundColor: ui.champagne,
-    opacity: 0.85,
+    opacity: 0.9,
   },
-  statusCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 8,
+  trophyFallback: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: ui.champagne,
+  },
+  statusSplit: {
+    width: 1,
+    height: 14,
+    backgroundColor: 'rgba(243, 239, 232, 0.28)',
   },
   message: {
+    flexGrow: 0,
+    flexShrink: 1,
     color: ui.text,
-    fontFamily: fonts.display,
-    fontSize: 16,
-    lineHeight: 21,
-    letterSpacing: 0.8,
+    fontFamily: hojeType.text,
+    letterSpacing: 0,
     textTransform: 'uppercase',
   },
   counter: {
+    flexGrow: 0,
+    flexShrink: 1,
     color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 12,
-    lineHeight: 17,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  closed: {
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 12,
-    lineHeight: 17,
-    letterSpacing: 0.4,
+    fontFamily: hojeType.text,
+    letterSpacing: 0,
     textTransform: 'uppercase',
   },
   button: {
-    marginTop: 18,
-    minHeight: 56,
+    marginTop: 16,
+    minHeight: 52,
     borderRadius: 999,
     backgroundColor: ui.champagne,
     flexDirection: 'row',
@@ -260,9 +298,9 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     color: ui.ink,
-    fontFamily: fonts.text,
-    fontSize: 13,
-    letterSpacing: 1.6,
+    fontFamily: hojeType.strong,
+    fontSize: 14,
+    letterSpacing: 2.1,
     textTransform: 'uppercase',
   },
   chevronFallback: {

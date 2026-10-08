@@ -18,6 +18,11 @@ export const fonts = {
   text: 'Outfit_400Regular',
 } as const;
 
+export const hojeType = {
+  text: 'Rajdhani_500Medium',
+  strong: 'Rajdhani_600SemiBold',
+} as const;
+
 export const ui = {
   background: '#000000',
   text: '#F3EFE8',

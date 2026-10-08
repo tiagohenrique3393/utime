@@ -1,5 +1,6 @@
 import { CormorantGaramond_500Medium } from '@expo-google-fonts/cormorant-garamond';
 import { Outfit_400Regular } from '@expo-google-fonts/outfit';
+import { Rajdhani_500Medium, Rajdhani_600SemiBold } from '@expo-google-fonts/rajdhani';
 import { DefaultTheme, Stack, ThemeProvider, router, usePathname } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -31,6 +32,8 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     CormorantGaramond_500Medium,
     Outfit_400Regular,
+    Rajdhani_500Medium,
+    Rajdhani_600SemiBold,
   });
   const [authReady, setAuthReady] = useState(false);
   const pathname = usePathname();

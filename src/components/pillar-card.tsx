@@ -4,7 +4,7 @@ import { createElement, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { useReducedMotion, useSettledNumbers } from '@/components/motion';
-import { fonts } from '@/constants/theme';
+import { hojeType } from '@/constants/theme';
 import type { PillarId } from '@/lib/tasks';
 
 const corpoMale = require('@/assets/pillars/corpo-mantime.png');
@@ -25,10 +25,10 @@ function node(type: string, props: Record<string, unknown> | null, ...children: 
 }
 
 function bandFor(percent: number) {
-  if (percent >= 80) {
+  if (percent >= 70) {
     return bands.green;
   }
-  if (percent >= 40) {
+  if (percent >= 50) {
     return bands.yellow;
   }
   return bands.red;
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   },
   name: {
     color: '#F7F4EC',
-    fontFamily: fonts.text,
+    fontFamily: hojeType.text,
     fontSize: 10,
     lineHeight: 13,
     letterSpacing: 1.6,
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2.2,
   },
   value: {
-    fontFamily: fonts.text,
+    fontFamily: hojeType.strong,
     fontSize: 12,
     lineHeight: 15,
     letterSpacing: 0.6,

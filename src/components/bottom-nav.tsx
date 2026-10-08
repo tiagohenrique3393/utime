@@ -3,7 +3,7 @@ import { createElement, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fonts, ui } from '@/constants/theme';
+import { fonts, hojeType, ui } from '@/constants/theme';
 
 const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = [
   {
@@ -89,7 +89,7 @@ export function BottomNav({ variant = 'default' }: { variant?: 'default' | 'hoje
             style={({ pressed }) => [styles.item, pressed && styles.pressed]}>
             <View style={[styles.mark, hoje && styles.markHoje, selected && styles.markSelected, hoje && selected && styles.markGlow]} />
             {hoje ? <NavIcon label={tab.label} selected={selected} /> : null}
-            <Text style={[styles.label, selected && styles.labelSelected]}>{tab.label}</Text>
+            <Text style={[styles.label, hoje && styles.labelHoje, selected && styles.labelSelected]}>{tab.label}</Text>
           </Pressable>
         );
       })}
@@ -141,6 +141,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1.1,
     textTransform: 'uppercase',
+  },
+  labelHoje: {
+    fontFamily: hojeType.text,
+    fontSize: 11,
+    letterSpacing: 1.5,
   },
   labelSelected: {
     color: ui.champagne,
