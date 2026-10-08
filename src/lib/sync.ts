@@ -8,6 +8,7 @@ import {
   type GoalId,
   type Profile,
 } from '@/lib/profile';
+import { hydrateHabitRoutine } from '@/lib/habit-catalog';
 import {
   getJourneyRevision,
   getTaskOwner,
@@ -117,5 +118,8 @@ export async function hydrateAccount(userId: string) {
     }
   } catch {
     // Sem as tabelas, ou sem rede, o aplicativo continua com os dados deste aparelho.
+  }
+  if (getTaskOwner() === userId) {
+    await hydrateHabitRoutine(userId);
   }
 }

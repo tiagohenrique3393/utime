@@ -1,0 +1,342 @@
+import { supabase } from '../../utils/supabase';
+
+export type HabitPeriod = 'manha' | 'tarde' | 'noite';
+export type HabitPillar = 'corpo' | 'mente' | 'espirito';
+
+export type CatalogHabit = {
+  id: string;
+  period: HabitPeriod;
+  pillar: HabitPillar;
+  label: string;
+  sortOrder: number;
+};
+
+export type UserHabit = {
+  id: string;
+  catalogHabitId: string | null;
+  customLabel: string | null;
+  period: HabitPeriod;
+  pillar: HabitPillar;
+  sortOrder: number;
+  active: boolean;
+};
+
+export type HabitResult = {
+  ok: boolean;
+  message: string;
+};
+
+type CatalogRow = {
+  id: string;
+  period: string;
+  pillar: string;
+  label: string;
+  sort_order: number;
+};
+
+type RoutineRow = {
+  personalized: boolean | null;
+};
+
+type HabitRow = {
+  id: string;
+  catalog_habit_id: string | null;
+  custom_label: string | null;
+  period: string;
+  pillar: string;
+  sort_order: number;
+  active: boolean | null;
+};
+
+const periods = new Set<HabitPeriod>(['manha', 'tarde', 'noite']);
+const pillars = new Set<HabitPillar>(['corpo', 'mente', 'espirito']);
+
+let ownerId: string | null = null;
+let revision = 0;
+let catalog: readonly CatalogHabit[] = [];
+let habits: readonly UserHabit[] = [];
+let personalized = false;
+const listeners = new Set<() => void>();
+
+function emit() {
+  listeners.forEach((listener) => listener());
+}
+
+export function subscribeHabitRoutine(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function setHabitOwner(userId: string | null) {
+  if (ownerId === userId) {
+    return;
+  }
+  ownerId = userId;
+  revision += 1;
+  habits = [];
+  personalized = false;
+  emit();
+}
+
+export function getCatalogHabits() {
+  return catalog;
+}
+
+export function getUserHabits() {
+  return habits;
+}
+
+export function isHabitRoutinePersonalized() {
+  return personalized;
+}
+
+function isPeriod(value: string): value is HabitPeriod {
+  return periods.has(value as HabitPeriod);
+}
+
+function isPillar(value: string): value is HabitPillar {
+  return pillars.has(value as HabitPillar);
+}
+
+function catalogFromRow(row: CatalogRow): CatalogHabit | null {
+  if (!isPeriod(row.period) || !isPillar(row.pillar) || row.label.trim().length === 0) {
+    return null;
+  }
+  return {
+    id: row.id,
+    period: row.period,
+    pillar: row.pillar,
+    label: row.label,
+    sortOrder: row.sort_order,
+  };
+}
+
+function habitFromRow(row: HabitRow): UserHabit | null {
+  if (!isPeriod(row.period) || !isPillar(row.pillar)) {
+    return null;
+  }
+  const catalogHabitId = row.catalog_habit_id;
+  const customLabel = row.custom_label?.trim() || null;
+  if (catalogHabitId && customLabel) {
+    return null;
+  }
+  if (!catalogHabitId && !customLabel) {
+    return null;
+  }
+  return {
+    id: row.id,
+    catalogHabitId,
+    customLabel,
+    period: row.period,
+    pillar: row.pillar,
+    sortOrder: row.sort_order,
+    active: row.active !== false,
+  };
+}
+
+function nextSortOrder() {
+  return habits.reduce((max, habit) => Math.max(max, habit.sortOrder), 0) + 1;
+}
+
+export async function hydrateHabitRoutine(userId: string) {
+  const stamp = revision;
+  try {
+    const [catalogResult, routineResult, habitsResult] = await Promise.all([
+      supabase.from('habit_catalog').select('id,period,pillar,label,sort_order').order('sort_order', { ascending: true }),
+      supabase.from('habit_routines').select('personalized').eq('user_id', userId).maybeSingle(),
+      supabase
+        .from('user_habits')
+        .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+        .eq('user_id', userId)
+        .order('sort_order', { ascending: true }),
+    ]);
+    if (ownerId !== userId || stamp !== revision) {
+      return;
+    }
+    if (catalogResult.error || routineResult.error || habitsResult.error) {
+      return;
+    }
+    const nextCatalog = ((catalogResult.data ?? []) as CatalogRow[])
+      .map(catalogFromRow)
+      .filter((item): item is CatalogHabit => item !== null);
+    const nextHabits = ((habitsResult.data ?? []) as HabitRow[])
+      .map(habitFromRow)
+      .filter((item): item is UserHabit => item !== null)
+      .sort((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
+    catalog = nextCatalog;
+    habits = nextHabits;
+    personalized = (routineResult.data as RoutineRow | null)?.personalized === true;
+    emit();
+  } catch {
+    // Sem as tabelas novas, a jornada oficial continua como está.
+  }
+}
+
+async function markPersonalized(userId: string) {
+  const { error } = await supabase.from('habit_routines').upsert(
+    { user_id: userId, personalized: true },
+    { onConflict: 'user_id' },
+  );
+  return !error;
+}
+
+export async function chooseCatalogHabit(catalogHabitId: string): Promise<HabitResult> {
+  const userId = ownerId;
+  if (!userId) {
+    return { ok: false, message: 'Entre na sua conta para escolher um hábito.' };
+  }
+  const source = catalog.find((item) => item.id === catalogHabitId);
+  if (!source) {
+    return { ok: false, message: 'Esse hábito não está no catálogo.' };
+  }
+  if (habits.some((habit) => habit.catalogHabitId === catalogHabitId)) {
+    return { ok: true, message: 'Esse hábito já está na sua rotina.' };
+  }
+  revision += 1;
+  const { data, error } = await supabase
+    .from('user_habits')
+    .insert({
+      user_id: userId,
+      catalog_habit_id: catalogHabitId,
+      custom_label: null,
+      period: source.period,
+      pillar: source.pillar,
+      sort_order: nextSortOrder(),
+      active: true,
+    })
+    .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+    .single();
+  if (error || !data) {
+    return { ok: false, message: 'Não foi possível escolher esse hábito.' };
+  }
+  const created = habitFromRow(data as HabitRow);
+  if (!created) {
+    return { ok: false, message: 'Não foi possível escolher esse hábito.' };
+  }
+  const marked = await markPersonalized(userId);
+  if (!marked) {
+    await supabase.from('user_habits').delete().eq('id', created.id).eq('user_id', userId);
+    return { ok: false, message: 'Não foi possível salvar a sua rotina.' };
+  }
+  if (ownerId !== userId) {
+    return { ok: false, message: 'A sessão mudou antes de salvar o hábito.' };
+  }
+  habits = [...habits, created].sort((left, right) => left.sortOrder - right.sortOrder);
+  personalized = true;
+  emit();
+  return { ok: true, message: 'Hábito adicionado à sua rotina.' };
+}
+
+export async function addCustomHabit(input: {
+  label: string;
+  period: HabitPeriod;
+  pillar: HabitPillar;
+}): Promise<HabitResult> {
+  const userId = ownerId;
+  const label = input.label.trim();
+  if (!userId) {
+    return { ok: false, message: 'Entre na sua conta para adicionar um hábito.' };
+  }
+  if (label.length === 0 || !isPeriod(input.period) || !isPillar(input.pillar)) {
+    return { ok: false, message: 'Informe o nome, o período e o pilar do hábito.' };
+  }
+  revision += 1;
+  const { data, error } = await supabase
+    .from('user_habits')
+    .insert({
+      user_id: userId,
+      catalog_habit_id: null,
+      custom_label: label,
+      period: input.period,
+      pillar: input.pillar,
+      sort_order: nextSortOrder(),
+      active: true,
+    })
+    .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+    .single();
+  if (error || !data) {
+    return { ok: false, message: 'Não foi possível adicionar esse hábito.' };
+  }
+  const created = habitFromRow(data as HabitRow);
+  if (!created) {
+    return { ok: false, message: 'Não foi possível adicionar esse hábito.' };
+  }
+  const marked = await markPersonalized(userId);
+  if (!marked) {
+    await supabase.from('user_habits').delete().eq('id', created.id).eq('user_id', userId);
+    return { ok: false, message: 'Não foi possível salvar a sua rotina.' };
+  }
+  if (ownerId !== userId) {
+    return { ok: false, message: 'A sessão mudou antes de salvar o hábito.' };
+  }
+  habits = [...habits, created].sort((left, right) => left.sortOrder - right.sortOrder);
+  personalized = true;
+  emit();
+  return { ok: true, message: 'Hábito adicionado à sua rotina.' };
+}
+
+export async function updateUserHabit(
+  habitId: string,
+  patch: { label?: string; period?: HabitPeriod; pillar?: HabitPillar; sortOrder?: number; active?: boolean },
+): Promise<HabitResult> {
+  const userId = ownerId;
+  const current = habits.find((habit) => habit.id === habitId);
+  if (!userId || !current) {
+    return { ok: false, message: 'Não foi possível editar esse hábito.' };
+  }
+  const nextPeriod = patch.period ?? current.period;
+  const nextPillar = patch.pillar ?? current.pillar;
+  if (!isPeriod(nextPeriod) || !isPillar(nextPillar)) {
+    return { ok: false, message: 'Informe um período e um pilar válidos.' };
+  }
+  const changes: Record<string, string | number | boolean | null> = {
+    period: nextPeriod,
+    pillar: nextPillar,
+    sort_order: patch.sortOrder ?? current.sortOrder,
+    active: patch.active ?? current.active,
+  };
+  if (current.catalogHabitId) {
+    changes.custom_label = null;
+  } else if (patch.label !== undefined) {
+    const label = patch.label.trim();
+    if (label.length === 0) {
+      return { ok: false, message: 'Informe o nome do hábito.' };
+    }
+    changes.custom_label = label;
+  }
+  revision += 1;
+  const { data, error } = await supabase
+    .from('user_habits')
+    .update(changes)
+    .eq('id', habitId)
+    .eq('user_id', userId)
+    .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+    .single();
+  if (error || !data || ownerId !== userId) {
+    return { ok: false, message: 'Não foi possível editar esse hábito.' };
+  }
+  const updated = habitFromRow(data as HabitRow);
+  if (!updated) {
+    return { ok: false, message: 'Não foi possível editar esse hábito.' };
+  }
+  habits = habits
+    .map((habit) => (habit.id === habitId ? updated : habit))
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+  emit();
+  return { ok: true, message: 'Hábito atualizado.' };
+}
+
+export async function removeUserHabit(habitId: string): Promise<HabitResult> {
+  const userId = ownerId;
+  if (!userId || !habits.some((habit) => habit.id === habitId)) {
+    return { ok: false, message: 'Não foi possível remover esse hábito.' };
+  }
+  revision += 1;
+  const { error } = await supabase.from('user_habits').delete().eq('id', habitId).eq('user_id', userId);
+  if (error || ownerId !== userId) {
+    return { ok: false, message: 'Não foi possível remover esse hábito.' };
+  }
+  habits = habits.filter((habit) => habit.id !== habitId);
+  emit();
+  return { ok: true, message: 'Hábito removido da sua rotina.' };
+}

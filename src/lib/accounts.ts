@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 
 import { supabase } from '../../utils/supabase';
 import { establishSessionFromUrl } from '@/lib/session';
+import { setHabitOwner } from '@/lib/habit-catalog';
 import { setProfileOwner } from '@/lib/profile';
 import { hydrateAccount } from '@/lib/sync';
 import { setTaskOwner } from '@/lib/tasks';
@@ -78,6 +79,7 @@ export function applySessionOwner(userId: string | null) {
   sessionUserId = userId;
   setProfileOwner(userId);
   setTaskOwner(userId);
+  setHabitOwner(userId);
   if (!userId) {
     hydration = null;
     return Promise.resolve();
