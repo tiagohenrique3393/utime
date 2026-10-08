@@ -3,7 +3,7 @@ import { createElement, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fonts, hojeType, ui } from '@/constants/theme';
+import { fonts, ui } from '@/constants/theme';
 
 const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = [
   {
@@ -137,15 +137,14 @@ const styles = StyleSheet.create({
   },
   label: {
     color: ui.faint,
-    fontFamily: fonts.text,
+    fontFamily: fonts.display,
     fontSize: 10,
     letterSpacing: 1.1,
     textTransform: 'uppercase',
   },
   labelHoje: {
-    fontFamily: hojeType.text,
     fontSize: 11,
-    letterSpacing: 1.5,
+    letterSpacing: 1.6,
   },
   labelSelected: {
     color: ui.champagne,

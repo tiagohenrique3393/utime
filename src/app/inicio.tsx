@@ -1,13 +1,13 @@
 import { router, type Href } from 'expo-router';
 import { createElement, useEffect, useState } from 'react';
 import { useSyncExternalStore } from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { DayProgress } from '@/components/day-progress';
 import { HojePlanet } from '@/components/hoje-planet';
 import { PillarCard } from '@/components/pillar-card';
-import { hojeType, ui } from '@/constants/theme';
+import { fonts, ui } from '@/constants/theme';
 import { currentJourneyDay, dayPillars } from '@/lib/journey-view';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
@@ -66,6 +66,9 @@ function Trophy() {
   );
 }
 
+const lineStyle: TextStyle | undefined =
+  Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as TextStyle) : undefined;
+
 function Chevron() {
   if (Platform.OS !== 'web') {
     return <Text style={styles.chevronFallback}>›</Text>;
@@ -87,7 +90,7 @@ export default function TodayScreen() {
   const signedIn = useRequireSession();
   const { height, width } = useWindowDimensions();
   const compact = height < 740;
-  const statusSize = width < 400 ? 8 : width < 520 ? 9 : width < 760 ? 11 : 13;
+  const statusSize = width < 360 ? 7.5 : width < 420 ? 8 : width < 760 ? 10 : 12;
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const journey = useJourneyBoard();
   const [now, setNow] = useState<Date | null>(null);
@@ -144,16 +147,16 @@ export default function TodayScreen() {
       <View style={styles.status}>
         <View style={styles.statusRule} />
         <Trophy />
-        <Text style={[styles.message, { fontSize: statusSize, lineHeight: statusSize + 4 }]} numberOfLines={1}>
+        <Text style={[styles.message, lineStyle, { fontSize: statusSize, lineHeight: statusSize + 3 }]}>
           {dayMessage(percent)}
         </Text>
         {closed || remaining > 0 ? <View style={styles.statusSplit} /> : null}
         {closed ? (
-          <Text style={[styles.counter, { fontSize: statusSize, lineHeight: statusSize + 4 }]} numberOfLines={1}>
+          <Text style={[styles.counter, lineStyle, { fontSize: statusSize, lineHeight: statusSize + 3 }]}>
             Você cumpriu tudo o que planejou para hoje.
           </Text>
         ) : remaining > 0 ? (
-          <Text style={[styles.counter, { fontSize: statusSize, lineHeight: statusSize + 4 }]} numberOfLines={1}>
+          <Text style={[styles.counter, lineStyle, { fontSize: statusSize, lineHeight: statusSize + 3 }]}>
             {remainingLine(remaining)}
           </Text>
         ) : null}
@@ -177,10 +180,10 @@ const styles = StyleSheet.create({
   },
   hello: {
     color: ui.text,
-    fontFamily: hojeType.text,
-    fontSize: 18,
-    lineHeight: 22,
-    letterSpacing: 3.8,
+    fontFamily: fonts.displayLight,
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: 4.2,
     textTransform: 'uppercase',
   },
   dateBlock: {
@@ -189,7 +192,7 @@ const styles = StyleSheet.create({
   },
   kicker: {
     color: ui.champagne,
-    fontFamily: hojeType.text,
+    fontFamily: fonts.displayLight,
     fontSize: 11,
     lineHeight: 14,
     letterSpacing: 2.6,
@@ -197,7 +200,7 @@ const styles = StyleSheet.create({
   },
   date: {
     color: ui.text,
-    fontFamily: hojeType.text,
+    fontFamily: fonts.display,
     fontSize: 14,
     lineHeight: 18,
     letterSpacing: 1.8,
@@ -207,10 +210,10 @@ const styles = StyleSheet.create({
   figure: {
     marginTop: 26,
     color: ui.text,
-    fontFamily: hojeType.strong,
-    fontSize: 56,
-    lineHeight: 58,
-    letterSpacing: -0.4,
+    fontFamily: fonts.textLight,
+    fontSize: 62,
+    lineHeight: 64,
+    letterSpacing: -0.6,
   },
   figureCompact: {
     marginTop: 18,
@@ -220,7 +223,7 @@ const styles = StyleSheet.create({
   figureLabel: {
     marginTop: 2,
     color: ui.champagne,
-    fontFamily: hojeType.text,
+    fontFamily: fonts.displayLight,
     fontSize: 12,
     letterSpacing: 2.8,
     textTransform: 'uppercase',
@@ -239,6 +242,7 @@ const styles = StyleSheet.create({
   status: {
     marginTop: 18,
     flexDirection: 'row',
+    flexWrap: 'nowrap',
     alignItems: 'center',
     gap: 6,
     minHeight: 42,
@@ -271,18 +275,18 @@ const styles = StyleSheet.create({
   },
   message: {
     flexGrow: 0,
-    flexShrink: 1,
+    flexShrink: 0,
     color: ui.text,
-    fontFamily: hojeType.text,
-    letterSpacing: 0,
+    fontFamily: fonts.text,
+    letterSpacing: 0.15,
     textTransform: 'uppercase',
   },
   counter: {
     flexGrow: 0,
-    flexShrink: 1,
+    flexShrink: 0,
     color: ui.muted,
-    fontFamily: hojeType.text,
-    letterSpacing: 0,
+    fontFamily: fonts.text,
+    letterSpacing: 0.1,
     textTransform: 'uppercase',
   },
   button: {
@@ -298,9 +302,9 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     color: ui.ink,
-    fontFamily: hojeType.strong,
-    fontSize: 14,
-    letterSpacing: 2.1,
+    fontFamily: fonts.textMedium,
+    fontSize: 13,
+    letterSpacing: 1.8,
     textTransform: 'uppercase',
   },
   chevronFallback: {

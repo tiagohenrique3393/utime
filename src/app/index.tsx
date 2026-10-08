@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     color: ink.buttonText,
-    fontFamily: fonts.text,
+    fontFamily: fonts.textMedium,
     fontSize: 12,
     letterSpacing: 1.35,
     textAlign: 'center',

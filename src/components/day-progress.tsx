@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { useReducedMotion, useSettledNumbers } from '@/components/motion';
 import { ui } from '@/constants/theme';
+import { getProgressColor, type ProgressBand } from '@/lib/progress-color';
 
 const tones = {
   red: {
@@ -36,10 +37,11 @@ export function progressTone(percent: number) {
 }
 
 function toneFor(percent: number) {
-  if (percent >= 70) {
+  const band: ProgressBand = getProgressColor(percent);
+  if (band === 'green') {
     return tones.green;
   }
-  if (percent >= 50) {
+  if (band === 'yellow') {
     return tones.gold;
   }
   return tones.red;

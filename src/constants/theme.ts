@@ -14,13 +14,11 @@ export const colors = {
 } as const;
 
 export const fonts = {
-  display: 'CormorantGaramond_500Medium',
-  text: 'Outfit_400Regular',
-} as const;
-
-export const hojeType = {
-  text: 'Rajdhani_500Medium',
-  strong: 'Rajdhani_600SemiBold',
+  display: 'BarlowSemiCondensed_500Medium',
+  displayLight: 'BarlowSemiCondensed_300Light',
+  text: 'Manrope_400Regular',
+  textLight: 'Manrope_300Light',
+  textMedium: 'Manrope_500Medium',
 } as const;
 
 export const ui = {

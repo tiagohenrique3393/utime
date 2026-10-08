@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   },
   primaryLabel: {
     color: colors.onPrimary,
-    fontFamily: fonts.text,
+    fontFamily: fonts.textMedium,
     fontSize: 16,
   },
   switchLink: {

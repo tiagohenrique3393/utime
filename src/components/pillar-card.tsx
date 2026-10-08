@@ -4,7 +4,8 @@ import { createElement, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { useReducedMotion, useSettledNumbers } from '@/components/motion';
-import { hojeType } from '@/constants/theme';
+import { fonts } from '@/constants/theme';
+import { getProgressColor } from '@/lib/progress-color';
 import type { PillarId } from '@/lib/tasks';
 
 const corpoMale = require('@/assets/pillars/corpo-mantime.png');
@@ -25,13 +26,7 @@ function node(type: string, props: Record<string, unknown> | null, ...children: 
 }
 
 function bandFor(percent: number) {
-  if (percent >= 70) {
-    return bands.green;
-  }
-  if (percent >= 50) {
-    return bands.yellow;
-  }
-  return bands.red;
+  return bands[getProgressColor(percent)];
 }
 
 function figureFor(id: PillarId, feminine: boolean) {
@@ -222,7 +217,7 @@ const styles = StyleSheet.create({
   },
   name: {
     color: '#F7F4EC',
-    fontFamily: hojeType.text,
+    fontFamily: fonts.display,
     fontSize: 10,
     lineHeight: 13,
     letterSpacing: 1.6,
@@ -234,7 +229,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2.2,
   },
   value: {
-    fontFamily: hojeType.strong,
+    fontFamily: fonts.textLight,
     fontSize: 12,
     lineHeight: 15,
     letterSpacing: 0.6,

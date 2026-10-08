@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   },
   primaryLabel: {
     color: ui.ink,
-    fontFamily: fonts.text,
+    fontFamily: fonts.textMedium,
     fontSize: 13,
     letterSpacing: 1.4,
     textTransform: 'uppercase',

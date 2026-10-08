@@ -33,6 +33,7 @@ const css = `
   user-select: none;
   mask-image: linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%);
+  filter: brightness(0.9);
 }
 @media (max-width: 759px) {
   .hoje-planet-layer {
@@ -74,7 +75,7 @@ export function HojePlanet() {
         top,
         left: (width - imgWidth) / 2,
       }}>
-      <Image source={source} contentFit="fill" style={{ width: '100%', height: '100%' }} />
+      <Image source={source} contentFit="fill" style={{ width: '100%', height: '100%', opacity: 0.9 }} />
     </View>
   );
 }

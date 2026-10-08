@@ -1,6 +1,5 @@
-import { CormorantGaramond_500Medium } from '@expo-google-fonts/cormorant-garamond';
-import { Outfit_400Regular } from '@expo-google-fonts/outfit';
-import { Rajdhani_500Medium, Rajdhani_600SemiBold } from '@expo-google-fonts/rajdhani';
+import { BarlowSemiCondensed_300Light, BarlowSemiCondensed_500Medium } from '@expo-google-fonts/barlow-semi-condensed';
+import { Manrope_300Light, Manrope_400Regular, Manrope_500Medium } from '@expo-google-fonts/manrope';
 import { DefaultTheme, Stack, ThemeProvider, router, usePathname } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -30,10 +29,11 @@ const theme = {
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
-    CormorantGaramond_500Medium,
-    Outfit_400Regular,
-    Rajdhani_500Medium,
-    Rajdhani_600SemiBold,
+    BarlowSemiCondensed_300Light,
+    BarlowSemiCondensed_500Medium,
+    Manrope_300Light,
+    Manrope_400Regular,
+    Manrope_500Medium,
   });
   const [authReady, setAuthReady] = useState(false);
   const pathname = usePathname();
