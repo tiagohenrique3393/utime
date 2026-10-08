@@ -105,6 +105,27 @@ export function pillarStats(completedIds: readonly string[], pillarId: PillarId)
 
 const taskIds = new Set(periods.flatMap((period) => period.tasks.map((task) => task.id)));
 
+function isStoredTaskId(id: unknown): id is string {
+  return typeof id === 'string';
+}
+
+function storedIdsForDay(source: JourneyBoard, day: number) {
+  if (day === 1) {
+    return source.dayOne;
+  }
+  return source.tasksByDay[String(day)] ?? emptySnapshot;
+}
+
+function officialCompletedCount(ids: readonly string[]) {
+  let count = 0;
+  for (const id of ids) {
+    if (taskIds.has(id)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 const STORAGE_KEY = 'youtime.preview.tasks';
 let ownerId: string | null = null;
 let journeyRevision = 0;
@@ -151,7 +172,7 @@ function restoreTasks() {
     if (!Array.isArray(parsed)) {
       return;
     }
-    const ids = parsed.filter((id): id is string => typeof id === 'string' && taskIds.has(id));
+    const ids = parsed.filter(isStoredTaskId);
     completed = new Set(ids);
     snapshot = [...completed].sort();
   } catch {
@@ -332,7 +353,7 @@ function restoreJourney() {
             if (!Number.isInteger(dayNumber) || dayNumber < 2 || dayNumber > DAY_COUNT || !Array.isArray(ids)) {
               continue;
             }
-            tasksByDay[day] = ids.filter((id): id is string => typeof id === 'string' && taskIds.has(id)).sort();
+            tasksByDay[day] = ids.filter(isStoredTaskId).sort();
           }
         }
       }
@@ -397,10 +418,13 @@ export function dayStatus(percent: number, locked: boolean): DayStatus {
 }
 
 export function completedIdsForDay(source: JourneyBoard, day: number) {
-  if (day === 1) {
-    return source.dayOne;
+  const ids = storedIdsForDay(source, day);
+  for (const id of ids) {
+    if (!taskIds.has(id)) {
+      return ids.filter((item) => taskIds.has(item));
+    }
   }
-  return source.tasksByDay[String(day)] ?? emptySnapshot;
+  return ids;
 }
 
 export function dayProgress(source: JourneyBoard, day: number) {
@@ -517,7 +541,7 @@ export function replaceJourney(userId: string, days: readonly RemoteDay[], testM
     if (!Number.isInteger(row.day) || row.day < 1 || row.day > DAY_COUNT) {
       continue;
     }
-    const ids = row.ids.filter((id) => taskIds.has(id)).sort();
+    const ids = row.ids.filter(isStoredTaskId).sort();
     if (row.day === 1) {
       dayOne = ids;
     } else if (ids.length > 0) {
@@ -585,13 +609,13 @@ async function runJourneyPush(userId: string) {
 async function upsertJourney(userId: string, source: JourneyBoard) {
   const rows = [];
   for (let day = 1; day <= DAY_COUNT; day += 1) {
-    const ids = [...completedIdsForDay(source, day)];
+    const ids = [...storedIdsForDay(source, day)];
     rows.push({
       user_id: userId,
       day_number: day,
       completed_task_ids: ids,
       started: source.started.includes(day),
-      progress_percent: progressPercent(ids.length),
+      progress_percent: progressPercent(officialCompletedCount(ids)),
       pillar_percents: {
         corpo: pillarStats(ids, 'corpo').percent,
         mente: pillarStats(ids, 'mente').percent,
