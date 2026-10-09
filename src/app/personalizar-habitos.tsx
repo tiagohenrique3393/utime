@@ -214,8 +214,7 @@ export default function PersonalizeHabitsScreen() {
   return (
     <AppScreen>
       <View style={styles.links}>
-        <TextButton label="Perfil" onPress={() => router.navigate('/perfil')} />
-        <TextButton label="Meu dia" onPress={() => router.push('/meu-dia' as Href)} />
+        <TextButton label="Meu dia" onPress={() => router.navigate('/meu-dia' as Href)} />
       </View>
       <View style={styles.header}>
         <Eyebrow>Rotina</Eyebrow>

@@ -1,4 +1,4 @@
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -172,19 +172,6 @@ export default function ProfileScreen() {
         <View style={styles.separator} />
         <Text style={styles.fieldLabel}>Modalidade</Text>
         <Text style={styles.fieldValue}>{journeyLabel(profile.journey)}</Text>
-        <View style={styles.separator} />
-        <Pressable accessibilityRole="button" onPress={() => router.push('/meu-dia' as Href)} style={styles.navLink}>
-          <Text style={styles.fieldLabel}>Meu dia</Text>
-          <Text style={styles.fieldValue}>Evolução pessoal</Text>
-        </Pressable>
-        <View style={styles.separator} />
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/personalizar-habitos' as Href)}
-          style={styles.navLink}>
-          <Text style={styles.fieldLabel}>Hábitos</Text>
-          <Text style={styles.fieldValue}>Personalizar rotina</Text>
-        </Pressable>
       </View>
 
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
@@ -296,9 +283,6 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: ui.lineSoft,
-  },
-  navLink: {
-    alignSelf: 'stretch',
   },
   notice: {
     marginTop: 16,

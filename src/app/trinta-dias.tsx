@@ -6,10 +6,11 @@ import { fonts, ui } from '@/constants/theme';
 import { useRequireSession } from '@/lib/require-session';
 import { setTestMode, useJourneyBoard } from '@/lib/tasks';
 
-const entries: { href: '/progresso' | '/pilares' | '/constancia'; label: string; note: string }[] = [
+const entries: { href: '/progresso' | '/pilares' | '/constancia' | '/meu-dia'; label: string; note: string }[] = [
   { href: '/progresso', label: 'Progresso', note: 'Pontuação e evolução' },
   { href: '/pilares', label: 'Mapa dos 3 pilares', note: 'Corpo, mente e espírito' },
   { href: '/constancia', label: 'Constância', note: 'Sequência e calendário' },
+  { href: '/meu-dia', label: 'Meu dia', note: 'Evolução pessoal' },
 ];
 
 export default function JourneyHubScreen() {

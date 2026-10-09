@@ -19,7 +19,9 @@ const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = 
       path === '/progresso' ||
       path === '/pilares' ||
       path === '/constancia' ||
-      path.startsWith('/pilar'),
+      path.startsWith('/pilar') ||
+      path === '/meu-dia' ||
+      path === '/personalizar-habitos',
   },
   {
     label: 'Círculo',
@@ -29,7 +31,7 @@ const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = 
   {
     label: 'Perfil',
     href: '/perfil',
-    match: (path) => path === '/perfil' || path === '/meu-dia' || path === '/personalizar-habitos',
+    match: (path) => path === '/perfil',
   },
 ];
 

@@ -21,8 +21,7 @@ export default function MyDayScreen() {
   return (
     <AppScreen>
       <View style={styles.links}>
-        <TextButton label="Perfil" onPress={() => router.navigate('/perfil')} />
-        <TextButton label="Personalizar hábitos" onPress={() => router.push('/personalizar-habitos' as Href)} />
+        <TextButton label="Jornada" onPress={() => router.navigate('/trinta-dias')} />
       </View>
       <View style={styles.header}>
         <Eyebrow>Evolução pessoal</Eyebrow>
@@ -35,7 +34,6 @@ export default function MyDayScreen() {
       {board.ready && board.habits.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.note}>Nenhum hábito na rotina.</Text>
-          <PrimaryButton label="Personalizar hábitos" onPress={() => router.push('/personalizar-habitos' as Href)} />
         </View>
       ) : null}
 
@@ -85,6 +83,12 @@ export default function MyDayScreen() {
             );
           })}
         </>
+      ) : null}
+
+      {board.ready ? (
+        <View style={styles.personalize}>
+          <PrimaryButton label="Personalizar hábitos" onPress={() => router.push('/personalizar-habitos' as Href)} />
+        </View>
       ) : null}
     </AppScreen>
   );
@@ -175,6 +179,9 @@ const styles = StyleSheet.create({
   empty: {
     marginTop: 28,
     gap: 16,
+  },
+  personalize: {
+    marginTop: 28,
   },
   note: {
     color: ui.muted,
