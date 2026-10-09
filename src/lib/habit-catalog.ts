@@ -422,7 +422,15 @@ export async function ensureCatalogHabit(input: {
     relevance: input.relevance ?? null,
   });
   if (error || !data) {
-    return { ok: false, habitId: null, message: 'Não foi possível registrar o hábito.' };
+    const code = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
+    const missingCatalog = code.includes('23503') || code.includes('foreign key') || code.includes('habit_catalog');
+    return {
+      ok: false,
+      habitId: null,
+      message: missingCatalog
+        ? 'Não foi possível gravar. Este hábito ainda não está no catálogo.'
+        : 'Não foi possível registrar o hábito.',
+    };
   }
   const created = habitFromRow(data as HabitRow);
   if (!created || ownerId !== userId) {

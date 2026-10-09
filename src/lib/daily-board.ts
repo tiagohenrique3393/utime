@@ -59,6 +59,7 @@ let loadTicket = 0;
 let watchedUserId: string | null = null;
 let midnightTimer: ReturnType<typeof setTimeout> | null = null;
 let loadedLogs: DayLogRef[] = [];
+let toggling = 0;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -153,8 +154,15 @@ export function resolveDailyHabits(): DailyHabit[] {
   return officialHabits();
 }
 
+export function isDailyHabitDone(habit: DailyHabit, completed: ReadonlySet<string>) {
+  if (habit.userHabitId !== null && completed.has(habit.userHabitId)) {
+    return true;
+  }
+  return habit.userHabitId === null && habit.catalogHabitId !== null && completed.has(habit.catalogHabitId);
+}
+
 export function completedCount(habits: readonly DailyHabit[], completed: ReadonlySet<string>) {
-  return habits.filter((habit) => habit.userHabitId !== null && completed.has(habit.userHabitId)).length;
+  return habits.filter((habit) => isDailyHabitDone(habit, completed)).length;
 }
 
 export function dailyCounts(habits: readonly DailyHabit[], completed: ReadonlySet<string>) {
@@ -241,54 +249,105 @@ export async function refreshDailyBoard(userId: string, requestedDate?: string) 
   });
 }
 
+function withCompletion(completed: ReadonlySet<string>, habit: DailyHabit, done: boolean) {
+  const next = new Set(completed);
+  const keys = [habit.userHabitId, habit.catalogHabitId].filter((key): key is string => key !== null);
+  for (const key of keys) {
+    if (done) {
+      next.add(key);
+    } else {
+      next.delete(key);
+    }
+  }
+  return next;
+}
+
 export async function toggleDailyHabit(habit: DailyHabit) {
   const userId = getSessionUserId();
-  if (!userId || !snapshot.ready) {
+  if (!userId || !snapshot.ready || toggling > 0) {
     return;
   }
   const dateKey = snapshot.dateKey || todayKey();
-  revision += 1;
-  let habitId = habit.userHabitId;
-  if (!habitId && habit.catalogHabitId) {
-    const ensured = await ensureCatalogHabit({
-      id: habit.catalogHabitId,
-      period: habit.period,
-      pillar: habit.pillar,
-      relevance: habit.relevance,
-    });
-    if (!ensured.ok || !ensured.habitId || watchedUserId !== userId) {
-      publish({ ...snapshot, notice: ensured.message });
+  if (!habit.userHabitId && !habit.catalogHabitId) {
+    publish({ ...snapshot, notice: 'Não foi possível identificar este hábito.' });
+    return;
+  }
+  const previousCompleted = snapshot.completed;
+  const turningOn = !isDailyHabitDone(habit, previousCompleted);
+  if (!habit.userHabitId && habit.catalogHabitId) {
+    const catalog = getCatalogHabits();
+    if (catalog.length > 0 && !catalog.some((item) => item.id === habit.catalogHabitId)) {
+      publish({
+        ...snapshot,
+        notice: 'Não foi possível gravar. Este hábito ainda não está no catálogo.',
+      });
       return;
     }
-    habitId = ensured.habitId;
   }
-  if (!habitId) {
-    return;
-  }
-  const completed = !snapshot.completed.has(habitId);
-  const saved = await setHabitCompleted(userId, habitId, dateKey, completed);
   revision += 1;
-  if (watchedUserId !== userId || snapshot.dateKey !== dateKey) {
-    return;
-  }
-  if (!saved.ok) {
-    const view = viewFor(snapshot.dateKey);
-    publish({ ...snapshot, habits: view.habits, notice: saved.message });
-    return;
-  }
-  rememberLog(habitId, completed);
-  const view = viewFor(snapshot.dateKey);
+  toggling += 1;
   publish({
     ...snapshot,
-    habits: view.habits,
-    completed: new Set(view.completedIds),
-    personalized: isHabitRoutinePersonalized(),
+    completed: withCompletion(previousCompleted, habit, turningOn),
     notice: '',
   });
+  try {
+    let habitId = habit.userHabitId;
+    if (!habitId && habit.catalogHabitId) {
+      const ensured = await ensureCatalogHabit({
+        id: habit.catalogHabitId,
+        period: habit.period,
+        pillar: habit.pillar,
+        relevance: habit.relevance,
+      });
+      if (!ensured.ok || !ensured.habitId || watchedUserId !== userId || snapshot.dateKey !== dateKey) {
+        publish({
+          ...snapshot,
+          dateKey,
+          completed: previousCompleted,
+          notice: ensured.message || 'Não foi possível gravar este hábito.',
+        });
+        return;
+      }
+      habitId = ensured.habitId;
+    }
+    if (!habitId) {
+      publish({ ...snapshot, dateKey, completed: previousCompleted, notice: 'Não foi possível identificar este hábito.' });
+      return;
+    }
+    const saved = await setHabitCompleted(userId, habitId, dateKey, turningOn);
+    revision += 1;
+    if (watchedUserId !== userId || snapshot.dateKey !== dateKey) {
+      return;
+    }
+    if (!saved.ok) {
+      const view = viewFor(dateKey);
+      publish({
+        ...snapshot,
+        dateKey,
+        habits: view.habits,
+        completed: previousCompleted,
+        notice: saved.message,
+      });
+      return;
+    }
+    rememberLog(habitId, turningOn);
+    const view = viewFor(dateKey);
+    publish({
+      ...snapshot,
+      dateKey,
+      habits: view.habits,
+      completed: new Set(view.completedIds),
+      personalized: isHabitRoutinePersonalized(),
+      notice: '',
+    });
+  } finally {
+    toggling -= 1;
+  }
 }
 
 subscribeHabitRoutine(() => {
-  if (!snapshot.ready) {
+  if (!snapshot.ready || toggling > 0) {
     return;
   }
   const view = viewFor(snapshot.dateKey);
