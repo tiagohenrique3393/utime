@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { AppScreen, Eyebrow, TextButton } from '@/components/app-screen';
 import { ConsistencyCalendar } from '@/components/consistency-calendar';
 import { fonts, ui } from '@/constants/theme';
+import { saoPauloCalendarDate } from '@/lib/habit-day';
 import { completionRate, consistentHabits, streakStats } from '@/lib/journey-view';
 import { useRequireSession } from '@/lib/require-session';
 import { useJourneyBoard } from '@/lib/tasks';
@@ -18,7 +19,7 @@ export default function ConstancyScreen() {
   const habits = consistentHabits(journey, 3);
 
   useEffect(() => {
-    setToday(new Date());
+    setToday(saoPauloCalendarDate());
   }, []);
 
   if (!signedIn) {
@@ -42,7 +43,7 @@ export default function ConstancyScreen() {
           <ConsistencyCalendar
             source={journey}
             today={today}
-            onOpenDay={(day) => router.push(`/jornada?dia=${day}` as Href)}
+            onOpenDay={(dateKey) => router.push(`/jornada?data=${dateKey}` as Href)}
           />
         ) : null}
       </View>

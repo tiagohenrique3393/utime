@@ -1,11 +1,11 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppScreen, Eyebrow, TextButton, Track } from '@/components/app-screen';
 import { fonts, ui } from '@/constants/theme';
 import { dailyCounts, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
 import { useDailyBoard } from '@/lib/use-daily-board';
-import { formatCalendarDate, formatDailyPercent } from '@/lib/habit-day';
+import { formatCalendarDate, formatDailyPercent, parseDateKey } from '@/lib/habit-day';
 import { useRequireSession } from '@/lib/require-session';
 
 const periodTitles: { id: DailyHabit['period']; title: string }[] = [
@@ -18,7 +18,9 @@ export default function RoutineScreen() {
   const signedIn = useRequireSession();
   const { width } = useWindowDimensions();
   const wide = width >= 900;
-  const board = useDailyBoard();
+  const params = useLocalSearchParams<{ data?: string | string[] }>();
+  const selectedDate = parseDateKey(params.data);
+  const board = useDailyBoard(selectedDate);
   const counts = dailyCounts(board.habits, board.completed);
 
   if (!signedIn) {

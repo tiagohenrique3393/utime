@@ -48,6 +48,7 @@ let snapshot: DailySnapshot = {
   notice: '',
 };
 let revision = 0;
+let loadTicket = 0;
 let watchedUserId: string | null = null;
 let midnightTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
@@ -130,11 +131,16 @@ export function getDailyBoard() {
   return snapshot;
 }
 
-export function watchCalendarDate(userId: string) {
-  watchedUserId = userId;
+export function pauseCalendarWatch() {
   if (midnightTimer) {
     clearTimeout(midnightTimer);
+    midnightTimer = null;
   }
+}
+
+export function watchCalendarDate(userId: string) {
+  watchedUserId = userId;
+  pauseCalendarWatch();
   midnightTimer = setTimeout(() => {
     midnightTimer = null;
     if (watchedUserId !== userId) {
@@ -148,17 +154,28 @@ export function watchCalendarDate(userId: string) {
   }, millisecondsUntilNextDate() + 400);
 }
 
-export async function refreshDailyBoard(userId: string) {
+export async function refreshDailyBoard(userId: string, requestedDate?: string) {
   const stamp = revision;
-  const dateKey = todayKey();
+  const ticket = ++loadTicket;
+  const dateKey = requestedDate ?? todayKey();
   watchedUserId = userId;
+  if (snapshot.dateKey !== dateKey) {
+    publish({
+      dateKey,
+      habits: [],
+      completed: emptyCompleted,
+      personalized: isHabitRoutinePersonalized(),
+      ready: false,
+      notice: '',
+    });
+  }
   await hydrateHabitRoutine(userId);
-  if (stamp !== revision || watchedUserId !== userId) {
+  if (ticket !== loadTicket || stamp !== revision || watchedUserId !== userId) {
     return;
   }
   const habits = resolveDailyHabits();
   const logs = habits.length === 0 ? { ok: true as const, ids: [] as string[], message: '' } : await loadCompletedHabitIds(userId, dateKey);
-  if (stamp !== revision || watchedUserId !== userId) {
+  if (ticket !== loadTicket || stamp !== revision || watchedUserId !== userId) {
     return;
   }
   publish({

@@ -42,6 +42,31 @@ export function todayKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+export function calendarDateKey(date: Date) {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function saoPauloCalendarDate(now = new Date()) {
+  const [year, month, day] = todayKey(now).split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+export function parseDateKey(value: string | readonly string[] | undefined) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return null;
+  }
+  const [year, month, day] = raw.split('-').map(Number);
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) {
+    return null;
+  }
+  return raw;
+}
+
 export function zonedHour(date = new Date()) {
   const hour = Number(zonedPart(date, 'hour'));
   return hour === 24 ? 0 : hour;

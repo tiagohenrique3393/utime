@@ -3,8 +3,9 @@ import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from
 
 import { useReducedMotion } from '@/components/motion';
 import { fonts, ui } from '@/constants/theme';
+import { calendarDateKey } from '@/lib/habit-day';
 import { journeyDayOnDate, sameDay, startOfDay } from '@/lib/journey-view';
-import { dayProgress, isDayUnlocked, type JourneyBoard } from '@/lib/tasks';
+import { dayProgress, type JourneyBoard } from '@/lib/tasks';
 
 const weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
@@ -31,7 +32,7 @@ export function ConsistencyCalendar({
 }: {
   source: JourneyBoard;
   today: Date;
-  onOpenDay: (day: number) => void;
+  onOpenDay: (dateKey: string) => void;
 }) {
   const reduced = useReducedMotion();
   const { width } = useWindowDimensions();
@@ -84,14 +85,13 @@ export function ConsistencyCalendar({
             return <View key={`empty-${index}`} style={{ width: cell, height: cell }} />;
           }
           const journeyDay = journeyDayOnDate(source, date, today);
+          const dateKey = calendarDateKey(date);
           const future = date.getTime() > todayStart.getTime();
           const isToday = sameDay(date, todayStart);
           const percent = journeyDay ? dayProgress(source, journeyDay) : 0;
           const complete = Boolean(journeyDay) && !future && percent === 100;
           const incomplete = Boolean(journeyDay) && !future && percent < 100;
-          const canOpen = Boolean(
-            journeyDay && !future && isDayUnlocked(journeyDay, source.testMode, source),
-          );
+          const canOpen = !future;
           const label = `${date.getDate()} de ${title}${complete ? ', concluído' : incomplete ? ', incompleto' : future ? ', futuro' : ''}${isToday ? ', hoje' : ''}`;
           const body = (
             <View
@@ -108,9 +108,9 @@ export function ConsistencyCalendar({
             </View>
           );
 
-          if (!canOpen || !journeyDay) {
+          if (!canOpen) {
             return (
-              <View key={date.toISOString()} accessibilityLabel={label} style={[styles.slot, { width: cell, height: cell }]}>
+              <View key={dateKey} accessibilityLabel={label} style={[styles.slot, { width: cell, height: cell }]}>
                 {body}
               </View>
             );
@@ -118,10 +118,10 @@ export function ConsistencyCalendar({
 
           return (
             <Pressable
-              key={date.toISOString()}
+              key={dateKey}
               accessibilityRole="button"
               accessibilityLabel={label}
-              onPress={() => onOpenDay(journeyDay)}
+              onPress={() => onOpenDay(dateKey)}
               style={({ pressed }) => [styles.slot, { width: cell, height: cell }, pressed && styles.pressed]}>
               {body}
             </Pressable>
