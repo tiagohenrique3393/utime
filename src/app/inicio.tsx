@@ -166,7 +166,7 @@ export default function TodayScreen() {
 
       <Pressable
         accessibilityRole="button"
-        onPress={() => router.push('/jornada' as Href)}
+        onPress={() => router.push('/meu-dia' as Href)}
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
         <Text style={styles.buttonLabel}>Ver meu dia</Text>
         <Chevron />

@@ -9,15 +9,16 @@ import {
   subscribeHabitRoutine,
   type HabitPeriod,
   type HabitPillar,
+  type HabitRelevance,
 } from '@/lib/habit-catalog';
 import {
   dailyPercent,
-  loadCompletedHabitIds,
+  loadHabitDayLogs,
   millisecondsUntilNextDate,
   setHabitCompleted,
   todayKey,
 } from '@/lib/habit-day';
-import { periods, pillars } from '@/lib/tasks';
+import { suggestedHabits } from '@/lib/suggested-habits';
 
 export type DailyHabit = {
   id: string;
@@ -26,6 +27,12 @@ export type DailyHabit = {
   label: string;
   period: HabitPeriod;
   pillar: HabitPillar;
+  relevance: HabitRelevance | null;
+};
+
+export type DayLogRef = {
+  habitId: string;
+  completed: boolean;
 };
 
 type DailySnapshot = {
@@ -51,48 +58,92 @@ let revision = 0;
 let loadTicket = 0;
 let watchedUserId: string | null = null;
 let midnightTimer: ReturnType<typeof setTimeout> | null = null;
+let loadedLogs: DayLogRef[] = [];
 const listeners = new Set<() => void>();
-
-const pillarByTask = new Map<string, HabitPillar>();
-for (const pillar of pillars) {
-  for (const task of pillar.tasks) {
-    pillarByTask.set(task.id, pillar.id);
-  }
-}
 
 function emit() {
   listeners.forEach((listener) => listener());
 }
 
+function toDailyHabit(habit: ReturnType<typeof getUserHabits>[number]): DailyHabit {
+  return {
+    id: habit.id,
+    userHabitId: habit.id,
+    catalogHabitId: habit.catalogHabitId,
+    label: habitTitle(habit, getCatalogHabits()),
+    period: habit.period,
+    pillar: habit.pillar,
+    relevance: habit.relevance,
+  };
+}
+
 function officialHabits(): DailyHabit[] {
   const saved = getUserHabits();
-  return periods.flatMap((period) =>
-    period.tasks.map((task) => {
-      const row = saved.find((habit) => habit.catalogHabitId === task.id && habit.active);
-      return {
-        id: row?.id ?? `catalog:${task.id}`,
-        userHabitId: row?.id ?? null,
-        catalogHabitId: task.id,
-        label: task.label,
-        period: period.id,
-        pillar: pillarByTask.get(task.id) ?? 'corpo',
-      };
-    }),
-  );
+  return suggestedHabits.map((suggestion) => {
+    const row = saved.find((habit) => habit.catalogHabitId === suggestion.id && habit.active);
+    return {
+      id: row?.id ?? `catalog:${suggestion.id}`,
+      userHabitId: row?.id ?? null,
+      catalogHabitId: suggestion.id,
+      label: suggestion.label,
+      period: suggestion.period,
+      pillar: suggestion.pillar,
+      relevance: row?.relevance ?? suggestion.relevance,
+    };
+  });
 }
 
 function personalHabits(): DailyHabit[] {
-  const catalog = getCatalogHabits();
   return getUserHabits()
     .filter((habit) => habit.active)
-    .map((habit) => ({
-      id: habit.id,
-      userHabitId: habit.id,
-      catalogHabitId: habit.catalogHabitId,
-      label: habitTitle(habit, catalog),
-      period: habit.period,
-      pillar: habit.pillar,
-    }));
+    .map((habit) => toDailyHabit(habit));
+}
+
+export function habitsForDate(input: {
+  dateKey: string;
+  today: string;
+  routine: readonly DailyHabit[];
+  known: readonly DailyHabit[];
+  logs: readonly DayLogRef[];
+}) {
+  const completedIds = input.logs.filter((row) => row.completed).map((row) => row.habitId);
+  const past = input.dateKey !== '' && input.dateKey !== input.today;
+  if (!past) {
+    const ids = new Set(input.routine.map((habit) => habit.userHabitId).filter((id): id is string => id !== null));
+    return {
+      habits: [...input.routine],
+      completedIds: completedIds.filter((id) => ids.has(id)),
+    };
+  }
+  const loggedIds = new Set(input.logs.map((row) => row.habitId));
+  const historical = input.known.filter((habit) => habit.userHabitId !== null && loggedIds.has(habit.userHabitId));
+  if (historical.length === 0) {
+    return { habits: [...input.routine], completedIds: [] as string[] };
+  }
+  const historicalIds = new Set(historical.map((habit) => habit.userHabitId as string));
+  return {
+    habits: historical,
+    completedIds: completedIds.filter((id) => historicalIds.has(id)),
+  };
+}
+
+function viewFor(dateKey: string) {
+  return habitsForDate({
+    dateKey,
+    today: todayKey(),
+    routine: resolveDailyHabits(),
+    known: getUserHabits().map((habit) => toDailyHabit(habit)),
+    logs: loadedLogs,
+  });
+}
+
+function rememberLog(habitId: string, completed: boolean) {
+  const index = loadedLogs.findIndex((row) => row.habitId === habitId);
+  if (index >= 0) {
+    loadedLogs[index] = { habitId, completed };
+    return;
+  }
+  loadedLogs = [...loadedLogs, { habitId, completed }];
 }
 
 export function resolveDailyHabits(): DailyHabit[] {
@@ -160,6 +211,7 @@ export async function refreshDailyBoard(userId: string, requestedDate?: string) 
   const dateKey = requestedDate ?? todayKey();
   watchedUserId = userId;
   if (snapshot.dateKey !== dateKey) {
+    loadedLogs = [];
     publish({
       dateKey,
       habits: [],
@@ -173,15 +225,16 @@ export async function refreshDailyBoard(userId: string, requestedDate?: string) 
   if (ticket !== loadTicket || stamp !== revision || watchedUserId !== userId) {
     return;
   }
-  const habits = resolveDailyHabits();
-  const logs = habits.length === 0 ? { ok: true as const, ids: [] as string[], message: '' } : await loadCompletedHabitIds(userId, dateKey);
+  const logs = await loadHabitDayLogs(userId, dateKey);
   if (ticket !== loadTicket || stamp !== revision || watchedUserId !== userId) {
     return;
   }
+  loadedLogs = logs.rows;
+  const view = viewFor(dateKey);
   publish({
     dateKey,
-    habits,
-    completed: new Set(logs.ids),
+    habits: view.habits,
+    completed: new Set(view.completedIds),
     personalized: isHabitRoutinePersonalized(),
     ready: true,
     notice: logs.ok ? '' : logs.message,
@@ -201,6 +254,7 @@ export async function toggleDailyHabit(habit: DailyHabit) {
       id: habit.catalogHabitId,
       period: habit.period,
       pillar: habit.pillar,
+      relevance: habit.relevance,
     });
     if (!ensured.ok || !ensured.habitId || watchedUserId !== userId) {
       publish({ ...snapshot, notice: ensured.message });
@@ -218,19 +272,16 @@ export async function toggleDailyHabit(habit: DailyHabit) {
     return;
   }
   if (!saved.ok) {
-    publish({ ...snapshot, habits: resolveDailyHabits(), notice: saved.message });
+    const view = viewFor(snapshot.dateKey);
+    publish({ ...snapshot, habits: view.habits, notice: saved.message });
     return;
   }
-  const next = new Set(snapshot.completed);
-  if (completed) {
-    next.add(habitId);
-  } else {
-    next.delete(habitId);
-  }
+  rememberLog(habitId, completed);
+  const view = viewFor(snapshot.dateKey);
   publish({
     ...snapshot,
-    habits: resolveDailyHabits(),
-    completed: next,
+    habits: view.habits,
+    completed: new Set(view.completedIds),
     personalized: isHabitRoutinePersonalized(),
     notice: '',
   });
@@ -240,9 +291,11 @@ subscribeHabitRoutine(() => {
   if (!snapshot.ready) {
     return;
   }
+  const view = viewFor(snapshot.dateKey);
   publish({
     ...snapshot,
-    habits: resolveDailyHabits(),
+    habits: view.habits,
+    completed: new Set(view.completedIds),
     personalized: isHabitRoutinePersonalized(),
   });
 });

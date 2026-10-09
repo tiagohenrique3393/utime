@@ -43,7 +43,7 @@ export default function ConstancyScreen() {
           <ConsistencyCalendar
             source={journey}
             today={today}
-            onOpenDay={(dateKey) => router.push(`/jornada?data=${dateKey}` as Href)}
+            onOpenDay={(dateKey) => router.push(`/meu-dia?data=${dateKey}` as Href)}
           />
         ) : null}
       </View>

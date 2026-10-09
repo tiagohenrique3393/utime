@@ -1,18 +1,24 @@
-import { router, type Href } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen, Eyebrow, Meta, PageTitle, PrimaryButton, TextButton, Track } from '@/components/app-screen';
+import { HydrationMeter } from '@/components/hydration-meter';
 import { fonts, ui } from '@/constants/theme';
-import { dailyCounts, toggleDailyHabit } from '@/lib/daily-board';
+import { getSessionUserId } from '@/lib/accounts';
+import { dailyCounts, refreshDailyBoard, toggleDailyHabit } from '@/lib/daily-board';
 import { useDailyBoard } from '@/lib/use-daily-board';
-import { getUserHabits, habitPillars, periodLabels, pillarLabels, relevanceLabels } from '@/lib/habit-catalog';
-import { formatCalendarDate, formatDailyPercent, formatLongDate } from '@/lib/habit-day';
+import { habitPillars, periodLabels, pillarLabels, relevanceLabels } from '@/lib/habit-catalog';
+import { formatCalendarDate, formatDailyPercent, formatLongDate, parseDateKey } from '@/lib/habit-day';
 import { useRequireSession } from '@/lib/require-session';
+import { HYDRATION_HABIT_ID } from '@/lib/suggested-habits';
 
 export default function MyDayScreen() {
   const signedIn = useRequireSession();
-  const board = useDailyBoard();
+  const params = useLocalSearchParams<{ data?: string | string[] }>();
+  const selectedDate = parseDateKey(params.data);
+  const board = useDailyBoard(selectedDate);
   const counts = dailyCounts(board.habits, board.completed);
+  const userId = getSessionUserId();
 
   if (!signedIn) {
     return <View style={styles.blank} />;
@@ -58,25 +64,36 @@ export default function MyDayScreen() {
               <View key={pillar} style={styles.group}>
                 <Text style={styles.groupTitle}>{pillarLabels[pillar]}</Text>
                 {group.map((habit) => {
+                  const hydration = habit.catalogHabitId === HYDRATION_HABIT_ID;
                   const checked = habit.userHabitId !== null && board.completed.has(habit.userHabitId);
-                  const saved = habit.userHabitId ? getUserHabits().find((item) => item.id === habit.userHabitId) : null;
+                  const relevance = habit.relevance;
                   return (
-                    <Pressable
-                      key={habit.id}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked }}
-                      accessibilityLabel={habit.label}
-                      onPress={() => void toggleDailyHabit(habit)}
-                      style={({ pressed }) => [styles.task, pressed && styles.pressed]}>
-                      <View style={styles.copy}>
-                        <Text style={[styles.taskLabel, checked && styles.taskDone]}>{habit.label}</Text>
-                        <Text style={styles.state}>
-                          {checked ? 'Concluído' : periodLabels[habit.period]}
-                          {saved?.relevance ? ` · ${relevanceLabels[saved.relevance]}` : ''}
-                        </Text>
-                      </View>
-                      <View style={[styles.mark, checked && styles.markOn]} />
-                    </Pressable>
+                    <View key={habit.id}>
+                      <Pressable
+                        accessibilityRole={hydration ? 'button' : 'checkbox'}
+                        accessibilityState={hydration ? undefined : { checked }}
+                        accessibilityLabel={habit.label}
+                        onPress={hydration ? undefined : () => void toggleDailyHabit(habit)}
+                        style={({ pressed }) => [styles.task, pressed && !hydration && styles.pressed]}>
+                        <View style={styles.copy}>
+                          <Text style={[styles.taskLabel, checked && styles.taskDone]}>{habit.label}</Text>
+                          <Text style={styles.state}>
+                            {checked ? 'Concluído' : hydration ? 'Pelo contador de água' : periodLabels[habit.period]}
+                            {relevance ? ` · ${relevanceLabels[relevance]}` : ''}
+                          </Text>
+                        </View>
+                        <View style={[styles.mark, checked && styles.markOn]} />
+                      </Pressable>
+                      {hydration && userId && board.dateKey ? (
+                        <HydrationMeter
+                          userId={userId}
+                          dateKey={board.dateKey}
+                          onSaved={() => {
+                            void refreshDailyBoard(userId, selectedDate ?? undefined);
+                          }}
+                        />
+                      ) : null}
+                    </View>
                   );
                 })}
               </View>

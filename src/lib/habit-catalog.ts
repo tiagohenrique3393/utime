@@ -382,6 +382,7 @@ export async function ensureCatalogHabit(input: {
   id: string;
   period: HabitPeriod;
   pillar: HabitPillar;
+  relevance?: HabitRelevance | null;
 }): Promise<{ ok: boolean; habitId: string | null; message: string }> {
   const userId = ownerId;
   if (!userId) {
@@ -392,6 +393,9 @@ export async function ensureCatalogHabit(input: {
   }
   const existing = habits.find((habit) => habit.catalogHabitId === input.id);
   if (existing?.active) {
+    if (existing.relevance == null && input.relevance) {
+      await updateUserHabit(existing.id, { relevance: input.relevance });
+    }
     return { ok: true, habitId: existing.id, message: '' };
   }
   if (existing) {
@@ -415,7 +419,7 @@ export async function ensureCatalogHabit(input: {
     pillar: input.pillar,
     sort_order: nextSortOrder(),
     active: true,
-    relevance: null,
+    relevance: input.relevance ?? null,
   });
   if (error || !data) {
     return { ok: false, habitId: null, message: 'Não foi possível registrar o hábito.' };

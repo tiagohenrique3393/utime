@@ -30,6 +30,7 @@ import {
   type HabitResult,
   type UserHabit,
 } from '@/lib/habit-catalog';
+import { suggestedHabits } from '@/lib/suggested-habits';
 import { useRequireSession } from '@/lib/require-session';
 
 type Draft = {
@@ -207,6 +208,9 @@ export default function PersonalizeHabitsScreen() {
   }
 
   const catalogReady = catalog.length > 0;
+  const suggestedIds = new Set(suggestedHabits.map((item) => item.id));
+  const offered = catalog.filter((item) => suggestedIds.has(item.id));
+  const officialCatalog = offered.length > 0 ? offered : catalog;
   const routine = habits.filter((habit) => habit.active);
   const failed = phase === 'ready' && !catalogReady && routine.length === 0 && !personalized;
   const chosenIds = new Set(routine.map((habit) => habit.catalogHabitId).filter((id): id is string => Boolean(id)));
@@ -386,7 +390,7 @@ export default function PersonalizeHabitsScreen() {
             <>
               <Text style={styles.section}>Hábitos oficiais</Text>
               {habitPillars.map((pillar) => {
-                const group = catalog.filter((habit) => habit.pillar === pillar);
+                const group = officialCatalog.filter((habit) => habit.pillar === pillar);
                 if (group.length === 0) {
                   return null;
                 }

@@ -127,6 +127,21 @@ function sameDay(value: string | null | undefined, day: string) {
   return typeof value !== 'string' || value.startsWith(day);
 }
 
+export async function loadHabitDayLogs(userId: string, day: string) {
+  const { data, error } = await supabase
+    .from('habit_day_logs')
+    .select('user_id,user_habit_id,occurred_on,completed')
+    .eq('user_id', userId)
+    .eq('occurred_on', day);
+  if (error) {
+    return { ok: false as const, rows: [] as { habitId: string; completed: boolean }[], message: completionErrorMessage(error, 'load') };
+  }
+  const rows = ((data ?? []) as DayLogRow[])
+    .filter((row) => row.user_id === userId && sameDay(row.occurred_on, day) && typeof row.user_habit_id === 'string')
+    .map((row) => ({ habitId: row.user_habit_id as string, completed: row.completed === true }));
+  return { ok: true as const, rows, message: '' };
+}
+
 export async function loadCompletedHabitIds(userId: string, day: string) {
   const { data, error } = await supabase
     .from('habit_day_logs')
