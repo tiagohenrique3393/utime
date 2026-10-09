@@ -1,55 +1,27 @@
-import { router, useLocalSearchParams, type Href } from 'expo-router';
-import { useEffect } from 'react';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppScreen, Eyebrow, TextButton, Track } from '@/components/app-screen';
 import { fonts, ui } from '@/constants/theme';
+import { dailyCounts, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
+import { useDailyBoard } from '@/lib/use-daily-board';
+import { formatCalendarDate, formatDailyPercent } from '@/lib/habit-day';
 import { useRequireSession } from '@/lib/require-session';
-import {
-  completedIdsForDay,
-  isDayUnlocked,
-  markDayStarted,
-  periods,
-  progressPercent,
-  TASK_TOTAL,
-  toggleDayTask,
-  useJourneyBoard,
-} from '@/lib/tasks';
 
-function parseDay(value: string | string[] | undefined) {
-  const raw = Array.isArray(value) ? value[0] : value;
-  const day = Number(raw);
-  if (!Number.isInteger(day) || day < 1 || day > 30) {
-    return 1;
-  }
-  return day;
-}
+const periodTitles: { id: DailyHabit['period']; title: string }[] = [
+  { id: 'manha', title: 'Manhã' },
+  { id: 'tarde', title: 'Tarde' },
+  { id: 'noite', title: 'Noite' },
+];
 
 export default function RoutineScreen() {
   const signedIn = useRequireSession();
-  const params = useLocalSearchParams<{ dia?: string }>();
-  const day = parseDay(params.dia);
   const { width } = useWindowDimensions();
   const wide = width >= 900;
-  const journey = useJourneyBoard();
-  const unlocked = isDayUnlocked(day, journey.testMode, journey);
-  const completed = completedIdsForDay(journey, day);
-  const completedSet = new Set(completed);
-  const done = completed.length;
-  const percent = progressPercent(done);
+  const board = useDailyBoard();
+  const counts = dailyCounts(board.habits, board.completed);
 
-  useEffect(() => {
-    if (!signedIn) {
-      return;
-    }
-    if (!unlocked) {
-      router.replace('/trinta-dias' as Href);
-      return;
-    }
-    markDayStarted(day);
-  }, [day, signedIn, unlocked]);
-
-  if (!signedIn || !unlocked) {
+  if (!signedIn) {
     return <View style={styles.blank} />;
   }
 
@@ -59,36 +31,42 @@ export default function RoutineScreen() {
       <View style={styles.header}>
         <Eyebrow>Hoje</Eyebrow>
         <Text style={styles.count}>
-          {done} de {TASK_TOTAL} concluídos
+          {counts.done} de {counts.total} concluídos
         </Text>
-        <Text style={styles.day}>Dia {day} da jornada</Text>
+        <Text style={styles.day}>{board.dateKey ? `${formatCalendarDate(board.dateKey)} · ${formatDailyPercent(counts.percent)}` : ''}</Text>
       </View>
-      <Track percent={percent} />
+      <Track percent={counts.percent} />
 
       <View style={[styles.periods, wide && styles.periodsWide]}>
-        {periods.map((period) => (
-          <View key={period.id} style={[styles.period, wide && styles.periodWide]}>
-            <Text style={styles.periodTitle}>{period.title}</Text>
-            {period.tasks.map((task) => {
-              const checked = completedSet.has(task.id);
-              return (
-                <Pressable
-                  key={task.id}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked }}
-                  accessibilityLabel={task.label}
-                  onPress={() => toggleDayTask(day, task.id)}
-                  style={({ pressed }) => [styles.task, pressed && styles.pressed]}>
-                  <View style={styles.copy}>
-                    <Text style={[styles.taskLabel, checked && styles.taskDone]}>{task.label}</Text>
-                    <Text style={styles.state}>{checked ? 'Concluído' : period.title}</Text>
-                  </View>
-                  <View style={[styles.mark, checked && styles.markOn]} />
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
+        {periodTitles.map((period) => {
+          const tasks = board.habits.filter((habit) => habit.period === period.id);
+          if (tasks.length === 0) {
+            return null;
+          }
+          return (
+            <View key={period.id} style={[styles.period, wide && styles.periodWide]}>
+              <Text style={styles.periodTitle}>{period.title}</Text>
+              {tasks.map((habit) => {
+                const checked = habit.userHabitId !== null && board.completed.has(habit.userHabitId);
+                return (
+                  <Pressable
+                    key={habit.id}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked }}
+                    accessibilityLabel={habit.label}
+                    onPress={() => void toggleDailyHabit(habit)}
+                    style={({ pressed }) => [styles.task, pressed && styles.pressed]}>
+                    <View style={styles.copy}>
+                      <Text style={[styles.taskLabel, checked && styles.taskDone]}>{habit.label}</Text>
+                      <Text style={styles.state}>{checked ? 'Concluído' : period.title}</Text>
+                    </View>
+                    <View style={[styles.mark, checked && styles.markOn]} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          );
+        })}
       </View>
     </AppScreen>
   );

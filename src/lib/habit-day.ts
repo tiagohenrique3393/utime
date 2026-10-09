@@ -1,17 +1,76 @@
 import { supabase } from '../../utils/supabase';
 
-export function personalCompletionPercent(total: number, completed: number) {
+export const CALENDAR_TIME_ZONE = 'America/Sao_Paulo';
+
+function zonedPart(date: Date, name: 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second') {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: CALENDAR_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  return parts.find((part) => part.type === name)?.value ?? '0';
+}
+
+export function dailyPercent(total: number, completed: number) {
   if (total <= 0) {
     return 0;
   }
   const done = Math.max(0, Math.min(total, completed));
-  return Math.round((done / total) * 100);
+  return Math.round((done / total) * 10000) / 100;
+}
+
+export function personalCompletionPercent(total: number, completed: number) {
+  return dailyPercent(total, completed);
+}
+
+export function formatDailyPercent(percent: number) {
+  if (Number.isInteger(percent)) {
+    return `${percent}%`;
+  }
+  return `${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(percent)}%`;
 }
 
 export function todayKey(date = new Date()) {
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
+  const year = zonedPart(date, 'year');
+  const month = zonedPart(date, 'month');
+  const day = zonedPart(date, 'day');
+  return `${year}-${month}-${day}`;
+}
+
+export function zonedHour(date = new Date()) {
+  const hour = Number(zonedPart(date, 'hour'));
+  return hour === 24 ? 0 : hour;
+}
+
+export function millisecondsUntilNextDate(date = new Date()) {
+  const hour = Number(zonedPart(date, 'hour'));
+  const minute = Number(zonedPart(date, 'minute'));
+  const second = Number(zonedPart(date, 'second'));
+  const elapsed = ((hour * 60 + minute) * 60 + second) * 1000;
+  const remaining = 24 * 60 * 60 * 1000 - elapsed;
+  return remaining <= 0 ? 1000 : remaining;
+}
+
+export function formatCalendarDate(dateKey: string) {
+  const [year, month, day] = dateKey.split('-');
+  if (!year || !month || !day) {
+    return dateKey;
+  }
+  return `${day}/${month}/${year}`;
+}
+
+export function formatLongDate(dateKey: string) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  if (!year || !month || !day) {
+    return dateKey;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  return new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(date);
 }
 
 function completionErrorMessage(error: { message?: string; code?: string } | null, action: 'load' | 'save') {

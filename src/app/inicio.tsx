@@ -8,20 +8,18 @@ import { DayProgress } from '@/components/day-progress';
 import { HojePlanet } from '@/components/hoje-planet';
 import { PillarCard } from '@/components/pillar-card';
 import { fonts, ui } from '@/constants/theme';
-import { currentJourneyDay, dayPillars } from '@/lib/journey-view';
+import { dailyCounts, pillarDailyPercent } from '@/lib/daily-board';
+import { useDailyBoard } from '@/lib/use-daily-board';
+import { formatDailyPercent, formatLongDate, zonedHour } from '@/lib/habit-day';
+import { pillarLabels } from '@/lib/habit-catalog';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
-import { completedIdsForDay, progressPercent, TASK_TOTAL, useJourneyBoard } from '@/lib/tasks';
 
 function greeting(date: Date, name: string) {
-  const hour = date.getHours();
+  const hour = zonedHour(date);
   const hello = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
   const first = name.trim().split(/\s+/)[0];
   return first ? `${hello}, ${first}` : hello;
-}
-
-function todayLabel(date: Date) {
-  return new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' }).format(date);
 }
 
 function dayMessage(percent: number) {
@@ -92,20 +90,24 @@ export default function TodayScreen() {
   const compact = height < 740;
   const statusSize = width < 360 ? 7.5 : width < 420 ? 8 : width < 760 ? 10 : 12;
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
-  const journey = useJourneyBoard();
+  const board = useDailyBoard();
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
     setNow(new Date());
   }, []);
 
-  const day = currentJourneyDay(journey);
-  const done = completedIdsForDay(journey, day).length;
-  const percent = progressPercent(done);
-  const remaining = Math.max(0, TASK_TOTAL - done);
-  const pillars = dayPillars(journey, day);
+  const counts = dailyCounts(board.habits, board.completed);
+  const done = counts.done;
+  const percent = counts.percent;
+  const remaining = Math.max(0, counts.total - done);
+  const pillars = (['corpo', 'mente', 'espirito'] as const).map((id) => ({
+    id,
+    label: pillarLabels[id],
+    percent: pillarDailyPercent(board.habits, board.completed, id),
+  }));
   const hello = now ? greeting(now, profile.firstName) : '';
-  const dateLine = now ? todayLabel(now) : '';
+  const dateLine = board.dateKey ? formatLongDate(board.dateKey) : '';
   const closed = percent >= 100;
   const feminine = profile.journey === 'womantime';
 
@@ -124,8 +126,8 @@ export default function TodayScreen() {
         {dateLine ? <Text style={styles.date}>{dateLine}</Text> : null}
       </View>
 
-      <Text style={[styles.figure, compact && styles.figureCompact]} accessibilityLabel={`${percent}% do seu dia`}>
-        {percent}%
+      <Text style={[styles.figure, compact && styles.figureCompact]} accessibilityLabel={`${formatDailyPercent(percent)} do seu dia`}>
+        {formatDailyPercent(percent)}
       </Text>
       <Text style={styles.figureLabel}>Seu dia</Text>
       <View style={styles.track}>
@@ -164,7 +166,7 @@ export default function TodayScreen() {
 
       <Pressable
         accessibilityRole="button"
-        onPress={() => router.push(`/jornada?dia=${day}` as Href)}
+        onPress={() => router.push('/jornada' as Href)}
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
         <Text style={styles.buttonLabel}>Ver meu dia</Text>
         <Chevron />

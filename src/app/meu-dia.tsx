@@ -1,127 +1,22 @@
-import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { useSyncExternalStore } from 'react';
+import { router, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen, Eyebrow, Meta, PageTitle, PrimaryButton, TextButton, Track } from '@/components/app-screen';
 import { fonts, ui } from '@/constants/theme';
-import { getSessionUserId } from '@/lib/accounts';
-import {
-  getCatalogHabits,
-  getUserHabits,
-  habitPillars,
-  habitTitle,
-  hydrateHabitRoutine,
-  isHabitRoutinePersonalized,
-  periodLabels,
-  pillarLabels,
-  relevanceLabels,
-  subscribeHabitRoutine,
-} from '@/lib/habit-catalog';
-import { loadCompletedHabitIds, personalCompletionPercent, setHabitCompleted, todayKey } from '@/lib/habit-day';
+import { dailyCounts, toggleDailyHabit } from '@/lib/daily-board';
+import { useDailyBoard } from '@/lib/use-daily-board';
+import { getUserHabits, habitPillars, periodLabels, pillarLabels, relevanceLabels } from '@/lib/habit-catalog';
+import { formatCalendarDate, formatDailyPercent, formatLongDate } from '@/lib/habit-day';
 import { useRequireSession } from '@/lib/require-session';
-
-function formatToday(date = new Date()) {
-  const formatted = new Intl.DateTimeFormat('pt-BR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  }).format(date);
-  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-}
 
 export default function MyDayScreen() {
   const signedIn = useRequireSession();
-  const catalog = useSyncExternalStore(subscribeHabitRoutine, getCatalogHabits, getCatalogHabits);
-  const habits = useSyncExternalStore(subscribeHabitRoutine, getUserHabits, getUserHabits);
-  const personalized = useSyncExternalStore(
-    subscribeHabitRoutine,
-    isHabitRoutinePersonalized,
-    isHabitRoutinePersonalized,
-  );
-  const [phase, setPhase] = useState<'loading' | 'ready'>('loading');
-  const [done, setDone] = useState<ReadonlySet<string>>(new Set());
-  const [logNotice, setLogNotice] = useState('');
-  const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [dayLabel, setDayLabel] = useState(formatToday);
-  const loadSeq = useRef(0);
-
-  useFocusEffect(
-    useCallback(() => {
-      const userId = getSessionUserId();
-      if (!userId) {
-        return;
-      }
-      const seq = ++loadSeq.current;
-      let active = true;
-      setDayLabel(formatToday());
-      void (async () => {
-        await hydrateHabitRoutine(userId);
-        if (!active || seq !== loadSeq.current) {
-          return;
-        }
-        const routine = getUserHabits().filter((habit) => habit.active);
-        if (!isHabitRoutinePersonalized() && routine.length === 0) {
-          setDone(new Set());
-          setLogNotice('');
-          setPhase('ready');
-          return;
-        }
-        const result = await loadCompletedHabitIds(userId, todayKey());
-        if (!active || seq !== loadSeq.current) {
-          return;
-        }
-        if (result.ok) {
-          setDone(new Set(result.ids));
-          setLogNotice('');
-        } else {
-          setLogNotice(result.message);
-        }
-        setPhase('ready');
-      })();
-      return () => {
-        active = false;
-      };
-    }, []),
-  );
-
-  async function toggle(habitId: string) {
-    const userId = getSessionUserId();
-    if (!userId || togglingId) {
-      return;
-    }
-    const next = !done.has(habitId);
-    setTogglingId(habitId);
-    try {
-      const result = await setHabitCompleted(userId, habitId, todayKey(), next);
-      if (!result.ok) {
-        setLogNotice(result.message);
-        return;
-      }
-      loadSeq.current += 1;
-      setLogNotice('');
-      setDone((current) => {
-        const copy = new Set(current);
-        if (next) {
-          copy.add(habitId);
-        } else {
-          copy.delete(habitId);
-        }
-        return copy;
-      });
-    } finally {
-      setTogglingId(null);
-    }
-  }
+  const board = useDailyBoard();
+  const counts = dailyCounts(board.habits, board.completed);
 
   if (!signedIn) {
     return <View style={styles.blank} />;
   }
-
-  const active = habits.filter((habit) => habit.active);
-  const completedCount = active.filter((habit) => done.has(habit.id)).length;
-  const percent = personalCompletionPercent(active.length, completedCount);
-  const routineReady = personalized || active.length > 0;
 
   return (
     <AppScreen>
@@ -132,75 +27,63 @@ export default function MyDayScreen() {
       <View style={styles.header}>
         <Eyebrow>Evolução pessoal</Eyebrow>
         <PageTitle compact>Meu dia</PageTitle>
-        <Meta>{dayLabel}</Meta>
+        <Meta>{board.dateKey ? `${formatLongDate(board.dateKey)} · ${formatCalendarDate(board.dateKey)}` : ''}</Meta>
       </View>
 
-      {phase === 'loading' ? <Text style={styles.note}>Carregando sua rotina.</Text> : null}
+      {!board.ready ? <Text style={styles.note}>Carregando sua rotina.</Text> : null}
 
-      {phase === 'ready' && !routineReady ? (
+      {board.ready && board.habits.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.note}>
-            Sua rotina personalizada ainda não foi criada. Os hábitos oficiais continuam na jornada, em Hoje.
-          </Text>
+          <Text style={styles.note}>Nenhum hábito na rotina.</Text>
           <PrimaryButton label="Personalizar hábitos" onPress={() => router.push('/personalizar-habitos' as Href)} />
         </View>
       ) : null}
 
-      {phase === 'ready' && routineReady ? (
+      {board.ready && board.habits.length > 0 ? (
         <>
-          <Text style={styles.percent}>{percent}%</Text>
+          <Text style={styles.percent}>{formatDailyPercent(counts.percent)}</Text>
           <Text style={styles.count}>
-            {active.length === 0 ? 'Nenhum hábito na rotina.' : `${completedCount} de ${active.length} hábitos`}
+            {counts.done} de {counts.total} hábitos
           </Text>
           <View style={styles.track}>
-            <Track percent={percent} />
+            <Track percent={counts.percent} />
           </View>
           <Meta>Evolução pessoal. Não altera o ranking.</Meta>
-          {logNotice ? <Text style={styles.notice}>{logNotice}</Text> : null}
+          {board.notice ? <Text style={styles.notice}>{board.notice}</Text> : null}
 
-          {active.length === 0 ? (
-            <View style={styles.empty}>
-              <TextButton label="Personalizar hábitos" onPress={() => router.push('/personalizar-habitos' as Href)} />
-            </View>
-          ) : (
-            habitPillars.map((pillar) => {
-              const group = active.filter((habit) => habit.pillar === pillar);
-              if (group.length === 0) {
-                return null;
-              }
-              return (
-                <View key={pillar} style={styles.group}>
-                  <Text style={styles.groupTitle}>{pillarLabels[pillar]}</Text>
-                  {group.map((habit) => {
-                    const checked = done.has(habit.id);
-                    const busy = togglingId === habit.id;
-                    return (
-                      <Pressable
-                        key={habit.id}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked, busy }}
-                        accessibilityLabel={habitTitle(habit, catalog)}
-                        disabled={togglingId !== null}
-                        onPress={() => void toggle(habit.id)}
-                        style={({ pressed }) => [styles.task, pressed && styles.pressed]}>
-                        <View style={styles.copy}>
-                          <Text style={[styles.taskLabel, checked && styles.taskDone]}>{habitTitle(habit, catalog)}</Text>
-                          <Text style={styles.state}>
-                            {busy
-                              ? 'Salvando'
-                              : `${checked ? 'Concluído' : periodLabels[habit.period]}${
-                                  habit.relevance ? ` · ${relevanceLabels[habit.relevance]}` : ''
-                                }`}
-                          </Text>
-                        </View>
-                        <View style={[styles.mark, checked && styles.markOn]} />
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              );
-            })
-          )}
+          {habitPillars.map((pillar) => {
+            const group = board.habits.filter((habit) => habit.pillar === pillar);
+            if (group.length === 0) {
+              return null;
+            }
+            return (
+              <View key={pillar} style={styles.group}>
+                <Text style={styles.groupTitle}>{pillarLabels[pillar]}</Text>
+                {group.map((habit) => {
+                  const checked = habit.userHabitId !== null && board.completed.has(habit.userHabitId);
+                  const saved = habit.userHabitId ? getUserHabits().find((item) => item.id === habit.userHabitId) : null;
+                  return (
+                    <Pressable
+                      key={habit.id}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked }}
+                      accessibilityLabel={habit.label}
+                      onPress={() => void toggleDailyHabit(habit)}
+                      style={({ pressed }) => [styles.task, pressed && styles.pressed]}>
+                      <View style={styles.copy}>
+                        <Text style={[styles.taskLabel, checked && styles.taskDone]}>{habit.label}</Text>
+                        <Text style={styles.state}>
+                          {checked ? 'Concluído' : periodLabels[habit.period]}
+                          {saved?.relevance ? ` · ${relevanceLabels[saved.relevance]}` : ''}
+                        </Text>
+                      </View>
+                      <View style={[styles.mark, checked && styles.markOn]} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            );
+          })}
         </>
       ) : null}
     </AppScreen>

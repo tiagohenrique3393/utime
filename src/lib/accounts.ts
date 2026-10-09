@@ -6,8 +6,11 @@ import { supabase } from '../../utils/supabase';
 import { establishSessionFromUrl } from '@/lib/session';
 import { setHabitOwner } from '@/lib/habit-catalog';
 import { setProfileOwner } from '@/lib/profile';
+import { setSessionUserId } from '@/lib/session-user';
 import { hydrateAccount } from '@/lib/sync';
 import { setTaskOwner } from '@/lib/tasks';
+
+export { getSessionUserId } from '@/lib/session-user';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -59,12 +62,6 @@ export function oauthRedirectTo() {
   return Linking.createURL('/', { scheme: 'youtime' });
 }
 
-let sessionUserId: string | null = null;
-
-export function getSessionUserId() {
-  return sessionUserId;
-}
-
 export async function getSessionEmail() {
   const { data, error } = await supabase.auth.getSession();
   if (error) {
@@ -76,7 +73,7 @@ export async function getSessionEmail() {
 let hydration: { userId: string; promise: Promise<void> } | null = null;
 
 export function applySessionOwner(userId: string | null) {
-  sessionUserId = userId;
+  setSessionUserId(userId);
   setProfileOwner(userId);
   setTaskOwner(userId);
   setHabitOwner(userId);

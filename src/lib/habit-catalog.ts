@@ -378,6 +378,57 @@ export async function chooseCatalogHabit(
   return { ok: true, message: 'Hábito adicionado à sua rotina.' };
 }
 
+export async function ensureCatalogHabit(input: {
+  id: string;
+  period: HabitPeriod;
+  pillar: HabitPillar;
+}): Promise<{ ok: boolean; habitId: string | null; message: string }> {
+  const userId = ownerId;
+  if (!userId) {
+    return { ok: false, habitId: null, message: 'Entre na sua conta para registrar o hábito.' };
+  }
+  if (!isPeriod(input.period) || !isPillar(input.pillar)) {
+    return { ok: false, habitId: null, message: 'Esse hábito não está no catálogo.' };
+  }
+  const existing = habits.find((habit) => habit.catalogHabitId === input.id);
+  if (existing?.active) {
+    return { ok: true, habitId: existing.id, message: '' };
+  }
+  if (existing) {
+    const restored = await updateUserHabit(existing.id, {
+      active: true,
+      period: input.period,
+      pillar: input.pillar,
+      relevance: existing.relevance,
+    });
+    if (!restored.ok || ownerId !== userId) {
+      return { ok: false, habitId: null, message: 'Não foi possível registrar o hábito.' };
+    }
+    return { ok: true, habitId: existing.id, message: '' };
+  }
+  revision += 1;
+  const { data, error } = await writeUserHabit('insert', {
+    user_id: userId,
+    catalog_habit_id: input.id,
+    custom_label: null,
+    period: input.period,
+    pillar: input.pillar,
+    sort_order: nextSortOrder(),
+    active: true,
+    relevance: null,
+  });
+  if (error || !data) {
+    return { ok: false, habitId: null, message: 'Não foi possível registrar o hábito.' };
+  }
+  const created = habitFromRow(data as HabitRow);
+  if (!created || ownerId !== userId) {
+    return { ok: false, habitId: null, message: 'Não foi possível registrar o hábito.' };
+  }
+  habits = [...habits, created].sort((left, right) => left.sortOrder - right.sortOrder);
+  emit();
+  return { ok: true, habitId: created.id, message: '' };
+}
+
 export async function addCustomHabit(input: {
   label: string;
   period: HabitPeriod;
