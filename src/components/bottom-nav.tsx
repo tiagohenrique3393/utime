@@ -29,7 +29,7 @@ const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = 
   {
     label: 'Perfil',
     href: '/perfil',
-    match: (path) => path === '/perfil',
+    match: (path) => path === '/perfil' || path === '/meu-dia' || path === '/personalizar-habitos',
   },
 ];
 

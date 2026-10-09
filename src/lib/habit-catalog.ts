@@ -28,6 +28,28 @@ export type HabitResult = {
   message: string;
 };
 
+export const habitPillars: readonly HabitPillar[] = ['corpo', 'mente', 'espirito'];
+export const habitPeriods: readonly HabitPeriod[] = ['manha', 'tarde', 'noite'];
+export const habitRelevances: readonly HabitRelevance[] = ['alta', 'media', 'baixa'];
+
+export const pillarLabels: Record<HabitPillar, string> = {
+  corpo: 'Corpo',
+  mente: 'Mente',
+  espirito: 'Espírito',
+};
+
+export const periodLabels: Record<HabitPeriod, string> = {
+  manha: 'Manhã',
+  tarde: 'Tarde',
+  noite: 'Noite',
+};
+
+export const relevanceLabels: Record<HabitRelevance, string> = {
+  alta: 'Alta',
+  media: 'Média',
+  baixa: 'Baixa',
+};
+
 type CatalogRow = {
   id: string;
   period: string;
@@ -455,4 +477,26 @@ export async function removeUserHabit(habitId: string): Promise<HabitResult> {
   habits = habits.filter((habit) => habit.id !== habitId);
   emit();
   return { ok: true, message: 'Hábito removido da sua rotina.' };
+}
+
+export async function savePersonalizedRoutine(): Promise<HabitResult> {
+  const userId = ownerId;
+  if (!userId) {
+    return { ok: false, message: 'Entre na sua conta para salvar a rotina.' };
+  }
+  revision += 1;
+  const marked = await markPersonalized(userId);
+  if (!marked || ownerId !== userId) {
+    return { ok: false, message: 'Não foi possível salvar a sua rotina.' };
+  }
+  personalized = true;
+  emit();
+  return { ok: true, message: 'Rotina personalizada salva.' };
+}
+
+export function habitTitle(habit: UserHabit, catalogHabits: readonly CatalogHabit[]) {
+  if (habit.customLabel) {
+    return habit.customLabel;
+  }
+  return catalogHabits.find((item) => item.id === habit.catalogHabitId)?.label ?? 'Hábito';
 }
