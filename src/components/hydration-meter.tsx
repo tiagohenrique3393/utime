@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Track } from '@/components/app-screen';
@@ -26,11 +26,13 @@ export function HydrationMeter({
   const [goalText, setGoalText] = useState('');
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState(false);
+  const loadTicket = useRef(0);
 
   useEffect(() => {
+    const ticket = ++loadTicket.current;
     let active = true;
     void loadHydration(userId, dateKey).then((result) => {
-      if (!active) {
+      if (!active || ticket !== loadTicket.current) {
         return;
       }
       setDay(result.day);
@@ -46,8 +48,13 @@ export function HydrationMeter({
     if (pending) {
       return;
     }
+    const ticket = ++loadTicket.current;
     setPending(true);
     const saved = await saveHydration(userId, dateKey, next);
+    if (ticket !== loadTicket.current) {
+      setPending(false);
+      return;
+    }
     setPending(false);
     if (!saved.ok) {
       setNotice(saved.message);

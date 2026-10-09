@@ -115,7 +115,7 @@ export async function saveHydration(userId: string, day: string, next: Hydration
       return {
         ok: true as const,
         day: saved,
-        message: ensured.message || 'A água foi salva. A conclusão do hábito ainda não pôde ser gravada.',
+        message: 'A água foi salva. A conclusão do hábito ainda não pôde ser gravada.',
       };
     }
     const logged = await setHabitCompleted(
