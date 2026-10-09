@@ -34,15 +34,39 @@ create policy habit_day_logs_insert_own
 on public.habit_day_logs
 for insert
 to authenticated
-with check (auth.uid() = user_id);
+with check (
+  auth.uid() = user_id
+  and exists (
+    select 1
+    from public.user_habits
+    where user_habits.id = user_habit_id
+      and user_habits.user_id = auth.uid()
+  )
+);
 
 drop policy if exists habit_day_logs_update_own on public.habit_day_logs;
 create policy habit_day_logs_update_own
 on public.habit_day_logs
 for update
 to authenticated
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
+using (
+  auth.uid() = user_id
+  and exists (
+    select 1
+    from public.user_habits
+    where user_habits.id = user_habit_id
+      and user_habits.user_id = auth.uid()
+  )
+)
+with check (
+  auth.uid() = user_id
+  and exists (
+    select 1
+    from public.user_habits
+    where user_habits.id = user_habit_id
+      and user_habits.user_id = auth.uid()
+  )
+);
 
 drop policy if exists habit_day_logs_delete_own on public.habit_day_logs;
 create policy habit_day_logs_delete_own
