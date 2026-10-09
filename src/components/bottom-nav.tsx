@@ -94,7 +94,7 @@ function NavIcon({ label, selected }: { label: string; selected: boolean }) {
   return glyph('svg', { width: 18, height: 18, viewBox: '0 0 20 20', 'aria-hidden': true }, body);
 }
 
-export function BottomNav({ variant = 'default' }: { variant?: 'default' | 'hoje' }) {
+export function BottomNav({ variant = 'default', backgroundColor }: { variant?: 'default' | 'hoje'; backgroundColor?: string }) {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -102,7 +102,7 @@ export function BottomNav({ variant = 'default' }: { variant?: 'default' | 'hoje
   const compact = width < 430;
 
   return (
-    <View style={[styles.bar, hoje && styles.barHoje, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+    <View style={[styles.bar, hoje && styles.barHoje, backgroundColor ? { backgroundColor } : null, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       {tabs.map((tab) => {
         const selected = tab.match(pathname);
         return (

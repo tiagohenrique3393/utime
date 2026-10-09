@@ -14,19 +14,21 @@ export function AppScreen({
   width = 'regular',
   backdrop,
   navVariant = 'default',
+  backgroundColor,
 }: {
   children: ReactNode;
   showNav?: boolean;
   width?: Width;
   backdrop?: ReactNode;
   navVariant?: 'default' | 'hoje';
+  backgroundColor?: string;
 }) {
   const window = useWindowDimensions();
   const wide = window.width >= 840;
   const maxWidth = width === 'stage' ? 1120 : width === 'narrow' ? 460 : wide ? 720 : 520;
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, backgroundColor ? { backgroundColor } : null]}>
       {backdrop ? (
         <View pointerEvents="none" style={styles.backdrop}>
           {backdrop}
@@ -44,7 +46,7 @@ export function AppScreen({
           <View style={[styles.column, { maxWidth }]}>{children}</View>
         </ScrollView>
       </SafeAreaView>
-      {showNav ? <BottomNav variant={navVariant} /> : null}
+      {showNav ? <BottomNav variant={navVariant} backgroundColor={backgroundColor} /> : null}
     </View>
   );
 }

@@ -1,42 +1,77 @@
 import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
-import { AppScreen, Eyebrow, Meta, PageTitle, PrimaryButton, TextButton } from '@/components/app-screen';
-import { DayProgress } from '@/components/day-progress';
+import { AppScreen } from '@/components/app-screen';
+import { DayPlanet } from '@/components/day-planet';
 import { HydrationMeter } from '@/components/hydration-meter';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import { dailyCounts, isDailyHabitDone, refreshDailyBoard, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
 import { useDailyBoard } from '@/lib/use-daily-board';
-import { habitPeriods, periodLabels, relevanceLabels } from '@/lib/habit-catalog';
-import { formatCalendarDate, formatDailyPercent, formatLongDate, parseDateKey } from '@/lib/habit-day';
+import { habitPeriods, periodLabels, pillarLabels, type HabitPeriod } from '@/lib/habit-catalog';
+import { formatCalendarDate, formatDailyPercent, parseDateKey, zonedHour } from '@/lib/habit-day';
+import { getProgressColor } from '@/lib/progress-color';
 import { useRequireSession } from '@/lib/require-session';
 import { HYDRATION_HABIT_ID } from '@/lib/suggested-habits';
 
+const page = '#050505';
 const rowPress = { cursor: 'pointer', userSelect: 'none' } as ViewStyle;
+const bandColor = {
+  red: '#E15A4C',
+  yellow: '#E4C36A',
+  green: '#5FCB68',
+} as const;
 
-function hydrationHabit(habits: readonly DailyHabit[]) {
-  return habits.find((habit) => habit.catalogHabitId === HYDRATION_HABIT_ID) ?? null;
+function formatDayHeading(dateKey: string) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  if (!year || !month || !day) {
+    return '';
+  }
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  const weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', timeZone: 'UTC' })
+    .format(date)
+    .replace('.', '')
+    .toUpperCase();
+  const monthName = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: 'UTC' }).format(date).toUpperCase();
+  return `${weekday}, ${day} DE ${monthName} · ${formatCalendarDate(dateKey)}`;
+}
+
+function currentPeriod(date = new Date()): HabitPeriod {
+  const hour = zonedHour(date);
+  if (hour < 12) {
+    return 'manha';
+  }
+  if (hour < 18) {
+    return 'tarde';
+  }
+  return 'noite';
+}
+
+function Chevron({ open, color = 'rgba(243,239,232,0.55)' }: { open: boolean; color?: string }) {
+  return <View style={[styles.chevron, { borderColor: color, marginTop: open ? 3 : 0, transform: [{ rotate: open ? '-135deg' : '45deg' }] }]} />;
 }
 
 function HabitCheck({ habit, checked }: { habit: DailyHabit; checked: boolean }) {
-  const relevance = habit.relevance;
   return (
     <Pressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
-      accessibilityLabel={habit.label}
+      accessibilityLabel={`${habit.label}, ${pillarLabels[habit.pillar]}`}
       hitSlop={6}
       onPress={() => void toggleDailyHabit(habit)}
       style={({ pressed }) => [styles.task, rowPress, pressed && styles.pressed]}>
-      <View pointerEvents="none" style={styles.copy}>
-        <Text style={[styles.taskLabel, checked && styles.taskDone]}>{habit.label}</Text>
-        <Text style={styles.state}>
-          {checked ? 'Concluído' : periodLabels[habit.period]}
-          {relevance ? ` · ${relevanceLabels[relevance]}` : ''}
+      <View pointerEvents="none" style={[styles.mark, checked && styles.markOn]}>
+        {checked ? <View style={styles.tick} /> : null}
+      </View>
+      <View pointerEvents="none" style={styles.nameRow}>
+        <Text numberOfLines={1} style={styles.taskLabel}>
+          {habit.label}
+        </Text>
+        <Text numberOfLines={1} style={styles.pillar}>
+          {`· ${pillarLabels[habit.pillar].toUpperCase()}`}
         </Text>
       </View>
-      <View pointerEvents="none" style={[styles.mark, checked && styles.markOn]} />
     </Pressable>
   );
 }
@@ -48,21 +83,41 @@ export default function MyDayScreen() {
   const board = useDailyBoard(selectedDate);
   const counts = dailyCounts(board.habits, board.completed);
   const userId = getSessionUserId();
-  const waterHabit = hydrationHabit(board.habits);
+  const tone = bandColor[getProgressColor(counts.percent)];
+  const periodNow = currentPeriod();
+  const [overrides, setOverrides] = useState<Partial<Record<HabitPeriod, boolean>>>({});
+  const groups = habitPeriods.map((period) => ({
+    period,
+    habits: board.habits.filter((habit) => habit.period === period && habit.catalogHabitId !== HYDRATION_HABIT_ID),
+  }));
+  const currentCount = groups.find((group) => group.period === periodNow)?.habits.length ?? 0;
+  const firstPeriod = groups.find((group) => group.habits.length > 0)?.period ?? null;
+
+  function sectionOpen(period: HabitPeriod) {
+    if (overrides[period] !== undefined) {
+      return overrides[period] === true;
+    }
+    if (selectedDate) {
+      return true;
+    }
+    if (currentCount > 0) {
+      return period === periodNow;
+    }
+    return period === firstPeriod;
+  }
 
   if (!signedIn) {
     return <View style={styles.blank} />;
   }
 
   return (
-    <AppScreen>
-      <View style={styles.links}>
-        <TextButton label="Hoje" onPress={() => router.navigate('/inicio')} />
-      </View>
+    <AppScreen backgroundColor={page} backdrop={<DayPlanet />}>
       <View style={styles.header}>
-        <Eyebrow>Evolução pessoal</Eyebrow>
-        <PageTitle compact>Meu dia</PageTitle>
-        <Meta>{board.dateKey ? `${formatLongDate(board.dateKey)} · ${formatCalendarDate(board.dateKey)}` : ''}</Meta>
+        <Text style={styles.kicker}>Evolução pessoal</Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          Meu dia
+        </Text>
+        {board.dateKey ? <Text style={styles.date}>{formatDayHeading(board.dateKey)}</Text> : null}
       </View>
 
       {!board.ready ? <Text style={styles.note}>Carregando sua rotina.</Text> : null}
@@ -75,29 +130,45 @@ export default function MyDayScreen() {
 
       {board.ready && board.habits.length > 0 ? (
         <>
-          <Text style={styles.percent}>{formatDailyPercent(counts.percent)}</Text>
+          <View style={styles.progress}>
+            <Text style={[styles.percent, { color: tone }]}>{formatDailyPercent(counts.percent)}</Text>
+            <View
+              accessibilityRole="progressbar"
+              accessibilityValue={{ min: 0, max: 100, now: Math.round(counts.percent) }}
+              style={styles.rail}>
+              {counts.percent > 0 ? <View style={[styles.fill, { width: `${Math.min(100, counts.percent)}%`, backgroundColor: tone }]} /> : null}
+            </View>
+          </View>
           <Text style={styles.count}>
             {counts.done} de {counts.total} hábitos
           </Text>
-          <View style={styles.track}>
-            <DayProgress percent={counts.percent} />
-          </View>
-          <Meta>Evolução pessoal. Não altera o ranking.</Meta>
           {board.notice ? <Text style={styles.notice}>{board.notice}</Text> : null}
 
-          {habitPeriods.map((period) => {
-            const group = board.habits.filter(
-              (habit) => habit.period === period && habit.catalogHabitId !== HYDRATION_HABIT_ID,
-            );
-            if (group.length === 0) {
+          {groups.map((group) => {
+            if (group.habits.length === 0) {
               return null;
             }
+            const open = sectionOpen(group.period);
+            const done = group.habits.filter((habit) => isDailyHabitDone(habit, board.completed)).length;
             return (
-              <View key={period} style={styles.group}>
-                <Text style={styles.groupTitle}>{periodLabels[period]}</Text>
-                {group.map((habit) => (
-                  <HabitCheck key={habit.id} habit={habit} checked={isDailyHabitDone(habit, board.completed)} />
-                ))}
+              <View key={group.period} style={styles.group}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: open }}
+                  accessibilityLabel={periodLabels[group.period]}
+                  onPress={() => setOverrides((prev) => ({ ...prev, [group.period]: !open }))}
+                  style={({ pressed }) => [styles.groupHead, rowPress, pressed && styles.pressed]}>
+                  <Text style={styles.groupTitle}>{periodLabels[group.period]}</Text>
+                  <Text style={styles.groupCount}>
+                    {done}/{group.habits.length}
+                  </Text>
+                  <Chevron open={open} />
+                </Pressable>
+                {open
+                  ? group.habits.map((habit) => (
+                      <HabitCheck key={habit.id} habit={habit} checked={isDailyHabitDone(habit, board.completed)} />
+                    ))
+                  : null}
               </View>
             );
           })}
@@ -106,8 +177,6 @@ export default function MyDayScreen() {
 
       {board.ready && userId && board.dateKey ? (
         <View style={styles.hydration}>
-          <Text style={styles.groupTitle}>Hidratação</Text>
-          {waterHabit ? <HabitCheck habit={waterHabit} checked={isDailyHabitDone(waterHabit, board.completed)} /> : null}
           <HydrationMeter
             userId={userId}
             dateKey={board.dateKey}
@@ -119,9 +188,13 @@ export default function MyDayScreen() {
       ) : null}
 
       {board.ready ? (
-        <View style={styles.personalize}>
-          <PrimaryButton label="Personalizar hábitos" onPress={() => router.push('/personalizar-habitos' as Href)} />
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/personalizar-habitos' as Href)}
+          style={({ pressed }) => [styles.personalize, rowPress, pressed && styles.pressed]}>
+          <Text style={styles.personalizeLabel}>Personalizar hábitos</Text>
+          <View style={styles.personalizeChevron} />
+        </Pressable>
       ) : null}
     </AppScreen>
   );
@@ -130,96 +203,191 @@ export default function MyDayScreen() {
 const styles = StyleSheet.create({
   blank: {
     flex: 1,
-    backgroundColor: ui.background,
-  },
-  links: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 18,
+    backgroundColor: page,
   },
   header: {
-    marginTop: 8,
-    gap: 8,
+    gap: 6,
+    paddingTop: 4,
   },
-  percent: {
-    marginTop: 28,
-    color: ui.text,
-    fontFamily: fonts.textLight,
-    fontSize: 64,
-    lineHeight: 72,
-  },
-  count: {
-    marginTop: 4,
-    marginBottom: 16,
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  track: {
-    marginBottom: 12,
-  },
-  group: {
-    marginTop: 28,
-  },
-  groupTitle: {
-    marginBottom: 6,
-    color: ui.champagne,
-    fontFamily: fonts.text,
+  kicker: {
+    color: '#E6E1D8',
+    fontFamily: fonts.display,
     fontSize: 11,
-    letterSpacing: 2,
+    lineHeight: 14,
+    letterSpacing: 3.1,
     textTransform: 'uppercase',
   },
-  task: {
-    minHeight: 56,
+  title: {
+    color: ui.text,
+    fontFamily: fonts.display,
+    fontSize: 36,
+    lineHeight: 40,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  date: {
+    color: '#8E8A84',
+    fontFamily: fonts.text,
+    fontSize: 11,
+    lineHeight: 15,
+    letterSpacing: 1.15,
+    textTransform: 'uppercase',
+  },
+  progress: {
+    marginTop: 26,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: ui.lineSoft,
   },
-  copy: {
+  percent: {
+    fontFamily: fonts.textLight,
+    fontSize: 40,
+    lineHeight: 44,
+    letterSpacing: -0.4,
+  },
+  rail: {
     flex: 1,
-    gap: 3,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#2A2926',
+    overflow: 'hidden',
   },
-  taskLabel: {
-    color: ui.text,
-    fontFamily: fonts.text,
-    fontSize: 16,
-    lineHeight: 21,
+  fill: {
+    height: '100%',
+    borderRadius: 2,
   },
-  taskDone: {
-    color: ui.champagne,
-  },
-  state: {
-    color: ui.faint,
+  count: {
+    marginTop: 8,
+    color: '#8A8680',
     fontFamily: fonts.text,
     fontSize: 11,
-    letterSpacing: 0.8,
+    lineHeight: 14,
+    letterSpacing: 1.35,
     textTransform: 'uppercase',
   },
-  mark: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+  group: {
+    marginTop: 14,
+    borderRadius: 16,
+    backgroundColor: '#0A0A0A',
     borderWidth: 1,
-    borderColor: ui.line,
+    borderColor: 'rgba(243,239,232,0.08)',
+    paddingHorizontal: 14,
+  },
+  groupHead: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  groupTitle: {
+    flex: 1,
+    color: ui.champagne,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    lineHeight: 18,
+    letterSpacing: 1.7,
+    textTransform: 'uppercase',
+  },
+  groupCount: {
+    color: '#9A958E',
+    fontFamily: fonts.text,
+    fontSize: 13,
+    lineHeight: 16,
+    letterSpacing: 0.3,
+  },
+  chevron: {
+    width: 7,
+    height: 7,
+    borderRightWidth: 1.25,
+    borderBottomWidth: 1.25,
+  },
+  task: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(243,239,232,0.08)',
+  },
+  mark: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.4,
+    borderColor: 'rgba(196,192,186,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   markOn: {
     backgroundColor: ui.champagne,
     borderColor: ui.champagne,
   },
+  tick: {
+    width: 8,
+    height: 4,
+    marginBottom: 2,
+    borderLeftWidth: 1.6,
+    borderBottomWidth: 1.6,
+    borderColor: '#141210',
+    transform: [{ rotate: '-45deg' }],
+  },
+  nameRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  taskLabel: {
+    flexShrink: 1,
+    color: ui.text,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  pillar: {
+    flexShrink: 0,
+    color: '#6E6A64',
+    fontFamily: fonts.text,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.7,
+  },
   empty: {
     marginTop: 28,
-    gap: 16,
   },
   hydration: {
-    marginTop: 32,
+    marginTop: 14,
   },
   personalize: {
-    marginTop: 28,
+    marginTop: 14,
+    minHeight: 52,
+    borderRadius: 999,
+    backgroundColor: ui.champagne,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 22,
+  },
+  personalizeLabel: {
+    color: ui.ink,
+    fontFamily: fonts.textMedium,
+    fontSize: 13,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  personalizeChevron: {
+    width: 7,
+    height: 7,
+    marginTop: -1,
+    borderRightWidth: 1.4,
+    borderBottomWidth: 1.4,
+    borderColor: ui.ink,
+    transform: [{ rotate: '-45deg' }],
   },
   note: {
+    marginTop: 28,
     color: ui.muted,
     fontFamily: fonts.text,
     fontSize: 15,
