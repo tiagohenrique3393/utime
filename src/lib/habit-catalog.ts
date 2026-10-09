@@ -48,10 +48,12 @@ type HabitRow = {
   pillar: string;
   sort_order: number;
   active: boolean | null;
-  relevance: string | null;
+  relevance?: string | null;
 };
 
-const habitColumns = 'id,catalog_habit_id,custom_label,period,pillar,sort_order,active,relevance';
+let relevanceAvailable: boolean | null = null;
+
+type QueryError = { message?: string; code?: string } | null;
 
 const periods = new Set<HabitPeriod>(['manha', 'tarde', 'noite']);
 const pillars = new Set<HabitPillar>(['corpo', 'mente', 'espirito']);
@@ -112,6 +114,13 @@ function relevanceFromValue(value: string | null | undefined): HabitRelevance | 
   return value && isRelevance(value) ? value : null;
 }
 
+function isMissingRelevance(error: { message?: string; code?: string } | null) {
+  if (!error) {
+    return false;
+  }
+  return `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase().includes('relevance');
+}
+
 function catalogFromRow(row: CatalogRow): CatalogHabit | null {
   if (!isPeriod(row.period) || !isPillar(row.pillar) || row.label.trim().length === 0) {
     return null;
@@ -153,17 +162,98 @@ function nextSortOrder() {
   return habits.reduce((max, habit) => Math.max(max, habit.sortOrder), 0) + 1;
 }
 
+async function readUserHabits(userId: string): Promise<{ data: HabitRow[] | null; error: QueryError }> {
+  if (relevanceAvailable !== false) {
+    const result = await supabase
+      .from('user_habits')
+      .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active,relevance')
+      .eq('user_id', userId)
+      .order('sort_order', { ascending: true });
+    if (!result.error) {
+      relevanceAvailable = true;
+      return { data: (result.data ?? []) as HabitRow[], error: null };
+    }
+    if (!isMissingRelevance(result.error)) {
+      return { data: null, error: result.error };
+    }
+    relevanceAvailable = false;
+  }
+  const fallback = await supabase
+    .from('user_habits')
+    .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+    .eq('user_id', userId)
+    .order('sort_order', { ascending: true });
+  return { data: (fallback.data ?? null) as HabitRow[] | null, error: fallback.error };
+}
+
+async function writeUserHabit(
+  operation: 'insert' | 'update',
+  values: Record<string, string | number | boolean | null>,
+  habitId?: string,
+): Promise<{ data: HabitRow | null; error: QueryError }> {
+  const userId = ownerId;
+  if (!userId) {
+    return { data: null, error: { message: 'missing owner' } };
+  }
+  const send = async (includeRelevance: boolean) => {
+    const payload = { ...values };
+    if (!includeRelevance) {
+      delete payload.relevance;
+    }
+    if (operation === 'insert' && includeRelevance) {
+      return supabase
+        .from('user_habits')
+        .insert(payload)
+        .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active,relevance')
+        .single();
+    }
+    if (operation === 'insert') {
+      return supabase
+        .from('user_habits')
+        .insert(payload)
+        .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+        .single();
+    }
+    if (includeRelevance) {
+      return supabase
+        .from('user_habits')
+        .update(payload)
+        .eq('id', habitId ?? '')
+        .eq('user_id', userId)
+        .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active,relevance')
+        .single();
+    }
+    return supabase
+      .from('user_habits')
+      .update(payload)
+      .eq('id', habitId ?? '')
+      .eq('user_id', userId)
+      .select('id,catalog_habit_id,custom_label,period,pillar,sort_order,active')
+      .single();
+  };
+  if (relevanceAvailable === false) {
+    const saved = await send(false);
+    return { data: (saved.data ?? null) as HabitRow | null, error: saved.error };
+  }
+  const result = await send(true);
+  if (result.error && isMissingRelevance(result.error)) {
+    relevanceAvailable = false;
+    const saved = await send(false);
+    return { data: (saved.data ?? null) as HabitRow | null, error: saved.error };
+  }
+  if (!result.error) {
+    relevanceAvailable = true;
+  }
+  return { data: (result.data ?? null) as HabitRow | null, error: result.error };
+}
+
 export async function hydrateHabitRoutine(userId: string) {
   const stamp = revision;
   try {
     const [catalogResult, routineResult, habitsResult] = await Promise.all([
       supabase.from('habit_catalog').select('id,period,pillar,label,sort_order').order('sort_order', { ascending: true }),
       supabase.from('habit_routines').select('personalized').eq('user_id', userId).maybeSingle(),
-      supabase
-        .from('user_habits')
-        .select(habitColumns)
-        .eq('user_id', userId)
-        .order('sort_order', { ascending: true }),
+      readUserHabits(userId),
     ]);
     if (ownerId !== userId || stamp !== revision) {
       return;
@@ -214,20 +304,16 @@ export async function chooseCatalogHabit(
     return { ok: false, message: 'Escolha a relevância alta, média ou baixa.' };
   }
   revision += 1;
-  const { data, error } = await supabase
-    .from('user_habits')
-    .insert({
-      user_id: userId,
-      catalog_habit_id: catalogHabitId,
-      custom_label: null,
-      period: source.period,
-      pillar: source.pillar,
-      sort_order: nextSortOrder(),
-      active: true,
-      relevance,
-    })
-    .select(habitColumns)
-    .single();
+  const { data, error } = await writeUserHabit('insert', {
+    user_id: userId,
+    catalog_habit_id: catalogHabitId,
+    custom_label: null,
+    period: source.period,
+    pillar: source.pillar,
+    sort_order: nextSortOrder(),
+    active: true,
+    relevance,
+  });
   if (error || !data) {
     return { ok: false, message: 'Não foi possível escolher esse hábito.' };
   }
@@ -268,20 +354,16 @@ export async function addCustomHabit(input: {
     return { ok: false, message: 'Escolha a relevância alta, média ou baixa.' };
   }
   revision += 1;
-  const { data, error } = await supabase
-    .from('user_habits')
-    .insert({
-      user_id: userId,
-      catalog_habit_id: null,
-      custom_label: label,
-      period: input.period,
-      pillar: input.pillar,
-      sort_order: nextSortOrder(),
-      active: true,
-      relevance,
-    })
-    .select(habitColumns)
-    .single();
+  const { data, error } = await writeUserHabit('insert', {
+    user_id: userId,
+    catalog_habit_id: null,
+    custom_label: label,
+    period: input.period,
+    pillar: input.pillar,
+    sort_order: nextSortOrder(),
+    active: true,
+    relevance,
+  });
   if (error || !data) {
     return { ok: false, message: 'Não foi possível adicionar esse hábito.' };
   }
@@ -345,13 +427,7 @@ export async function updateUserHabit(
     changes.custom_label = label;
   }
   revision += 1;
-  const { data, error } = await supabase
-    .from('user_habits')
-    .update(changes)
-    .eq('id', habitId)
-    .eq('user_id', userId)
-    .select(habitColumns)
-    .single();
+  const { data, error } = await writeUserHabit('update', changes, habitId);
   if (error || !data || ownerId !== userId) {
     return { ok: false, message: 'Não foi possível editar esse hábito.' };
   }
