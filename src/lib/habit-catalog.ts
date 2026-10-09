@@ -319,11 +319,32 @@ export async function chooseCatalogHabit(
   if (!source) {
     return { ok: false, message: 'Esse hábito não está no catálogo.' };
   }
-  if (habits.some((habit) => habit.catalogHabitId === catalogHabitId)) {
-    return { ok: true, message: 'Esse hábito já está na sua rotina.' };
-  }
   if (relevance !== null && !isRelevance(relevance)) {
     return { ok: false, message: 'Escolha a relevância alta, média ou baixa.' };
+  }
+  const existing = habits.find((habit) => habit.catalogHabitId === catalogHabitId);
+  if (existing?.active) {
+    return { ok: true, message: 'Esse hábito já está na sua rotina.' };
+  }
+  if (existing) {
+    const restored = await updateUserHabit(existing.id, {
+      active: true,
+      period: source.period,
+      pillar: source.pillar,
+      relevance,
+    });
+    if (!restored.ok || ownerId !== userId) {
+      return { ok: false, message: 'Não foi possível escolher esse hábito.' };
+    }
+    if (!personalized) {
+      const marked = await markPersonalized(userId);
+      if (!marked || ownerId !== userId) {
+        return { ok: false, message: 'Não foi possível salvar a sua rotina.' };
+      }
+      personalized = true;
+      emit();
+    }
+    return { ok: true, message: 'Hábito adicionado à sua rotina.' };
   }
   revision += 1;
   const { data, error } = await writeUserHabit('insert', {
@@ -465,17 +486,14 @@ export async function updateUserHabit(
 }
 
 export async function removeUserHabit(habitId: string): Promise<HabitResult> {
-  const userId = ownerId;
-  if (!userId || !habits.some((habit) => habit.id === habitId)) {
+  const current = habits.find((habit) => habit.id === habitId && habit.active);
+  if (!current) {
     return { ok: false, message: 'Não foi possível remover esse hábito.' };
   }
-  revision += 1;
-  const { error } = await supabase.from('user_habits').delete().eq('id', habitId).eq('user_id', userId);
-  if (error || ownerId !== userId) {
+  const removed = await updateUserHabit(habitId, { active: false });
+  if (!removed.ok) {
     return { ok: false, message: 'Não foi possível remover esse hábito.' };
   }
-  habits = habits.filter((habit) => habit.id !== habitId);
-  emit();
   return { ok: true, message: 'Hábito removido da sua rotina.' };
 }
 

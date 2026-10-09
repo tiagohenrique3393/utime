@@ -207,8 +207,9 @@ export default function PersonalizeHabitsScreen() {
   }
 
   const catalogReady = catalog.length > 0;
-  const failed = phase === 'ready' && !catalogReady && habits.length === 0 && !personalized;
-  const chosenIds = new Set(habits.map((habit) => habit.catalogHabitId).filter((id): id is string => Boolean(id)));
+  const routine = habits.filter((habit) => habit.active);
+  const failed = phase === 'ready' && !catalogReady && routine.length === 0 && !personalized;
+  const chosenIds = new Set(routine.map((habit) => habit.catalogHabitId).filter((id): id is string => Boolean(id)));
 
   return (
     <AppScreen>
@@ -231,7 +232,7 @@ export default function PersonalizeHabitsScreen() {
       {phase === 'ready' && !failed ? (
         <>
           <Text style={styles.section}>Sua rotina</Text>
-          {habits.length === 0 ? (
+          {routine.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.note}>
                 {personalized
@@ -249,7 +250,7 @@ export default function PersonalizeHabitsScreen() {
             </View>
           ) : (
             habitPillars.map((pillar) => {
-              const group = habits.filter((habit) => habit.pillar === pillar);
+              const group = routine.filter((habit) => habit.pillar === pillar);
               return (
                 <View key={pillar} style={styles.group}>
                   <Text style={styles.groupTitle}>{pillarLabels[pillar]}</Text>
