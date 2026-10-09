@@ -111,9 +111,51 @@ export async function saveHydration(userId: string, day: string, next: Hydration
       pillar: suggestion.pillar,
       relevance: suggestion.relevance,
     });
-    if (ensured.ok && ensured.habitId) {
-      await setHabitCompleted(userId, ensured.habitId, day, hydrationReached(saved.consumedMl, saved.goalMl));
+    if (!ensured.ok || !ensured.habitId) {
+      return {
+        ok: true as const,
+        day: saved,
+        message: ensured.message || 'A água foi salva. A conclusão do hábito ainda não pôde ser gravada.',
+      };
+    }
+    const logged = await setHabitCompleted(
+      userId,
+      ensured.habitId,
+      day,
+      hydrationReached(saved.consumedMl, saved.goalMl),
+    );
+    if (!logged.ok) {
+      return { ok: true as const, day: saved, message: logged.message };
     }
   }
   return { ok: true as const, day: saved, message: '' };
+}
+
+export async function loadHydrationUntil(userId: string, until: string) {
+  const rows: { dateKey: string; consumedMl: number; goalMl: number | null }[] = [];
+  const pageSize = 1000;
+  for (let from = 0; from < 20000; from += pageSize) {
+    const { data, error } = await supabase
+      .from('hydration_days')
+      .select('user_id,occurred_on,goal_ml,consumed_ml')
+      .eq('user_id', userId)
+      .lte('occurred_on', until)
+      .order('occurred_on', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) {
+      return { ok: false as const, rows, message: failureMessage(error, 'load') };
+    }
+    const batch = (data ?? []) as HydrationRow[];
+    for (const row of batch) {
+      const dateKey = typeof row.occurred_on === 'string' ? row.occurred_on.slice(0, 10) : '';
+      const parsed = fromRow(row, userId, dateKey);
+      if (parsed && dateKey <= until) {
+        rows.push({ dateKey, consumedMl: parsed.consumedMl, goalMl: parsed.goalMl });
+      }
+    }
+    if (batch.length < pageSize) {
+      break;
+    }
+  }
+  return { ok: true as const, rows, message: '' };
 }

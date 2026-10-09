@@ -55,7 +55,7 @@ export function HydrationMeter({
     }
     setDay(saved.day);
     setGoalText(saved.day.goalMl == null ? '' : String(saved.day.goalMl));
-    setNotice('');
+    setNotice(saved.message);
     onSaved();
   }
 

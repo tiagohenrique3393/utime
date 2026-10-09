@@ -2,11 +2,14 @@ import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { AppScreen, Eyebrow, TextButton } from '@/components/app-screen';
+import { AppScreen, Eyebrow } from '@/components/app-screen';
 import { ConsistencyCalendar } from '@/components/consistency-calendar';
 import { fonts, ui } from '@/constants/theme';
-import { saoPauloCalendarDate } from '@/lib/habit-day';
+import { getSessionUserId } from '@/lib/accounts';
+import { dailyCounts, getDailyBoard, refreshDailyBoard } from '@/lib/daily-board';
+import { loadHabitLogsUntil, saoPauloCalendarDate, todayKey } from '@/lib/habit-day';
 import { completionRate, consistentHabits, streakStats } from '@/lib/journey-view';
+import { recordedPercents, type TodayRoutine } from '@/lib/progress-view';
 import { useRequireSession } from '@/lib/require-session';
 import { useJourneyBoard } from '@/lib/tasks';
 
@@ -14,6 +17,7 @@ export default function ConstancyScreen() {
   const signedIn = useRequireSession();
   const journey = useJourneyBoard();
   const [today, setToday] = useState<Date | null>(null);
+  const [percents, setPercents] = useState<Record<string, number> | null>(null);
   const streaks = streakStats(journey);
   const rate = completionRate(journey);
   const habits = consistentHabits(journey, 3);
@@ -22,13 +26,37 @@ export default function ConstancyScreen() {
     setToday(saoPauloCalendarDate());
   }, []);
 
+  useEffect(() => {
+    const userId = getSessionUserId();
+    if (!userId) {
+      return;
+    }
+    let active = true;
+    const day = todayKey();
+    void (async () => {
+      const [, logs] = await Promise.all([refreshDailyBoard(userId, day), loadHabitLogsUntil(userId, day)]);
+      if (!active || !logs.ok) {
+        return;
+      }
+      const board = getDailyBoard();
+      let routine: TodayRoutine | null = null;
+      if (board.ready && board.dateKey === day) {
+        const counts = dailyCounts(board.habits, board.completed);
+        routine = { total: counts.total, completed: counts.done };
+      }
+      setPercents(recordedPercents(logs.rows, day, routine));
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   if (!signedIn) {
     return <View style={styles.blocked} />;
   }
 
   return (
     <AppScreen width="narrow">
-      <TextButton label="Jornada" onPress={() => router.navigate('/trinta-dias')} />
       <View style={styles.header}>
         <Eyebrow>Constância</Eyebrow>
         <Text accessibilityRole="header" style={styles.figure}>
@@ -44,6 +72,7 @@ export default function ConstancyScreen() {
             source={journey}
             today={today}
             onOpenDay={(dateKey) => router.push(`/meu-dia?data=${dateKey}` as Href)}
+            percents={percents}
           />
         ) : null}
       </View>

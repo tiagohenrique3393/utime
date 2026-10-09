@@ -29,10 +29,12 @@ export function ConsistencyCalendar({
   source,
   today,
   onOpenDay,
+  percents = null,
 }: {
   source: JourneyBoard;
   today: Date;
   onOpenDay: (dateKey: string) => void;
+  percents?: Record<string, number> | null;
 }) {
   const reduced = useReducedMotion();
   const { width } = useWindowDimensions();
@@ -88,11 +90,14 @@ export function ConsistencyCalendar({
           const dateKey = calendarDateKey(date);
           const future = date.getTime() > todayStart.getTime();
           const isToday = sameDay(date, todayStart);
-          const percent = journeyDay ? dayProgress(source, journeyDay) : 0;
-          const complete = Boolean(journeyDay) && !future && percent === 100;
-          const incomplete = Boolean(journeyDay) && !future && percent < 100;
+          const usingHabits = percents != null;
+          const habitPercent = usingHabits ? percents[dateKey] : undefined;
+          const recorded = usingHabits ? typeof habitPercent === 'number' : Boolean(journeyDay);
+          const percent = usingHabits ? (habitPercent ?? 0) : journeyDay ? dayProgress(source, journeyDay) : 0;
+          const complete = recorded && !future && (usingHabits ? percent >= 70 : percent === 100);
+          const incomplete = recorded && !future && (usingHabits ? percent < 70 : percent < 100);
           const canOpen = !future;
-          const label = `${date.getDate()} de ${title}${complete ? ', concluído' : incomplete ? ', incompleto' : future ? ', futuro' : ''}${isToday ? ', hoje' : ''}`;
+          const label = `${date.getDate()} de ${title}${complete ? ', pelo menos 70%' : incomplete ? ', abaixo de 70%' : future ? ', futuro' : ''}${isToday ? ', hoje' : ''}`;
           const body = (
             <View
               style={[

@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { AppScreen, Eyebrow, Meta, PageTitle, PrimaryButton, TextButton, Track } from '@/components/app-screen';
+import { AppScreen, Eyebrow, Meta, PageTitle, PrimaryButton, TextButton } from '@/components/app-screen';
+import { DayProgress } from '@/components/day-progress';
 import { HydrationMeter } from '@/components/hydration-meter';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
@@ -27,7 +28,7 @@ export default function MyDayScreen() {
   return (
     <AppScreen>
       <View style={styles.links}>
-        <TextButton label="Jornada" onPress={() => router.navigate('/trinta-dias')} />
+        <TextButton label="Hoje" onPress={() => router.navigate('/inicio')} />
       </View>
       <View style={styles.header}>
         <Eyebrow>Evolução pessoal</Eyebrow>
@@ -50,7 +51,7 @@ export default function MyDayScreen() {
             {counts.done} de {counts.total} hábitos
           </Text>
           <View style={styles.track}>
-            <Track percent={counts.percent} />
+            <DayProgress percent={counts.percent} />
           </View>
           <Meta>Evolução pessoal. Não altera o ranking.</Meta>
           {board.notice ? <Text style={styles.notice}>{board.notice}</Text> : null}

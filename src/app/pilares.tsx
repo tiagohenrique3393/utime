@@ -1,7 +1,6 @@
-import { router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { AppScreen, Eyebrow, PageTitle, TextButton } from '@/components/app-screen';
+import { AppScreen, Eyebrow, PageTitle } from '@/components/app-screen';
 import { RadarThreePillars } from '@/components/radar-pillars';
 import { fonts, ui } from '@/constants/theme';
 import { balanceInsight, currentJourneyDay, dayPillars } from '@/lib/journey-view';
@@ -19,7 +18,6 @@ export default function PillarsScreen() {
 
   return (
     <AppScreen width="narrow">
-      <TextButton label="Jornada" onPress={() => router.navigate('/trinta-dias')} />
       <View style={styles.header}>
         <Eyebrow>Mapa</Eyebrow>
         <PageTitle compact>3 pilares</PageTitle>

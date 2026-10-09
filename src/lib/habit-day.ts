@@ -142,6 +142,38 @@ export async function loadHabitDayLogs(userId: string, day: string) {
   return { ok: true as const, rows, message: '' };
 }
 
+export async function loadHabitLogsUntil(userId: string, until: string) {
+  const rows: { dateKey: string; habitId: string; completed: boolean }[] = [];
+  const pageSize = 1000;
+  for (let from = 0; from < 50000; from += pageSize) {
+    const { data, error } = await supabase
+      .from('habit_day_logs')
+      .select('user_id,user_habit_id,occurred_on,completed')
+      .eq('user_id', userId)
+      .lte('occurred_on', until)
+      .order('occurred_on', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) {
+      return { ok: false as const, rows, message: completionErrorMessage(error, 'load') };
+    }
+    const batch = (data ?? []) as DayLogRow[];
+    for (const row of batch) {
+      const dateKey = typeof row.occurred_on === 'string' ? row.occurred_on.slice(0, 10) : '';
+      if (row.user_id !== userId || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || dateKey > until) {
+        continue;
+      }
+      if (typeof row.user_habit_id !== 'string') {
+        continue;
+      }
+      rows.push({ dateKey, habitId: row.user_habit_id, completed: row.completed === true });
+    }
+    if (batch.length < pageSize) {
+      break;
+    }
+  }
+  return { ok: true as const, rows, message: '' };
+}
+
 export async function loadCompletedHabitIds(userId: string, day: string) {
   const { data, error } = await supabase
     .from('habit_day_logs')
