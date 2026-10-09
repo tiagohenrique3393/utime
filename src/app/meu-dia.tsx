@@ -1,5 +1,5 @@
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -44,6 +44,7 @@ export default function MyDayScreen() {
   const [logNotice, setLogNotice] = useState('');
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [dayLabel, setDayLabel] = useState(formatToday);
+  const loadSeq = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -51,11 +52,12 @@ export default function MyDayScreen() {
       if (!userId) {
         return;
       }
+      const seq = ++loadSeq.current;
       let active = true;
       setDayLabel(formatToday());
       void (async () => {
         await hydrateHabitRoutine(userId);
-        if (!active) {
+        if (!active || seq !== loadSeq.current) {
           return;
         }
         const routine = getUserHabits().filter((habit) => habit.active);
@@ -66,11 +68,15 @@ export default function MyDayScreen() {
           return;
         }
         const result = await loadCompletedHabitIds(userId, todayKey());
-        if (!active) {
+        if (!active || seq !== loadSeq.current) {
           return;
         }
-        setDone(new Set(result.ids));
-        setLogNotice(result.ok ? '' : result.message);
+        if (result.ok) {
+          setDone(new Set(result.ids));
+          setLogNotice('');
+        } else {
+          setLogNotice(result.message);
+        }
         setPhase('ready');
       })();
       return () => {
@@ -86,22 +92,26 @@ export default function MyDayScreen() {
     }
     const next = !done.has(habitId);
     setTogglingId(habitId);
-    const result = await setHabitCompleted(userId, habitId, todayKey(), next);
-    setTogglingId(null);
-    if (!result.ok) {
-      setLogNotice(result.message);
-      return;
-    }
-    setLogNotice('');
-    setDone((current) => {
-      const copy = new Set(current);
-      if (next) {
-        copy.add(habitId);
-      } else {
-        copy.delete(habitId);
+    try {
+      const result = await setHabitCompleted(userId, habitId, todayKey(), next);
+      if (!result.ok) {
+        setLogNotice(result.message);
+        return;
       }
-      return copy;
-    });
+      loadSeq.current += 1;
+      setLogNotice('');
+      setDone((current) => {
+        const copy = new Set(current);
+        if (next) {
+          copy.add(habitId);
+        } else {
+          copy.delete(habitId);
+        }
+        return copy;
+      });
+    } finally {
+      setTogglingId(null);
+    }
   }
 
   if (!signedIn) {
