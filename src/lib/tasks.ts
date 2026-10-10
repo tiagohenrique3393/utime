@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
+import { recordOfficialHabit } from '@/lib/circle-api';
 import { supabase } from '../../utils/supabase';
 
 export type TaskPeriod = {
@@ -210,10 +211,14 @@ export function toggleTask(id: string) {
     return;
   }
   journeyRevision += 1;
+  const turningOn = !completed.has(id);
   if (completed.has(id)) {
     completed.delete(id);
   } else {
     completed.add(id);
+  }
+  if (turningOn) {
+    void recordOfficialHabit(id);
   }
   snapshot = [...completed].sort();
   board = { ...board, dayOne: snapshot };
@@ -489,10 +494,14 @@ export function toggleDayTask(day: number, id: string) {
   journeyRevision += 1;
   const key = String(day);
   const current = new Set(board.tasksByDay[key] ?? []);
+  const turningOn = !current.has(id);
   if (current.has(id)) {
     current.delete(id);
   } else {
     current.add(id);
+  }
+  if (turningOn) {
+    void recordOfficialHabit(id);
   }
   const nextIds = [...current].sort();
   const tasksByDay = { ...board.tasksByDay };

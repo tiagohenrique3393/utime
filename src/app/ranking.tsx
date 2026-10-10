@@ -1,276 +1,150 @@
-import { router, useFocusEffect } from 'expo-router';
-import { createElement, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Text, View } from 'react-native';
 
-import { AppScreen, Eyebrow, PageTitle } from '@/components/app-screen';
+import { AppScreen } from '@/components/app-screen';
+import { CircleBoard } from '@/components/circle-board';
+import { CirclePlanet } from '@/components/circle-planet';
+import { LegacyRanking } from '@/components/legacy-ranking';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
-import { fetchRanking, rankingErrorMessage, type RankingEntry } from '@/lib/ranking';
-import { flushJourneyPush } from '@/lib/tasks';
+import { periodStart, shiftPeriod, type CirclePeriod } from '@/lib/circle';
+import {
+  circleErrorMessage,
+  circleUnavailable,
+  enrollCircle,
+  fetchCircleBoard,
+  fetchCircleFaces,
+  fetchCircleState,
+  leaveCircle,
+  type CircleEntry,
+  type CirclePerson,
+  type CircleState,
+} from '@/lib/circle-api';
+import { todayKey } from '@/lib/habit-day';
+import { useRequireSession } from '@/lib/require-session';
 
-type LoadState = 'loading' | 'ready' | 'error';
-
-function node(type: string, props: Record<string, unknown> | null, ...children: ReactNode[]) {
-  return createElement(type, props, ...children);
-}
-
-function Crown() {
-  if (Platform.OS !== 'web') {
-    return <View style={styles.crownFallback} />;
-  }
-  return (
-    <View accessibilityElementsHidden>
-      {node(
-        'svg',
-        { width: 16, height: 12, viewBox: '0 0 16 12' },
-        node('path', {
-          d: 'M1.5 9.5 L3.2 3.2 L8 6.4 L12.8 1.8 L14.5 9.5 Z',
-          fill: 'none',
-          stroke: '#E8C99B',
-          strokeWidth: 1,
-          strokeLinejoin: 'round',
-        }),
-      )}
-    </View>
-  );
-}
-
-function RankRow({ entry, self }: { entry: RankingEntry; self: boolean }) {
-  return (
-    <View
-      accessibilityLabel={`${entry.position}º, ${entry.name}, ${entry.score} pontos${self ? ', você' : ''}${entry.position === 1 ? ', primeiro colocado' : ''}`}
-      accessibilityState={{ selected: self }}
-      style={[styles.row, entry.position <= 3 && styles.rowPodium, self && styles.rowSelf]}>
-      <View style={styles.place}>
-        {entry.position === 1 ? <Crown /> : null}
-        <Text style={[styles.position, entry.position <= 3 && styles.positionPodium]}>{entry.position}º</Text>
-      </View>
-      <Text numberOfLines={1} style={styles.name}>
-        {entry.name}
-      </Text>
-      <Text style={styles.score}>{entry.score}</Text>
-    </View>
-  );
-}
+const page = '#050505';
 
 export default function CircleScreen() {
-  const signedIn = getSessionUserId() !== null;
-  const [entries, setEntries] = useState<RankingEntry[]>([]);
-  const [loadState, setLoadState] = useState<LoadState>('loading');
+  const signedIn = useRequireSession();
+  const [mode, setMode] = useState<'loading' | 'legacy' | 'circle'>('loading');
+  const [state, setState] = useState<CircleState>({ hasAccess: false, enrolled: false, handle: '', joinedAt: null });
+  const [kind, setKind] = useState<CirclePeriod>('semana');
+  const [start, setStart] = useState('');
+  const [scope, setScope] = useState<'todos' | 'amigos'>('todos');
+  const [entries, setEntries] = useState<CircleEntry[]>([]);
+  const [faces, setFaces] = useState<CirclePerson[]>([]);
   const [notice, setNotice] = useState('');
-  const activeRef = useRef(true);
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
 
-  useEffect(() => {
-    if (!getSessionUserId()) {
-      router.replace('/');
-    }
-  }, []);
-
-  const load = useCallback(async () => {
-    const userId = getSessionUserId();
-    if (!userId) {
-      return;
-    }
-    setLoadState('loading');
-    setNotice('');
+  const load = useCallback(async (nextKind: CirclePeriod, nextStart: string, nextScope: 'todos' | 'amigos') => {
+    const today = todayKey();
+    const current = periodStart(nextKind, today);
+    const selected = nextStart || current;
+    setStart(selected);
     try {
-      await flushJourneyPush();
-      if (!activeRef.current) {
+      const nextState = await fetchCircleState();
+      setState(nextState);
+      setMode('circle');
+      if (!nextState.enrolled) {
+        setEntries([]);
+        setFaces([]);
         return;
       }
-      const next = await fetchRanking();
-      if (!activeRef.current) {
-        return;
-      }
-      setEntries(next);
-      setLoadState('ready');
+      const [board, friends] = await Promise.all([
+        fetchCircleBoard(nextKind, selected, nextScope),
+        fetchCircleFaces(),
+      ]);
+      setEntries(board);
+      setFaces(friends);
+      setNotice('');
     } catch (error) {
-      if (!activeRef.current) {
+      const details = error as { code?: string; message?: string };
+      if (circleUnavailable(details)) {
+        setMode('legacy');
         return;
       }
-      const details = error as { code?: string; message?: string };
-      setEntries([]);
-      setNotice(rankingErrorMessage(details));
-      setLoadState('error');
+      setMode('circle');
+      setNotice(circleErrorMessage(details));
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      activeRef.current = true;
-      void load();
-      return () => {
-        activeRef.current = false;
-      };
-    }, [load]),
+      const today = todayKey();
+      void load(kind, start || periodStart(kind, today), scope);
+    }, [kind, load, scope, start]),
   );
 
-  if (!signedIn) {
-    return <View style={styles.blank} />;
+  async function enroll() {
+    setNotice('');
+    try {
+      await enrollCircle();
+      await load(kind, periodStart(kind, todayKey()), scope);
+    } catch (error) {
+      setNotice(circleErrorMessage(error as { code?: string; message?: string }));
+    }
   }
 
-  const userId = getSessionUserId();
-  const self = entries.find((entry) => entry.userId === userId);
-  const podium = entries.filter((entry) => entry.position <= 3);
-  const rest = entries.filter((entry) => entry.position > 3);
+  async function leave() {
+    if (!confirmingLeave) {
+      setConfirmingLeave(true);
+      return;
+    }
+    setConfirmingLeave(false);
+    try {
+      await leaveCircle();
+      setEntries([]);
+      setState((current) => ({ ...current, enrolled: false }));
+    } catch (error) {
+      setNotice(circleErrorMessage(error as { code?: string; message?: string }));
+    }
+  }
+
+  if (!signedIn || mode === 'legacy') {
+    return mode === 'legacy' ? <LegacyRanking /> : <View style={{ flex: 1, backgroundColor: page }} />;
+  }
+
+  const today = todayKey();
+  const todayStart = start ? periodStart(kind, today) : '';
 
   return (
-    <AppScreen width="narrow">
-      <Eyebrow>Círculo UTime</Eyebrow>
-      <PageTitle compact>Ranking semanal</PageTitle>
-
-      {loadState === 'loading' ? <Text style={styles.status}>Carregando o ranking.</Text> : null}
-
-      {loadState === 'error' ? (
-        <View style={styles.errorBlock}>
-          <Text style={styles.status}>{notice}</Text>
-          <Pressable accessibilityRole="button" onPress={() => void load()} style={({ pressed }) => [styles.retry, pressed && styles.pressed]}>
-            <Text style={styles.retryLabel}>Tentar de novo</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {loadState === 'ready' && entries.length === 0 ? (
-        <Text style={styles.status}>Nenhuma conta no ranking ainda.</Text>
-      ) : null}
-
-      {loadState === 'ready' && self ? (
-        <View style={styles.mine}>
-          <Text style={styles.mineLabel}>Minha posição</Text>
-          <Text style={styles.mineValue}>
-            {self.position}º · {self.score}
-          </Text>
-        </View>
-      ) : null}
-
-      {loadState === 'ready' && entries.length > 0 && !self ? (
-        <Text style={styles.status}>Sua conta ainda não aparece no ranking.</Text>
-      ) : null}
-
-      {loadState === 'ready' && podium.length > 0 ? (
-        <View style={styles.list}>
-          {podium.map((entry) => (
-            <RankRow key={entry.userId} entry={entry} self={entry.userId === userId} />
-          ))}
-        </View>
-      ) : null}
-
-      {loadState === 'ready' && rest.length > 0 ? (
-        <View style={styles.rest}>
-          {rest.map((entry) => (
-            <RankRow key={entry.userId} entry={entry} self={entry.userId === userId} />
-          ))}
-        </View>
+    <AppScreen width="narrow" backgroundColor={page} backdrop={<CirclePlanet />}>
+      {mode === 'loading' ? <Text style={{ marginTop: 28, color: ui.muted, fontFamily: fonts.text }}>Carregando o Círculo.</Text> : null}
+      {mode === 'circle' && start ? (
+        <CircleBoard
+          userId={getSessionUserId() ?? ''}
+          state={state}
+          kind={kind}
+          start={start}
+          todayStart={todayStart}
+          scope={scope}
+          entries={entries}
+          faces={faces}
+          notice={notice}
+          confirmingLeave={confirmingLeave}
+          onKind={(next) => {
+            setConfirmingLeave(false);
+            setKind(next);
+            setStart(periodStart(next, todayKey()));
+          }}
+          onShift={(delta) => {
+            const next = shiftPeriod(kind, start, delta);
+            if (next > todayStart) {
+              return;
+            }
+            setConfirmingLeave(false);
+            setStart(next);
+          }}
+          onScope={(next) => {
+            setConfirmingLeave(false);
+            setScope(next);
+          }}
+          onEnroll={() => void enroll()}
+          onLeave={() => void leave()}
+        />
       ) : null}
     </AppScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  blank: {
-    flex: 1,
-    backgroundColor: ui.background,
-  },
-  status: {
-    marginTop: 28,
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  errorBlock: {
-    marginTop: 8,
-    alignItems: 'flex-start',
-  },
-  retry: {
-    marginTop: 16,
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-    borderRadius: 999,
-    backgroundColor: ui.champagne,
-  },
-  retryLabel: {
-    color: ui.ink,
-    fontFamily: fonts.text,
-    fontSize: 13,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  mine: {
-    marginTop: 28,
-    gap: 4,
-  },
-  mineLabel: {
-    color: ui.champagne,
-    fontFamily: fonts.text,
-    fontSize: 11,
-    letterSpacing: 1.8,
-    textTransform: 'uppercase',
-  },
-  mineValue: {
-    color: ui.text,
-    fontFamily: fonts.display,
-    fontSize: 32,
-    lineHeight: 36,
-  },
-  list: {
-    marginTop: 28,
-  },
-  rest: {
-    marginTop: 8,
-  },
-  row: {
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: ui.lineSoft,
-  },
-  rowPodium: {
-    minHeight: 64,
-  },
-  rowSelf: {
-    borderBottomColor: ui.line,
-  },
-  place: {
-    minWidth: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  position: {
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 14,
-    letterSpacing: 0.4,
-  },
-  positionPodium: {
-    color: ui.champagne,
-    fontFamily: fonts.display,
-    fontSize: 22,
-  },
-  name: {
-    flex: 1,
-    color: ui.text,
-    fontFamily: fonts.text,
-    fontSize: 16,
-  },
-  score: {
-    color: ui.text,
-    fontFamily: fonts.text,
-    fontSize: 15,
-    letterSpacing: 0.4,
-  },
-  crownFallback: {
-    width: 8,
-    height: 8,
-    borderWidth: 1,
-    borderColor: ui.champagne,
-    transform: [{ rotate: '45deg' }],
-  },
-  pressed: {
-    opacity: 0.75,
-  },
-});

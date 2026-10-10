@@ -30,7 +30,7 @@ const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = 
   {
     label: 'Círculo',
     href: '/ranking',
-    match: (path) => path === '/ranking',
+    match: (path) => path === '/ranking' || path === '/circulo-amigos',
   },
   {
     label: 'Perfil',
