@@ -100,6 +100,9 @@ export function formatLongDate(dateKey: string) {
 
 function completionErrorMessage(error: { message?: string; code?: string } | null, action: 'load' | 'save') {
   const text = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
+  if (text.includes('closed day') || text.includes('encerrado')) {
+    return 'Este dia já está encerrado.';
+  }
   const missing =
     text.includes('habit_day_logs') ||
     text.includes('pgrst205') ||
@@ -197,7 +200,37 @@ export async function loadCompletedHabitIds(userId: string, day: string) {
   return { ok: true as const, ids, message: '' };
 }
 
+export function isWritableDay(day: string) {
+  return day === todayKey();
+}
+
+export async function ensureDayPlan(userId: string, day: string, habitIds: readonly string[]) {
+  if (!isWritableDay(day)) {
+    return { ok: false as const, message: 'Este dia já está encerrado.' };
+  }
+  const unique = [...new Set(habitIds.filter((id) => id.length > 0))];
+  if (unique.length === 0) {
+    return { ok: true as const, message: '' };
+  }
+  const { error } = await supabase.from('habit_day_logs').upsert(
+    unique.map((habitId) => ({
+      user_id: userId,
+      user_habit_id: habitId,
+      occurred_on: day,
+      completed: false,
+    })),
+    { onConflict: 'user_id,user_habit_id,occurred_on', ignoreDuplicates: true },
+  );
+  if (error) {
+    return { ok: false as const, message: completionErrorMessage(error, 'save') };
+  }
+  return { ok: true as const, message: '' };
+}
+
 export async function setHabitCompleted(userId: string, habitId: string, day: string, completed: boolean) {
+  if (!isWritableDay(day)) {
+    return { ok: false as const, message: 'Este dia já está encerrado.' };
+  }
   const { data, error } = await supabase
     .from('habit_day_logs')
     .upsert(

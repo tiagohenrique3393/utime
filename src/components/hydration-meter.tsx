@@ -2,6 +2,7 @@ import { createElement, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
 
 import { fonts, ui } from '@/constants/theme';
+import { todayKey } from '@/lib/habit-day';
 import {
   hydrationProgress,
   loadHydration,
@@ -46,6 +47,7 @@ export function HydrationMeter({
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState(false);
   const loadTicket = useRef(0);
+  const locked = dateKey !== todayKey();
 
   useEffect(() => {
     const ticket = ++loadTicket.current;
@@ -64,7 +66,7 @@ export function HydrationMeter({
   }, [dateKey, userId]);
 
   async function commit(next: HydrationDay) {
-    if (pending) {
+    if (pending || locked) {
       return;
     }
     const ticket = ++loadTicket.current;
@@ -139,20 +141,20 @@ export function HydrationMeter({
           <Pressable
             key={amount}
             accessibilityRole="button"
-            disabled={pending}
+            disabled={pending || locked}
             onPress={() => void commit({ ...day, consumedMl: day.consumedMl + amount })}
-            style={({ pressed }) => [styles.add, press, pending && styles.dim, pressed && styles.pressed]}>
+            style={({ pressed }) => [styles.add, press, (pending || locked) && styles.dim, pressed && styles.pressed]}>
             <Text numberOfLines={1} style={styles.addLabel}>{`+ ${amount} ml`}</Text>
           </Pressable>
         ))}
         <Pressable
           accessibilityRole="button"
-          disabled={pending || day.consumedMl === 0}
+          disabled={pending || locked || day.consumedMl === 0}
           onPress={() => void commit({ ...day, consumedMl: Math.max(0, day.consumedMl - 200) })}
           style={({ pressed }) => [
             styles.add,
             press,
-            (pending || day.consumedMl === 0) && styles.dim,
+            (pending || locked || day.consumedMl === 0) && styles.dim,
             pressed && styles.pressed,
           ]}>
           <Text numberOfLines={1} style={styles.addLabel}>− 200 ml</Text>
@@ -168,15 +170,16 @@ export function HydrationMeter({
           onSubmitEditing={saveGoal}
           keyboardType="number-pad"
           inputMode="numeric"
-          editable={!pending}
+          editable={!pending && !locked}
           placeholder="Meta em ml"
           placeholderTextColor={ui.faint}
           style={styles.input}
         />
-        <Pressable accessibilityRole="button" disabled={pending} onPress={saveGoal} style={styles.goalAction}>
+        <Pressable accessibilityRole="button" disabled={pending || locked} onPress={saveGoal} style={[styles.goalAction, (pending || locked) && styles.dim]}>
           <Text style={styles.goalActionLabel}>{pending ? 'Salvando' : 'Salvar meta'}</Text>
         </Pressable>
       </View>
+      {locked ? <Text style={styles.notice}>Este dia está disponível só para consulta.</Text> : null}
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
     </View>
   );

@@ -25,7 +25,7 @@ const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = 
   {
     label: 'Constância',
     href: '/constancia',
-    match: (path) => path === '/constancia',
+    match: (path) => path === '/constancia' || path === '/consulta-dia',
   },
   {
     label: 'Círculo',

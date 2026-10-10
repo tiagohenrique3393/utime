@@ -1,6 +1,6 @@
 import { supabase } from '../../utils/supabase';
 import { ensureCatalogHabit } from '@/lib/habit-catalog';
-import { setHabitCompleted } from '@/lib/habit-day';
+import { isWritableDay, setHabitCompleted } from '@/lib/habit-day';
 import { HYDRATION_HABIT_ID, suggestedHabitById } from '@/lib/suggested-habits';
 
 export type HydrationDay = {
@@ -22,6 +22,10 @@ function missingTable(error: { message?: string; code?: string } | null) {
 }
 
 function failureMessage(error: { message?: string; code?: string } | null, action: 'load' | 'save') {
+  const text = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
+  if (text.includes('closed day') || text.includes('encerrado')) {
+    return 'Este dia já está encerrado.';
+  }
   if (missingTable(error)) {
     return action === 'load'
       ? 'O registro de hidratação ainda não está disponível.'
@@ -97,6 +101,9 @@ export async function loadHydration(userId: string, day: string) {
 }
 
 export async function saveHydration(userId: string, day: string, next: HydrationDay) {
+  if (!isWritableDay(day)) {
+    return { ok: false as const, day: emptyDay, message: 'Este dia já está encerrado.' };
+  }
   const goalMl = next.goalMl != null && next.goalMl > 0 ? Math.round(next.goalMl) : null;
   const consumedMl = Math.max(0, Math.round(next.consumedMl));
   const { data, error } = await supabase

@@ -19,7 +19,7 @@ const privatePaths = new Set([
 
 export function isPrivatePath(pathname: string) {
   const path = pathname.split('?')[0].split('#')[0];
-  if (path.startsWith('/pilar/')) {
+  if (path.startsWith('/pilar/') || path === '/consulta-dia') {
     return true;
   }
   return privatePaths.has(path);

@@ -10,7 +10,7 @@ import { getSessionUserId } from '@/lib/accounts';
 import { dailyCounts, isDailyHabitDone, refreshDailyBoard, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
 import { useDailyBoard } from '@/lib/use-daily-board';
 import { habitPeriods, periodLabels, pillarLabels, type HabitPeriod } from '@/lib/habit-catalog';
-import { formatCalendarDate, formatDailyPercent, parseDateKey, zonedHour } from '@/lib/habit-day';
+import { formatCalendarDate, formatDailyPercent, parseDateKey, todayKey, zonedHour } from '@/lib/habit-day';
 import { getProgressColor } from '@/lib/progress-color';
 import { useRequireSession } from '@/lib/require-session';
 import { HYDRATION_HABIT_ID } from '@/lib/suggested-habits';
@@ -52,7 +52,24 @@ function Chevron({ open, color = 'rgba(243,239,232,0.55)' }: { open: boolean; co
   return <View style={[styles.chevron, { borderColor: color, marginTop: open ? 3 : 0, transform: [{ rotate: open ? '-135deg' : '45deg' }] }]} />;
 }
 
-function HabitCheck({ habit, checked }: { habit: DailyHabit; checked: boolean }) {
+function HabitCheck({ habit, checked, locked }: { habit: DailyHabit; checked: boolean; locked: boolean }) {
+  if (locked) {
+    return (
+      <View accessibilityLabel={`${habit.label}, somente leitura`} style={styles.task}>
+        <View pointerEvents="none" style={[styles.mark, checked && styles.markOn]}>
+          {checked ? <View style={styles.tick} /> : null}
+        </View>
+        <View pointerEvents="none" style={styles.nameRow}>
+          <Text numberOfLines={1} style={styles.taskLabel}>
+            {habit.label}
+          </Text>
+          <Text numberOfLines={1} style={styles.pillar}>
+            {`· ${pillarLabels[habit.pillar].toUpperCase()}`}
+          </Text>
+        </View>
+      </View>
+    );
+  }
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -82,6 +99,7 @@ export default function MyDayScreen() {
   const selectedDate = parseDateKey(params.data);
   const board = useDailyBoard(selectedDate);
   const counts = dailyCounts(board.habits, board.completed);
+  const locked = board.dateKey !== '' && board.dateKey !== todayKey();
   const userId = getSessionUserId();
   const tone = bandColor[getProgressColor(counts.percent)];
   const periodNow = currentPeriod();
@@ -166,7 +184,7 @@ export default function MyDayScreen() {
                 </Pressable>
                 {open
                   ? group.habits.map((habit) => (
-                      <HabitCheck key={habit.id} habit={habit} checked={isDailyHabitDone(habit, board.completed)} />
+                      <HabitCheck key={habit.id} habit={habit} checked={isDailyHabitDone(habit, board.completed)} locked={locked} />
                     ))
                   : null}
               </View>

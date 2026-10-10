@@ -13,6 +13,8 @@ import {
 } from '@/lib/habit-catalog';
 import {
   dailyPercent,
+  ensureDayPlan,
+  isWritableDay,
   loadHabitDayLogs,
   millisecondsUntilNextDate,
   setHabitCompleted,
@@ -245,6 +247,15 @@ export async function refreshDailyBoard(userId: string, requestedDate?: string) 
   if (ticket !== loadTicket || stamp !== revision || watchedUserId !== userId) {
     return;
   }
+  if (dateKey === todayKey()) {
+    const planned = resolveDailyHabits()
+      .map((habit) => habit.userHabitId)
+      .filter((id): id is string => id !== null);
+    await ensureDayPlan(userId, dateKey, planned);
+    if (ticket !== loadTicket || stamp !== revision || watchedUserId !== userId) {
+      return;
+    }
+  }
   const logs = await loadHabitDayLogs(userId, dateKey);
   if (ticket !== loadTicket || stamp !== revision || watchedUserId !== userId) {
     return;
@@ -280,6 +291,10 @@ export async function toggleDailyHabit(habit: DailyHabit) {
     return;
   }
   const dateKey = snapshot.dateKey || todayKey();
+  if (!isWritableDay(dateKey)) {
+    publish({ ...snapshot, notice: 'Este dia já está encerrado.' });
+    return;
+  }
   if (!habit.userHabitId && !habit.catalogHabitId) {
     publish({ ...snapshot, notice: 'Não foi possível identificar este hábito.' });
     return;
