@@ -62,6 +62,13 @@ export type PracticedHabit = {
   id: string;
   label: string;
   percent: number;
+  pillar: ProgressPillar;
+  catalogHabitId: string | null;
+};
+
+export type WaterCoverage = {
+  recordedDays: number;
+  elapsedDays: number;
 };
 
 export type ProgressReport = {
@@ -75,6 +82,7 @@ export type ProgressReport = {
   pillars: readonly PillarProgress[];
   practiced: readonly PracticedHabit[];
   periodGoalMl: number | null;
+  waterCoverage: WaterCoverage;
 };
 
 const weekdayLabels = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -343,10 +351,12 @@ export function practicedHabits(
   todayHabits: readonly TodayProgressHabit[] | null,
 ): PracticedHabit[] {
   const known = habitIndex(habits);
-  const stats = new Map<string, { label: string; completed: number; seen: number }>();
-  const bump = (id: string, label: string, done: boolean) => {
-    const current = stats.get(id) ?? { label, completed: 0, seen: 0 };
+  const stats = new Map<string, { label: string; pillar: ProgressPillar; catalogHabitId: string | null; completed: number; seen: number }>();
+  const bump = (id: string, label: string, pillar: ProgressPillar, catalogHabitId: string | null, done: boolean) => {
+    const current = stats.get(id) ?? { label, pillar, catalogHabitId, completed: 0, seen: 0 };
     current.seen += 1;
+    current.pillar = pillar;
+    current.catalogHabitId = catalogHabitId;
     if (done) {
       current.completed += 1;
     }
@@ -364,7 +374,7 @@ export function practicedHabits(
         if (isHydrationHabit(habit)) {
           continue;
         }
-        bump(habit.id, habit.label, habit.done);
+        bump(habit.id, habit.label, habit.pillar, habit.catalogHabitId, habit.done);
       }
       continue;
     }
@@ -375,7 +385,7 @@ export function practicedHabits(
         continue;
       }
       seen.add(row.habitId);
-      bump(meta.id, meta.label, row.completed);
+      bump(meta.id, meta.label, meta.pillar, meta.catalogHabitId, row.completed);
     }
   }
   return [...stats.entries()]
@@ -383,12 +393,29 @@ export function practicedHabits(
     .map(([id, item]) => ({
       id,
       label: item.label,
+      pillar: item.pillar,
+      catalogHabitId: item.catalogHabitId,
       completed: item.completed,
       percent: dailyPercent(item.seen, item.completed),
     }))
     .sort((a, b) => b.completed - a.completed || b.percent - a.percent || a.label.localeCompare(b.label, 'pt'))
     .slice(0, 3)
-    .map(({ id, label, percent }) => ({ id, label, percent }));
+    .map(({ id, label, pillar, catalogHabitId, percent }) => ({ id, label, pillar, catalogHabitId, percent }));
+}
+
+export function waterCoverage(dates: readonly string[], rows: readonly HydrationLog[], today: string): WaterCoverage {
+  let recordedDays = 0;
+  let elapsedDays = 0;
+  for (const key of dates) {
+    if (key > today) {
+      continue;
+    }
+    elapsedDays += 1;
+    if (waterOn(rows, key)) {
+      recordedDays += 1;
+    }
+  }
+  return { recordedDays, elapsedDays };
 }
 
 export function periodGoalMl(dates: readonly string[], rows: readonly HydrationLog[], today: string) {
@@ -469,5 +496,6 @@ export function progressReport(input: {
     pillars: pillarProgress(scope, input.today, input.logs, habits, todayHabits),
     practiced: practicedHabits(scope, input.today, input.logs, habits, todayHabits),
     periodGoalMl: periodGoalMl(waterDates, input.hydration, input.today),
+    waterCoverage: waterCoverage(waterDates, input.hydration, input.today),
   };
 }

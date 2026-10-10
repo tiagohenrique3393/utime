@@ -58,6 +58,19 @@ type HydrationRow = {
   consumed_ml?: number | null;
 };
 
+function occurredOnKey(value: unknown) {
+  if (typeof value === 'string') {
+    return /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1] ?? '';
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(value.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return '';
+}
+
 function fromRow(row: HydrationRow | null, userId: string, day: string): HydrationDay | null {
   if (!row || row.user_id !== userId || typeof row.occurred_on !== 'string' || !row.occurred_on.startsWith(day)) {
     return null;
@@ -147,11 +160,17 @@ export async function loadHydrationUntil(userId: string, until: string) {
     }
     const batch = (data ?? []) as HydrationRow[];
     for (const row of batch) {
-      const dateKey = typeof row.occurred_on === 'string' ? row.occurred_on.slice(0, 10) : '';
-      const parsed = fromRow(row, userId, dateKey);
-      if (parsed && dateKey <= until) {
-        rows.push({ dateKey, consumedMl: parsed.consumedMl, goalMl: parsed.goalMl });
+      const dateKey = occurredOnKey(row.occurred_on);
+      if (!dateKey || dateKey > until || String(row.user_id ?? '') !== userId) {
+        continue;
       }
+      const consumed = Number(row.consumed_ml);
+      const goal = row.goal_ml == null ? null : Number(row.goal_ml);
+      rows.push({
+        dateKey,
+        consumedMl: Number.isFinite(consumed) && consumed > 0 ? Math.round(consumed) : 0,
+        goalMl: goal != null && Number.isFinite(goal) && goal > 0 ? Math.round(goal) : null,
+      });
     }
     if (batch.length < pageSize) {
       break;

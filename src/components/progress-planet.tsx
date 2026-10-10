@@ -40,10 +40,22 @@ const css = `
   pointer-events: none;
   background: linear-gradient(180deg, rgba(5,5,5,0.62) 0%, rgba(5,5,5,0.38) 26%, rgba(5,5,5,0.55) 48%, rgba(5,5,5,0.88) 72%, #050505 90%);
 }
+.progress-planet-layer.bright {
+  top: 14%;
+  width: 156%;
+  filter: brightness(1.02) saturate(0.92) contrast(1.04);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 10%, #000 64%, transparent 92%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 10%, #000 64%, transparent 92%);
+}
+.progress-planet-veil.bright {
+  background: linear-gradient(180deg, rgba(5,5,5,0.55) 0%, rgba(5,5,5,0.34) 14%, rgba(5,5,5,0.1) 40%, rgba(5,5,5,0.22) 54%, rgba(5,5,5,0.78) 74%, #050505 88%);
+}
 `;
 
-export function ProgressPlanet() {
+export function ProgressPlanet({ bright = false }: { bright?: boolean }) {
   const uri = imageUri(source);
+  const layerClass = bright ? 'progress-planet-layer bright' : 'progress-planet-layer';
+  const veilClass = bright ? 'progress-planet-veil bright' : 'progress-planet-veil';
 
   if (Platform.OS === 'web' && uri) {
     return (
@@ -53,17 +65,17 @@ export function ProgressPlanet() {
           src: uri,
           alt: '',
           draggable: false,
-          className: 'progress-planet-layer',
+          className: layerClass,
         })}
-        {createElement('div', { className: 'progress-planet-veil' })}
+        {createElement('div', { className: veilClass })}
       </View>
     );
   }
 
   return (
     <View pointerEvents="none" style={styles.frame}>
-      <Image source={source} contentFit="cover" style={styles.nativeImage} />
-      <View style={styles.nativeVeil} />
+      <Image source={source} contentFit="cover" style={[styles.nativeImage, bright && styles.nativeBright]} />
+      <View style={[styles.nativeVeil, bright && styles.nativeVeilBright]} />
       <View style={styles.nativeFade} />
     </View>
   );
@@ -86,6 +98,10 @@ const styles = StyleSheet.create({
     top: 24,
     opacity: 0.42,
   },
+  nativeBright: {
+    opacity: 0.78,
+    top: 8,
+  },
   nativeVeil: {
     position: 'absolute',
     top: 0,
@@ -93,6 +109,9 @@ const styles = StyleSheet.create({
     left: 0,
     bottom: 0,
     backgroundColor: 'rgba(5,5,5,0.58)',
+  },
+  nativeVeilBright: {
+    backgroundColor: 'rgba(5,5,5,0.22)',
   },
   nativeFade: {
     position: 'absolute',

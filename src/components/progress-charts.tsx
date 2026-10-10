@@ -11,7 +11,15 @@ function node(type: string, props: Record<string, unknown> | null, ...children: 
   return createElement(type, props, ...children);
 }
 
-export function PercentRing({ percent, size = 228 }: { percent: number | null; size?: number }) {
+export function PercentRing({
+  percent,
+  size = 228,
+  caption,
+}: {
+  percent: number | null;
+  size?: number;
+  caption?: string;
+}) {
   const stroke = Math.max(8, Math.round(size * 0.045));
   const radius = (size - stroke) / 2;
   const turn = 2 * Math.PI * radius;
@@ -29,7 +37,14 @@ export function PercentRing({ percent, size = 228 }: { percent: number | null; s
           styles.nativeRing,
           { width: size, height: size, borderRadius: size / 2, borderColor: tone?.line ?? 'rgba(243,239,232,0.16)' },
         ]}>
-        <Text style={[styles.ringValue, { fontSize: Math.round(size * 0.22) }]}>{percent == null ? '—' : formatDailyPercent(percent)}</Text>
+        <Text style={[styles.ringValue, { fontSize: Math.round(size * (caption ? 0.2 : 0.22)) }]}>
+          {percent == null ? '—' : formatDailyPercent(percent)}
+        </Text>
+        {caption ? (
+          <Text numberOfLines={1} style={[styles.ringCaption, { maxWidth: size * 0.78 }]}>
+            {caption}
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -61,9 +76,14 @@ export function PercentRing({ percent, size = 228 }: { percent: number | null; s
         }),
       )}
       <View style={styles.ringLabel} pointerEvents="none">
-        <Text style={[styles.ringValue, { fontSize: Math.round(size * 0.22), lineHeight: Math.round(size * 0.26) }]}>
+        <Text style={[styles.ringValue, { fontSize: Math.round(size * (caption ? 0.2 : 0.22)), lineHeight: Math.round(size * (caption ? 0.22 : 0.26)) }]}>
           {percent == null ? '—' : formatDailyPercent(percent)}
         </Text>
+        {caption ? (
+          <Text numberOfLines={1} style={[styles.ringCaption, { maxWidth: size * 0.78 }]}>
+            {caption}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -140,6 +160,16 @@ const styles = StyleSheet.create({
     fontFamily: fonts.textLight,
     fontSize: 36,
     lineHeight: 42,
+  },
+  ringCaption: {
+    marginTop: 2,
+    color: '#C9C4BC',
+    fontFamily: fonts.display,
+    fontSize: 10,
+    lineHeight: 12,
+    letterSpacing: 1.1,
+    textAlign: 'center',
+    textTransform: 'uppercase',
   },
   bars: {
     flexDirection: 'row',
