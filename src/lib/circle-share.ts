@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-export function shareRankingImage(title: string, rows: { position: number; name: string; score: number }[]) {
+export function shareRankingImage(title: string, rows: { position: number; name: string; score: string }[]) {
   if (Platform.OS !== 'web' || typeof document === 'undefined') {
     return false;
   }

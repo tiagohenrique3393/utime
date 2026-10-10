@@ -5,6 +5,10 @@ export type CircleState = {
   enrolled: boolean;
   handle: string;
   joinedAt: string | null;
+  alta: number;
+  media: number;
+  baixa: number;
+  ready: boolean;
 };
 
 export type CircleEntry = {
@@ -28,6 +32,10 @@ type StateRow = {
   enrolled: boolean;
   handle: string | null;
   joined_at: string | null;
+  alta_count: number;
+  media_count: number;
+  baixa_count: number;
+  ready: boolean;
 };
 
 type BoardRow = {
@@ -58,6 +66,9 @@ export function circleUnavailable(error: { code?: string; message?: string } | n
 
 export function circleErrorMessage(error: { code?: string; message?: string } | null) {
   const text = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
+  if (text.includes('circle requirements missing')) {
+    return 'A rotina ainda não tem 2 hábitos de alta, 4 de média e 4 de baixa.';
+  }
   if (text.includes('friend unavailable')) {
     return 'Essa pessoa não está participando do ranking.';
   }
@@ -83,12 +94,16 @@ export async function fetchCircleState() {
   }
   const row = (Array.isArray(data) ? data[0] : data) as StateRow | null;
   if (!row) {
-    return { enrolled: false, handle: '', joinedAt: null } satisfies CircleState;
+    return { enrolled: false, handle: '', joinedAt: null, alta: 0, media: 0, baixa: 0, ready: false } satisfies CircleState;
   }
   return {
     enrolled: row.enrolled === true,
     handle: row.handle ?? '',
     joinedAt: row.joined_at,
+    alta: Number(row.alta_count) || 0,
+    media: Number(row.media_count) || 0,
+    baixa: Number(row.baixa_count) || 0,
+    ready: row.ready === true,
   } satisfies CircleState;
 }
 
@@ -119,7 +134,7 @@ export async function fetchCircleBoard(kind: CirclePeriod, start: string, scope:
     userId: row.user_id,
     name: row.display_name,
     handle: row.handle ?? '',
-    score: row.score,
+    score: Number(row.score) || 0,
     position: row.rank_position,
     podiums: row.podium_count,
     firsts: row.first_count,

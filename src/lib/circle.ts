@@ -1,6 +1,7 @@
 import { shiftDateKey, weekdayIndex } from '@/lib/progress-view';
+import { suggestedHabits } from '@/lib/suggested-habits';
 
-export const CIRCLE_POINTS = 10;
+export const personalCatalogIds = suggestedHabits.map((habit) => habit.id);
 
 export const officialTaskIds = [
   'manha-agradecimento',
@@ -21,12 +22,24 @@ export const officialTaskIds = [
 ] as const;
 
 const official = new Set<string>(officialTaskIds);
+const personalCatalog = new Set<string>(personalCatalogIds);
+
+export type CircleRelevance = 'alta' | 'media' | 'baixa';
+
+export const essentialSlots = { alta: 2, media: 4, baixa: 4 } as const;
+export const essentialPoints = { alta: 20, media: 10, baixa: 5 } as const;
+export const extraPoints = { alta: 5, media: 2.5, baixa: 1 } as const;
+export const BONUS_CAP = 10;
+export const DAY_CAP = 110;
 
 export type CirclePeriod = 'semana' | 'mes' | 'ano';
 
-export type CircleEvent = {
-  taskId: string;
+export type RankCompletion = {
+  habitId: string;
+  catalogHabitId: string | null;
+  relevance: CircleRelevance | null;
   occurredOn: string;
+  completed: boolean;
 };
 
 const monthNames = [
@@ -102,25 +115,94 @@ export function periodLabel(kind: CirclePeriod, start: string) {
   return `${Number(start.slice(8, 10))} DE ${startMonth} A ${Number(end.slice(8, 10))} DE ${endMonth} DE ${end.slice(0, 4)}`;
 }
 
-export function periodScore(events: readonly CircleEvent[], start: string, end: string) {
-  const seen = new Set<string>();
-  for (const event of events) {
-    if (!official.has(event.taskId) || event.occurredOn < start || event.occurredOn >= end) {
+export function isPersonalCatalogHabit(catalogHabitId: string | null) {
+  return catalogHabitId !== null && personalCatalog.has(catalogHabitId);
+}
+
+export function dayScore(counts: { alta: number; media: number; baixa: number }) {
+  const alta = Math.max(0, Math.floor(counts.alta));
+  const media = Math.max(0, Math.floor(counts.media));
+  const baixa = Math.max(0, Math.floor(counts.baixa));
+  const essential = Math.min(alta, essentialSlots.alta) * essentialPoints.alta
+    + Math.min(media, essentialSlots.media) * essentialPoints.media
+    + Math.min(baixa, essentialSlots.baixa) * essentialPoints.baixa;
+  const bonus = Math.min(
+    BONUS_CAP,
+    Math.max(alta - essentialSlots.alta, 0) * extraPoints.alta
+      + Math.max(media - essentialSlots.media, 0) * extraPoints.media
+      + Math.max(baixa - essentialSlots.baixa, 0) * extraPoints.baixa,
+  );
+  return Math.min(DAY_CAP, Math.round((essential + bonus) * 10) / 10);
+}
+
+export function scoreCompletions(rows: readonly RankCompletion[], start: string, end: string) {
+  const days = new Map<string, { alta: Set<string>; media: Set<string>; baixa: Set<string> }>();
+  for (const row of rows) {
+    if (!row.completed || row.relevance === null || isPersonalCatalogHabit(row.catalogHabitId)) {
       continue;
     }
-    seen.add(`${event.taskId}|${event.occurredOn}`);
+    if (row.occurredOn < start || row.occurredOn >= end) {
+      continue;
+    }
+    const day = days.get(row.occurredOn) ?? { alta: new Set<string>(), media: new Set<string>(), baixa: new Set<string>() };
+    day[row.relevance].add(row.habitId);
+    days.set(row.occurredOn, day);
   }
-  return seen.size * CIRCLE_POINTS;
+  let total = 0;
+  for (const day of days.values()) {
+    total += dayScore({ alta: day.alta.size, media: day.media.size, baixa: day.baixa.size });
+  }
+  return Math.round(total * 10) / 10;
+}
+
+export function requirementGaps(counts: { alta: number; media: number; baixa: number }) {
+  const altaMissing = Math.max(essentialSlots.alta - Math.max(0, counts.alta), 0);
+  const mediaMissing = Math.max(essentialSlots.media - Math.max(0, counts.media), 0);
+  const baixaMissing = Math.max(essentialSlots.baixa - Math.max(0, counts.baixa), 0);
+  return {
+    altaMissing,
+    mediaMissing,
+    baixaMissing,
+    ready: altaMissing === 0 && mediaMissing === 0 && baixaMissing === 0,
+  };
+}
+
+function missingPhrase(count: number, level: string) {
+  return `${count} ${count === 1 ? 'hábito' : 'hábitos'} de relevância ${level}`;
+}
+
+export function requirementMessage(counts: { alta: number; media: number; baixa: number }) {
+  const gaps = requirementGaps(counts);
+  if (gaps.ready) {
+    return 'A rotina tem os hábitos exigidos. A entrada no ranking continua voluntária.';
+  }
+  const parts = [
+    gaps.altaMissing > 0 ? missingPhrase(gaps.altaMissing, 'alta') : '',
+    gaps.mediaMissing > 0 ? missingPhrase(gaps.mediaMissing, 'média') : '',
+    gaps.baixaMissing > 0 ? missingPhrase(gaps.baixaMissing, 'baixa') : '',
+  ].filter((part) => part !== '');
+  const missing = gaps.altaMissing + gaps.mediaMissing + gaps.baixaMissing;
+  const verb = missing === 1 ? 'Falta' : 'Faltam';
+  if (parts.length === 1) {
+    return `${verb} ${parts[0]}.`;
+  }
+  const last = parts[parts.length - 1];
+  return `${verb} ${parts.slice(0, -1).join(', ')} e ${last}.`;
+}
+
+export function formatCirclePoints(score: number) {
+  const rounded = Math.round(score * 10) / 10;
+  if (!Number.isFinite(rounded)) {
+    return '0';
+  }
+  if (Number.isInteger(rounded)) {
+    return String(rounded);
+  }
+  return rounded.toFixed(1).replace('.', ',');
 }
 
 const accentFrom = 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ';
 const accentTo = 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN';
-
-export type CircleLog = {
-  catalogHabitId: string | null;
-  completed: boolean;
-  occurredOn: string;
-};
 
 export function publicHandleCandidate(firstName: string, userId: string, taken: ReadonlySet<string>) {
   let base = '';
@@ -160,28 +242,19 @@ export function membershipOverlapsPeriod(joinedAt: string, leftAt: string | null
   return true;
 }
 
-export function scoreFromLogs(logs: readonly CircleLog[], start: string, end: string) {
-  const seen = new Set<string>();
-  for (const log of logs) {
-    if (!log.completed || log.catalogHabitId === null || !official.has(log.catalogHabitId)) {
-      continue;
-    }
-    if (log.occurredOn < start || log.occurredOn >= end) {
-      continue;
-    }
-    seen.add(`${log.catalogHabitId}|${log.occurredOn}`);
-  }
-  return seen.size * CIRCLE_POINTS;
-}
-
 export function completionCreatesEvent(input: {
   operation: 'insert' | 'update';
   completed: boolean;
   occurredOn: string;
   previousOccurredOn?: string;
   today: string;
+  relevance: CircleRelevance | null;
+  catalogHabitId: string | null;
 }) {
-  if (!input.completed || input.occurredOn !== input.today) {
+  if (!input.completed || input.relevance === null || isPersonalCatalogHabit(input.catalogHabitId)) {
+    return false;
+  }
+  if (input.occurredOn !== input.today) {
     return false;
   }
   if (input.operation === 'insert') {

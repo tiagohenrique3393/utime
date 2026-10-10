@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CircleAvatar } from '@/components/circle-avatar';
 import { GoldStar } from '@/components/gold-star';
 import { fonts, ui } from '@/constants/theme';
-import { honorLabel, periodLabel, type CirclePeriod } from '@/lib/circle';
+import { formatCirclePoints, honorLabel, periodLabel, requirementMessage, type CirclePeriod } from '@/lib/circle';
 import type { CircleEntry, CirclePerson, CircleState } from '@/lib/circle-api';
 import { shareRankingImage } from '@/lib/circle-share';
 
@@ -26,7 +26,7 @@ function PodiumCard({ entry, place, kind }: { entry: CircleEntry; place: 1 | 2 |
       <Text numberOfLines={2} style={styles.podiumName}>
         {entry.name}
       </Text>
-      <Text style={styles.podiumScore}>{entry.score} PTS</Text>
+      <Text style={styles.podiumScore}>{formatCirclePoints(entry.score)} PTS</Text>
       <Text style={styles.podiumMeta}>{`${entry.podiums} ${honorLabel(kind, entry.podiums, 'podium')}`}</Text>
       <Text style={styles.podiumMeta}>{`${entry.firsts} ${honorLabel(kind, entry.firsts, 'first')}`}</Text>
     </View>
@@ -93,13 +93,20 @@ export function CircleBoard({
         <View style={styles.join}>
           <Text style={styles.joinTitle}>Participe do ranking</Text>
           <Text style={styles.joinText}>
-            A inscrição é voluntária para qualquer conta. Entram os hábitos oficiais concluídos no período vigente quando a data da conclusão é real.
+            A inscrição é voluntária. Os 10 hábitos sugeridos continuam no progresso pessoal. O ranking pede 2 hábitos de alta relevância, 4 de média e 4 de baixa.
           </Text>
+          <View style={styles.reqList}>
+            <Text style={styles.reqLine}>{`ALTA ${state.alta}/2`}</Text>
+            <Text style={styles.reqLine}>{`MÉDIA ${state.media}/4`}</Text>
+            <Text style={styles.reqLine}>{`BAIXA ${state.baixa}/4`}</Text>
+          </View>
+          <Text style={styles.joinText}>{requirementMessage({ alta: state.alta, media: state.media, baixa: state.baixa })}</Text>
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           <Pressable
             accessibilityRole="button"
+            disabled={!state.ready}
             onPress={onEnroll}
-            style={({ pressed }) => [styles.joinButton, pressed && styles.pressed]}>
+            style={({ pressed }) => [styles.joinButton, !state.ready && styles.joinButtonOff, pressed && state.ready && styles.pressed]}>
             <Text style={styles.joinButtonLabel}>PARTICIPAR DO RANKING</Text>
           </Pressable>
         </View>
@@ -165,7 +172,7 @@ export function CircleBoard({
                       {entry.name}
                     </Text>
                   </View>
-                  <Text style={[styles.points, styles.colScore]}>{entry.score}</Text>
+                  <Text style={[styles.points, styles.colScore]}>{formatCirclePoints(entry.score)}</Text>
                   <View style={[styles.honor, styles.colHonor]}>
                     <GoldStar size={11} />
                     <Text style={styles.honorValue}>{entry.podiums}</Text>
@@ -201,7 +208,7 @@ export function CircleBoard({
                 onPress={() =>
                   shareRankingImage(
                     periodLabel(kind, start),
-                    entries.map((entry) => ({ position: entry.position, name: entry.name, score: entry.score })),
+                    entries.map((entry) => ({ position: entry.position, name: entry.name, score: formatCirclePoints(entry.score) })),
                   )
                 }
                 style={styles.shareCard}>
@@ -222,7 +229,7 @@ export function CircleBoard({
                 <Text numberOfLines={1} style={styles.mineName}>
                   {mine.name}
                 </Text>
-                <Text style={styles.mineScore}>{mine.score} PTS</Text>
+                <Text style={styles.mineScore}>{formatCirclePoints(mine.score)} PTS</Text>
               </View>
             </View>
           ) : null}
@@ -621,6 +628,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  reqList: {
+    gap: 4,
+  },
+  reqLine: {
+    color: ui.champagne,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    letterSpacing: 1.1,
+  },
   joinButton: {
     minHeight: 48,
     borderRadius: 999,
@@ -628,6 +644,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
+  },
+  joinButtonOff: {
+    opacity: 0.45,
   },
   joinButtonLabel: {
     color: ui.ink,

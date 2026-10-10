@@ -29,7 +29,7 @@ const page = '#050505';
 export default function CircleScreen() {
   const signedIn = useRequireSession();
   const [mode, setMode] = useState<'loading' | 'legacy' | 'circle'>('loading');
-  const [state, setState] = useState<CircleState>({ enrolled: false, handle: '', joinedAt: null });
+  const [state, setState] = useState<CircleState>({ enrolled: false, handle: '', joinedAt: null, alta: 0, media: 0, baixa: 0, ready: false });
   const [kind, setKind] = useState<CirclePeriod>('semana');
   const [start, setStart] = useState('');
   const [scope, setScope] = useState<'todos' | 'amigos'>('todos');

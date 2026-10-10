@@ -1,43 +1,65 @@
--- Círculo UTime, revisão para aprovação.
--- Execute este arquivo manualmente no SQL Editor, somente depois de aprovar.
--- Ele não foi executado por esta alteração.
---
--- Não apaga hábitos, hidratação, constância, jornada, perfis nem pontuações antigas.
+-- Círculo UTime. Execute este arquivo manualmente no SQL Editor, somente depois de aprovar.
+-- Ele não apaga hábitos, hidratação, constância, jornada, perfis nem o ranking antigo.
 -- Não recria policies de profiles, journey_days, journey_state, habit_day_logs,
 -- hydration_days, user_habits nem utime_ranking.
--- A única escrita em tabela antiga é a coluna nova profiles.public_handle,
--- preenchida só na inscrição e protegida contra edição direta.
 --
--- Compatível com o esquema já usado pelo aplicativo:
---   habit_day_logs (user_id, user_habit_id, occurred_on, completed)
---   user_habits (id, user_id, catalog_habit_id)
---   profiles (user_id, first_name) e public.set_updated_at()
--- Hábitos oficiais são os 15 identificadores abaixo.
--- Os 10 hábitos sugeridos e os hábitos com nome livre não pontuam.
--- journey_days não entra: não há data civil por hábito.
+-- Os 10 hábitos sugeridos permanecem no progresso pessoal e não geram ponto.
+-- A inscrição é voluntária e só é aceita com 2 hábitos de alta, 4 de média e 4 de baixa,
+-- fora desses 10. Ninguém é inscrito automaticamente.
+-- Cada dia vale no máximo 100 pontos essenciais e 10 de bônus, com teto de 110.
+-- A relevância é copiada no momento da conclusão. Mudá-la depois não reescreve o passado.
 
-create table if not exists public.circle_official_tasks (
-  task_id text primary key
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'circle_events'
+      and column_name = 'task_id'
+  ) then
+    raise exception 'circle_events está no formato antigo. Este script não converte essa tabela sozinho.';
+  end if;
+end $$;
+
+alter table public.user_habits
+  add column if not exists relevance text;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'user_habits_relevance_valid'
+      and conrelid = 'public.user_habits'::regclass
+  ) then
+    alter table public.user_habits
+      add constraint user_habits_relevance_valid
+      check (relevance is null or relevance in ('alta', 'media', 'baixa'));
+  end if;
+end $$;
+
+create index if not exists user_habits_circle_relevance_idx
+  on public.user_habits (user_id, relevance)
+  where active = true and relevance is not null;
+
+create table if not exists public.circle_personal_habits (
+  catalog_habit_id text primary key
 );
 
-insert into public.circle_official_tasks (task_id)
+insert into public.circle_personal_habits (catalog_habit_id)
 values
-  ('manha-agradecimento'),
-  ('manha-banho'),
-  ('manha-cafe'),
-  ('manha-leitura'),
-  ('manha-agua'),
-  ('tarde-almoco'),
-  ('tarde-atividade'),
-  ('tarde-lanche'),
-  ('tarde-assistir'),
-  ('tarde-agua'),
-  ('noite-jantar'),
-  ('noite-agua'),
-  ('noite-leitura'),
-  ('noite-ceia'),
-  ('noite-oracao')
-on conflict (task_id) do nothing;
+  ('corpo-atividade'),
+  ('corpo-refeicao'),
+  ('corpo-hidratacao'),
+  ('corpo-higiene'),
+  ('mente-estudo'),
+  ('mente-leitura'),
+  ('mente-prioridades'),
+  ('espirito-meditacao'),
+  ('espirito-atencao'),
+  ('espirito-gratidao')
+on conflict (catalog_habit_id) do nothing;
 
 create table if not exists public.circle_memberships (
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -52,20 +74,16 @@ create unique index if not exists circle_memberships_one_open
 
 create table if not exists public.circle_events (
   user_id uuid not null references auth.users (id) on delete cascade,
-  task_id text not null references public.circle_official_tasks (task_id),
+  user_habit_id uuid not null,
   occurred_on date not null,
-  user_habit_id uuid,
-  points integer not null default 10,
+  relevance text not null,
   recorded_at timestamptz not null default now(),
-  primary key (user_id, task_id, occurred_on),
-  constraint circle_events_points_valid check (points = 10)
+  primary key (user_id, user_habit_id, occurred_on),
+  constraint circle_events_relevance_valid check (relevance in ('alta', 'media', 'baixa'))
 );
 
-alter table public.circle_events
-  add column if not exists user_habit_id uuid;
-
-create index if not exists circle_events_habit_day_idx
-  on public.circle_events (user_id, user_habit_id, occurred_on);
+create index if not exists circle_events_day_idx
+  on public.circle_events (occurred_on, user_id, relevance);
 
 create table if not exists public.circle_friends (
   owner_id uuid not null references auth.users (id) on delete cascade,
@@ -79,7 +97,7 @@ create table if not exists public.circle_results (
   period_kind text not null,
   period_start date not null,
   user_id uuid not null references auth.users (id) on delete cascade,
-  score integer not null,
+  score numeric(12, 1) not null,
   rank_position integer not null,
   primary key (period_kind, period_start, user_id),
   constraint circle_results_kind_valid check (period_kind in ('semana', 'mes', 'ano')),
@@ -123,7 +141,7 @@ begin
   end if;
 end $$;
 
-alter table public.circle_official_tasks enable row level security;
+alter table public.circle_personal_habits enable row level security;
 alter table public.circle_memberships enable row level security;
 alter table public.circle_events enable row level security;
 alter table public.circle_friends enable row level security;
@@ -131,7 +149,7 @@ alter table public.circle_results enable row level security;
 alter table public.circle_closures enable row level security;
 alter table public.circle_setup enable row level security;
 
-revoke all on table public.circle_official_tasks from public, anon;
+revoke all on table public.circle_personal_habits from public, anon;
 revoke all on table public.circle_memberships from public, anon;
 revoke all on table public.circle_events from public, anon;
 revoke all on table public.circle_friends from public, anon;
@@ -159,6 +177,7 @@ using (owner_id = auth.uid());
 
 drop function if exists public.circle_record_official_habit(text);
 drop function if exists public.circle_state();
+drop function if exists public.circle_board(text, date, text);
 
 create or replace function public.circle_today()
 returns date
@@ -213,6 +232,71 @@ as $$
       ('ano', public.circle_period_start('ano', day))
     )
   );
+$$;
+
+create or replace function public.circle_day_points(alta integer, media integer, baixa integer)
+returns numeric
+language sql
+immutable
+set search_path = ''
+as $$
+  select least(
+    110::numeric,
+    least(greatest(coalesce(alta, 0), 0), 2) * 20
+    + least(greatest(coalesce(media, 0), 0), 4) * 10
+    + least(greatest(coalesce(baixa, 0), 0), 4) * 5
+    + least(
+      10::numeric,
+      (greatest(coalesce(alta, 0), 0) - least(greatest(coalesce(alta, 0), 0), 2)) * 5
+      + (greatest(coalesce(media, 0), 0) - least(greatest(coalesce(media, 0), 0), 4)) * 2.5
+      + (greatest(coalesce(baixa, 0), 0) - least(greatest(coalesce(baixa, 0), 0), 4)) * 1
+    )
+  );
+$$;
+
+create or replace function public.circle_ranking_habit(catalog_habit_id text, active boolean, relevance text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select active is true
+    and relevance in ('alta', 'media', 'baixa')
+    and (
+      catalog_habit_id is null
+      or not exists (
+        select 1
+        from public.circle_personal_habits personal
+        where personal.catalog_habit_id = circle_ranking_habit.catalog_habit_id
+      )
+    );
+$$;
+
+create or replace function public.circle_habit_counts(uid uuid)
+returns table (alta_count integer, media_count integer, baixa_count integer, ready boolean)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null or uid is distinct from auth.uid() then
+    raise exception 'auth required';
+  end if;
+  return query
+  select
+    (count(*) filter (where habit.relevance = 'alta'))::integer,
+    (count(*) filter (where habit.relevance = 'media'))::integer,
+    (count(*) filter (where habit.relevance = 'baixa'))::integer,
+    (
+      count(*) filter (where habit.relevance = 'alta') >= 2
+      and count(*) filter (where habit.relevance = 'media') >= 4
+      and count(*) filter (where habit.relevance = 'baixa') >= 4
+    )
+  from public.user_habits habit
+  where habit.user_id = uid
+    and public.circle_ranking_habit(habit.catalog_habit_id, habit.active, habit.relevance);
+end;
 $$;
 
 create or replace function public.circle_protect_handle()
@@ -317,6 +401,8 @@ set search_path = ''
 as $$
 declare
   catalog text;
+  rel text;
+  is_active boolean;
 begin
   if tg_op = 'DELETE' then
     if not public.circle_date_frozen(old.occurred_on) then
@@ -345,26 +431,21 @@ begin
     return null;
   end if;
 
-  select habit.catalog_habit_id
-  into catalog
+  select habit.catalog_habit_id, habit.relevance, habit.active
+  into catalog, rel, is_active
   from public.user_habits habit
   where habit.id = new.user_habit_id
     and habit.user_id = new.user_id;
 
-  if catalog is null
-     or not exists (
-       select 1
-       from public.circle_official_tasks official
-       where official.task_id = catalog
-     ) then
+  if not public.circle_ranking_habit(catalog, is_active, rel) then
     return null;
   end if;
 
   if new.occurred_on = public.circle_today()
      and (tg_op = 'INSERT' or old.occurred_on = public.circle_today()) then
-    insert into public.circle_events (user_id, task_id, occurred_on, user_habit_id, points)
-    values (new.user_id, catalog, new.occurred_on, new.user_habit_id, 10)
-    on conflict (user_id, task_id, occurred_on) do nothing;
+    insert into public.circle_events (user_id, user_habit_id, occurred_on, relevance)
+    values (new.user_id, new.user_habit_id, new.occurred_on, rel)
+    on conflict (user_id, user_habit_id, occurred_on) do nothing;
   end if;
 
   return null;
@@ -378,17 +459,27 @@ on public.habit_day_logs
 for each row execute function public.circle_sync_habit_log();
 
 create or replace function public.circle_state()
-returns table (enrolled boolean, handle text, joined_at timestamptz)
+returns table (
+  enrolled boolean,
+  handle text,
+  joined_at timestamptz,
+  alta_count integer,
+  media_count integer,
+  baixa_count integer,
+  ready boolean
+)
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
   uid uuid := auth.uid();
+  counts record;
 begin
   if uid is null then
     raise exception 'auth required';
   end if;
+  select * into counts from public.circle_habit_counts(uid);
   return query
   select
     exists (
@@ -403,7 +494,11 @@ begin
       from public.circle_memberships membership
       where membership.user_id = uid
         and membership.left_at is null
-    );
+    ),
+    counts.alta_count,
+    counts.media_count,
+    counts.baixa_count,
+    counts.ready;
 end;
 $$;
 
@@ -415,9 +510,14 @@ set search_path = ''
 as $$
 declare
   uid uuid := auth.uid();
+  counts record;
 begin
   if uid is null then
     raise exception 'auth required';
+  end if;
+  select * into counts from public.circle_habit_counts(uid);
+  if counts.ready is not true then
+    raise exception 'circle requirements missing';
   end if;
   if exists (
     select 1
@@ -517,7 +617,7 @@ begin
         from (
           select
             member.user_id,
-            coalesce(points.score, 0)::integer as score,
+            coalesce(points.score, 0)::numeric(12, 1) as score,
             rank() over (order by coalesce(points.score, 0) desc)::integer as rank_position
           from (
             select distinct membership.user_id
@@ -526,11 +626,21 @@ begin
               and (membership.left_at is null or membership.left_at > start_at)
           ) member
           left join (
-            select event.user_id, (count(*) * 10)::integer as score
-            from public.circle_events event
-            where event.occurred_on >= cursor_start
-              and event.occurred_on < period_finish
-            group by event.user_id
+            select scored.user_id, sum(scored.day_points)::numeric(12, 1) as score
+            from (
+              select
+                event.user_id,
+                public.circle_day_points(
+                  (count(*) filter (where event.relevance = 'alta'))::integer,
+                  (count(*) filter (where event.relevance = 'media'))::integer,
+                  (count(*) filter (where event.relevance = 'baixa'))::integer
+                ) as day_points
+              from public.circle_events event
+              where event.occurred_on >= cursor_start
+                and event.occurred_on < period_finish
+              group by event.user_id, event.occurred_on
+            ) scored
+            group by scored.user_id
           ) points on points.user_id = member.user_id
         ) ranked
         on conflict (period_kind, period_start, user_id) do nothing;
@@ -554,7 +664,7 @@ returns table (
   user_id uuid,
   display_name text,
   handle text,
-  score integer,
+  score numeric,
   rank_position integer,
   podium_count integer,
   first_count integer
@@ -595,7 +705,7 @@ begin
   period_finish := public.circle_period_end(kind, requested);
   return query
   with members as (
-    select membership.user_id, null::integer as stored_score
+    select membership.user_id, null::numeric as stored_score
     from public.circle_memberships membership
     where requested = current_start
       and membership.left_at is null
@@ -607,17 +717,27 @@ begin
       and result.period_start = requested
   ),
   points as (
-    select event.user_id, (count(*) * 10)::integer as score
-    from public.circle_events event
-    where requested = current_start
-      and event.occurred_on >= requested
-      and event.occurred_on < period_finish
-    group by event.user_id
+    select scored.user_id, sum(scored.day_points)::numeric as score
+    from (
+      select
+        event.user_id,
+        public.circle_day_points(
+          (count(*) filter (where event.relevance = 'alta'))::integer,
+          (count(*) filter (where event.relevance = 'media'))::integer,
+          (count(*) filter (where event.relevance = 'baixa'))::integer
+        ) as day_points
+      from public.circle_events event
+      where requested = current_start
+        and event.occurred_on >= requested
+        and event.occurred_on < period_finish
+      group by event.user_id, event.occurred_on
+    ) scored
+    group by scored.user_id
   ),
   visible as (
     select
       members.user_id,
-      coalesce(members.stored_score, points.score, 0)::integer as score
+      coalesce(members.stored_score, points.score, 0)::numeric as score
     from members
     left join points on points.user_id = members.user_id
     where scope = 'todos'
@@ -752,7 +872,7 @@ begin
   end if;
   insert into public.circle_friends (owner_id, friend_id)
   values (uid, circle_add_friend.friend_id)
-  on conflict (owner_id, friend_id) do nothing;
+  on conflict on constraint circle_friends_pkey do nothing;
 end;
 $$;
 
@@ -803,30 +923,32 @@ begin
 end;
 $$;
 
-insert into public.circle_events (user_id, task_id, occurred_on, user_habit_id, points)
-select log.user_id, habit.catalog_habit_id, log.occurred_on, log.user_habit_id, 10
+insert into public.circle_events (user_id, user_habit_id, occurred_on, relevance)
+select log.user_id, log.user_habit_id, log.occurred_on, habit.relevance
 from public.habit_day_logs log
 join public.user_habits habit
   on habit.id = log.user_habit_id
  and habit.user_id = log.user_id
-join public.circle_official_tasks official
-  on official.task_id = habit.catalog_habit_id
 where log.completed = true
+  and public.circle_ranking_habit(habit.catalog_habit_id, true, habit.relevance)
   and not exists (
     select 1
     from public.circle_setup setup
-    where setup.setup_key = 'official-log-backfill'
+    where setup.setup_key = 'relevance-log-backfill'
   )
-on conflict (user_id, task_id, occurred_on) do nothing;
+on conflict (user_id, user_habit_id, occurred_on) do nothing;
 
 insert into public.circle_setup (setup_key)
-values ('official-log-backfill')
+values ('relevance-log-backfill')
 on conflict (setup_key) do nothing;
 
 revoke all on function public.circle_today() from public, anon;
 revoke all on function public.circle_period_start(text, date) from public, anon;
 revoke all on function public.circle_period_end(text, date) from public, anon;
 revoke all on function public.circle_date_frozen(date) from public, anon;
+revoke all on function public.circle_day_points(integer, integer, integer) from public, anon;
+revoke all on function public.circle_ranking_habit(text, boolean, text) from public, anon;
+revoke all on function public.circle_habit_counts(uuid) from public, anon;
 revoke all on function public.circle_protect_handle() from public, anon;
 revoke all on function public.circle_ensure_handle(uuid) from public, anon;
 revoke all on function public.circle_sync_habit_log() from public, anon;
@@ -844,6 +966,9 @@ grant execute on function public.circle_today() to authenticated;
 grant execute on function public.circle_period_start(text, date) to authenticated;
 grant execute on function public.circle_period_end(text, date) to authenticated;
 grant execute on function public.circle_date_frozen(date) to authenticated;
+grant execute on function public.circle_day_points(integer, integer, integer) to authenticated;
+grant execute on function public.circle_ranking_habit(text, boolean, text) to authenticated;
+grant execute on function public.circle_habit_counts(uuid) to authenticated;
 grant execute on function public.circle_ensure_handle(uuid) to authenticated;
 grant execute on function public.circle_state() to authenticated;
 grant execute on function public.circle_enroll() to authenticated;
