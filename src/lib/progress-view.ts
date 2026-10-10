@@ -40,6 +40,30 @@ export type WaterSummary = {
   goalMet: number;
 };
 
+export type ProgressPillar = 'corpo' | 'mente' | 'espirito';
+
+export type ProgressHabit = {
+  id: string;
+  label: string;
+  pillar: ProgressPillar;
+  catalogHabitId: string | null;
+};
+
+export type TodayProgressHabit = ProgressHabit & {
+  done: boolean;
+};
+
+export type PillarProgress = {
+  pillar: ProgressPillar;
+  percent: number | null;
+};
+
+export type PracticedHabit = {
+  id: string;
+  label: string;
+  percent: number;
+};
+
 export type ProgressReport = {
   dia: number | null;
   semana: number | null;
@@ -48,10 +72,15 @@ export type ProgressReport = {
   habitPoints: readonly PercentPoint[];
   waterPoints: readonly WaterPoint[];
   water: WaterSummary;
+  pillars: readonly PillarProgress[];
+  practiced: readonly PracticedHabit[];
+  periodGoalMl: number | null;
 };
 
 const weekdayLabels = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const pillarOrder: readonly ProgressPillar[] = ['corpo', 'mente', 'espirito'];
+const hydrationCatalogId = 'corpo-hidratacao';
 
 export function shiftDateKey(key: string, days: number) {
   const [year, month, day] = key.split('-').map(Number);
@@ -252,12 +281,154 @@ function monthSeries(today: string, logs: readonly HabitLog[], rows: readonly Hy
   return { habitPoints, waterPoints };
 }
 
+function habitIndex(habits: readonly ProgressHabit[]) {
+  return new Map(habits.map((habit) => [habit.id, habit]));
+}
+
+function isHydrationHabit(habit: ProgressHabit) {
+  return habit.catalogHabitId === hydrationCatalogId;
+}
+
+function pillarOnDay(
+  dateKeyValue: string,
+  today: string,
+  logs: readonly HabitLog[],
+  habits: ReadonlyMap<string, ProgressHabit>,
+  todayHabits: readonly TodayProgressHabit[] | null,
+) {
+  const empty: Record<ProgressPillar, number | null> = { corpo: null, mente: null, espirito: null };
+  if (dateKeyValue > today) {
+    return empty;
+  }
+  if (dateKeyValue === today && todayHabits && todayHabits.length > 0) {
+    const next = { ...empty };
+    for (const pillar of pillarOrder) {
+      const group = todayHabits.filter((habit) => habit.pillar === pillar);
+      next[pillar] = group.length === 0 ? null : dailyPercent(group.length, group.filter((habit) => habit.done).length);
+    }
+    return next;
+  }
+  const rows = logsOn(logs, dateKeyValue);
+  if (rows.length === 0) {
+    return empty;
+  }
+  const next = { ...empty };
+  for (const pillar of pillarOrder) {
+    const group = rows.filter((row) => habits.get(row.habitId)?.pillar === pillar);
+    next[pillar] = group.length === 0 ? null : dailyPercent(group.length, group.filter((row) => row.completed).length);
+  }
+  return next;
+}
+
+export function pillarProgress(
+  dates: readonly string[],
+  today: string,
+  logs: readonly HabitLog[],
+  habits: readonly ProgressHabit[],
+  todayHabits: readonly TodayProgressHabit[] | null,
+): PillarProgress[] {
+  const known = habitIndex(habits);
+  const days = dates.map((key) => pillarOnDay(key, today, logs, known, todayHabits));
+  return pillarOrder.map((pillar) => ({
+    pillar,
+    percent: averagePercent(days.map((day) => day[pillar])),
+  }));
+}
+
+export function practicedHabits(
+  dates: readonly string[],
+  today: string,
+  logs: readonly HabitLog[],
+  habits: readonly ProgressHabit[],
+  todayHabits: readonly TodayProgressHabit[] | null,
+): PracticedHabit[] {
+  const known = habitIndex(habits);
+  const stats = new Map<string, { label: string; completed: number; seen: number }>();
+  const bump = (id: string, label: string, done: boolean) => {
+    const current = stats.get(id) ?? { label, completed: 0, seen: 0 };
+    current.seen += 1;
+    if (done) {
+      current.completed += 1;
+    }
+    if (label) {
+      current.label = label;
+    }
+    stats.set(id, current);
+  };
+  for (const key of dates) {
+    if (key > today) {
+      continue;
+    }
+    if (key === today && todayHabits && todayHabits.length > 0) {
+      for (const habit of todayHabits) {
+        if (isHydrationHabit(habit)) {
+          continue;
+        }
+        bump(habit.id, habit.label, habit.done);
+      }
+      continue;
+    }
+    const seen = new Set<string>();
+    for (const row of logsOn(logs, key)) {
+      const meta = known.get(row.habitId);
+      if (!meta || isHydrationHabit(meta) || seen.has(row.habitId)) {
+        continue;
+      }
+      seen.add(row.habitId);
+      bump(meta.id, meta.label, row.completed);
+    }
+  }
+  return [...stats.entries()]
+    .filter(([, item]) => item.completed > 0 && item.seen > 0)
+    .map(([id, item]) => ({
+      id,
+      label: item.label,
+      completed: item.completed,
+      percent: dailyPercent(item.seen, item.completed),
+    }))
+    .sort((a, b) => b.completed - a.completed || b.percent - a.percent || a.label.localeCompare(b.label, 'pt'))
+    .slice(0, 3)
+    .map(({ id, label, percent }) => ({ id, label, percent }));
+}
+
+export function periodGoalMl(dates: readonly string[], rows: readonly HydrationLog[], today: string) {
+  let sum = 0;
+  let seen = false;
+  for (const key of dates) {
+    if (key > today) {
+      continue;
+    }
+    const row = waterOn(rows, key);
+    if (!row || row.goalMl == null || row.goalMl <= 0) {
+      continue;
+    }
+    seen = true;
+    sum += row.goalMl;
+  }
+  return seen ? sum : null;
+}
+
+function datesForPeriod(period: ProgressPeriod, today: string, week: readonly string[], month: readonly string[], year: readonly string[]) {
+  if (period === 'dia') {
+    return [today];
+  }
+  if (period === 'semana') {
+    return week;
+  }
+  if (period === 'mes') {
+    return month;
+  }
+  return year;
+}
+
 export function progressReport(input: {
   today: string;
   period: ProgressPeriod;
   logs: readonly HabitLog[];
   hydration: readonly HydrationLog[];
   todayRoutine: TodayRoutine | null;
+  habits?: readonly ProgressHabit[];
+  todayHabits?: readonly TodayProgressHabit[] | null;
 }): ProgressReport {
   const week = weekDateKeys(input.today);
   const month = monthDateKeys(input.today);
@@ -284,6 +455,9 @@ export function progressReport(input: {
     waterPoints = series.waterPoints;
     waterDates = year;
   }
+  const scope = datesForPeriod(input.period, input.today, week, month, year);
+  const habits = input.habits ?? [];
+  const todayHabits = input.todayHabits ?? null;
   return {
     dia: percent(input.today),
     semana: averagePercent(week.map(percent)),
@@ -292,5 +466,8 @@ export function progressReport(input: {
     habitPoints,
     waterPoints,
     water: summarizeWater(waterDates, input.hydration, input.today),
+    pillars: pillarProgress(scope, input.today, input.logs, habits, todayHabits),
+    practiced: practicedHabits(scope, input.today, input.logs, habits, todayHabits),
+    periodGoalMl: periodGoalMl(waterDates, input.hydration, input.today),
   };
 }

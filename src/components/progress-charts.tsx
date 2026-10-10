@@ -1,5 +1,5 @@
 import { createElement, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { progressTone } from '@/components/day-progress';
 import { fonts, ui } from '@/constants/theme';
@@ -11,17 +11,31 @@ function node(type: string, props: Record<string, unknown> | null, ...children: 
   return createElement(type, props, ...children);
 }
 
-export function PercentRing({ percent }: { percent: number | null }) {
-  const size = 168;
-  const stroke = 3;
+export function PercentRing({ percent, size = 228 }: { percent: number | null; size?: number }) {
+  const stroke = Math.max(8, Math.round(size * 0.045));
   const radius = (size - stroke) / 2;
   const turn = 2 * Math.PI * radius;
   const safe = percent == null ? 0 : Math.max(0, Math.min(100, percent));
   const tone = percent != null && percent >= 1 ? progressTone(percent) : null;
   const dash = (safe / 100) * turn;
+  const label = percent == null ? 'Sem registro neste período' : formatDailyPercent(percent);
+
+  if (Platform.OS !== 'web') {
+    return (
+      <View
+        accessibilityLabel={label}
+        style={[
+          styles.ringWrap,
+          styles.nativeRing,
+          { width: size, height: size, borderRadius: size / 2, borderColor: tone?.line ?? 'rgba(243,239,232,0.16)' },
+        ]}>
+        <Text style={[styles.ringValue, { fontSize: Math.round(size * 0.22) }]}>{percent == null ? '—' : formatDailyPercent(percent)}</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.ringWrap} accessibilityLabel={percent == null ? 'Sem registro neste dia' : formatDailyPercent(percent)}>
+    <View style={[styles.ringWrap, { width: size, height: size }]} accessibilityLabel={label}>
       {node(
         'svg',
         { width: size, height: size, viewBox: `0 0 ${size} ${size}`, accessibilityElementsHidden: true },
@@ -30,7 +44,7 @@ export function PercentRing({ percent }: { percent: number | null }) {
           cy: size / 2,
           r: radius,
           fill: 'none',
-          stroke: 'rgba(243, 239, 232, 0.08)',
+          stroke: 'rgba(243, 239, 232, 0.1)',
           strokeWidth: stroke,
         }),
         node('circle', {
@@ -38,15 +52,18 @@ export function PercentRing({ percent }: { percent: number | null }) {
           cy: size / 2,
           r: radius,
           fill: 'none',
-          stroke: tone?.line ?? ui.faint,
+          stroke: tone?.line ?? 'rgba(243,239,232,0.2)',
           strokeWidth: stroke,
           strokeLinecap: 'round',
           strokeDasharray: `${dash} ${turn}`,
           transform: `rotate(-90 ${size / 2} ${size / 2})`,
+          style: tone ? { filter: `drop-shadow(0 0 7px ${tone.glow})` } : undefined,
         }),
       )}
       <View style={styles.ringLabel} pointerEvents="none">
-        <Text style={styles.ringValue}>{percent == null ? '—' : formatDailyPercent(percent)}</Text>
+        <Text style={[styles.ringValue, { fontSize: Math.round(size * 0.22), lineHeight: Math.round(size * 0.26) }]}>
+          {percent == null ? '—' : formatDailyPercent(percent)}
+        </Text>
       </View>
     </View>
   );
@@ -106,11 +123,12 @@ export function WaterBars({ points }: { points: readonly WaterPoint[] }) {
 
 const styles = StyleSheet.create({
   ringWrap: {
-    width: 168,
-    height: 168,
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  nativeRing: {
+    borderWidth: 8,
   },
   ringLabel: {
     position: 'absolute',
