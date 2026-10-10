@@ -70,6 +70,14 @@ export async function getSessionEmail() {
   return data.session?.user.email ?? '';
 }
 
+export async function getSessionCreatedAt() {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    return null;
+  }
+  return data.session?.user.created_at ?? null;
+}
+
 let hydration: { userId: string; promise: Promise<void> } | null = null;
 
 export function applySessionOwner(userId: string | null) {

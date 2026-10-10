@@ -144,6 +144,7 @@ export async function saveHydration(userId: string, day: string, next: Hydration
   return { ok: true as const, day: saved, message: '' };
 }
 
+// `until` é inclusivo. A tela de progresso pede até 6 de janeiro para enxergar meta futura do ano e da semana que vira o ano.
 export async function loadHydrationUntil(userId: string, until: string) {
   const rows: { dateKey: string; consumedMl: number; goalMl: number | null }[] = [];
   const pageSize = 1000;

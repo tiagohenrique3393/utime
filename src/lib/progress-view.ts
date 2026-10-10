@@ -1,4 +1,4 @@
-import { dailyPercent } from '@/lib/habit-day';
+import { dailyPercent, todayKey } from '@/lib/habit-day';
 import { hydrationReached } from '@/lib/hydration';
 
 export type ProgressPeriod = 'dia' | 'semana' | 'mes' | 'ano';
@@ -124,6 +124,43 @@ export function monthDateKeys(today: string) {
   return Array.from({ length: last }, (_, index) => dateKey(year, month, index + 1));
 }
 
+// Semana da hidratação: segunda a domingo, sete dias civis. Não altera weekDateKeys.
+export function hydrationWeekDateKeys(today: string) {
+  const mondayOffset = (weekdayIndex(today) + 6) % 7;
+  const start = shiftDateKey(today, -mondayOffset);
+  return Array.from({ length: 7 }, (_, index) => shiftDateKey(start, index));
+}
+
+// Ano civil completo da hidratação, inclusive 29 de fevereiro. Não altera yearDateKeys.
+export function hydrationYearDateKeys(today: string) {
+  const { year } = dateParts(today);
+  const keys: string[] = [];
+  for (let month = 1; month <= 12; month += 1) {
+    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    for (let day = 1; day <= last; day += 1) {
+      keys.push(dateKey(year, month, day));
+    }
+  }
+  return keys;
+}
+
+// Limite inclusivo da leitura: 31 de dezembro mais seis dias, para a semana que entra em janeiro.
+export function hydrationLoadThrough(today: string) {
+  return shiftDateKey(dateKey(dateParts(today).year, 12, 31), 6);
+}
+
+// Data civil de America/Sao_Paulo em que a conta passou a existir. Sem data, a ativação cai na primeira meta gravada.
+export function activationDateKey(createdAt: string | null | undefined) {
+  if (!createdAt) {
+    return null;
+  }
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return todayKey(date);
+}
+
 function yearDateKeys(today: string) {
   const { year } = dateParts(today);
   const keys: string[] = [];
@@ -206,39 +243,69 @@ function waterOn(rows: readonly HydrationLog[], dateKeyValue: string) {
 function goalSteps(rows: readonly HydrationLog[]) {
   const byDate = new Map<string, number>();
   for (const row of rows) {
-    if (row.goalMl != null && row.goalMl > 0) {
-      byDate.set(row.dateKey, row.goalMl);
+    if (row.goalMl == null || !Number.isFinite(row.goalMl) || row.goalMl < 0) {
+      continue;
     }
+    byDate.set(row.dateKey, row.goalMl);
   }
   return [...byDate.entries()]
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
     .map(([dateKey, goalMl]) => ({ dateKey, goalMl }));
 }
 
-function goalForDate(dateKeyValue: string, steps: readonly { dateKey: string; goalMl: number }[]) {
+/*
+ * Meta do período completo.
+ * DIA, SEMANA (segunda–domingo), MÊS e ANO somam a meta vigente em cada dia civil do intervalo.
+ * O intervalo é inclusivo no primeiro dia e exclusivo no dia seguinte ao último.
+ * Uma meta gravada vale desse dia em diante, até a próxima. Meta futura não reescreve o passado.
+ * O consumo real não entra neste cálculo e não muda quando a meta muda.
+ *
+ * Antes da ativação: dias estritamente anteriores à data civil de America/Sao_Paulo
+ * de auth.users.created_at não recebem meta. Se essa data não vier na sessão,
+ * a ativação é o dia da primeira meta gravada. Nada é inventado antes disso.
+ * Da ativação até a primeira meta gravada, vale essa primeira meta — só esse intervalo;
+ * uma alteração posterior não o reescreve.
+ * goal_ml nulo não é um degrau: o banco não guarda zero (o check exige nulo ou maior que zero).
+ * Meta 0 explícita, se aparecer na memória, soma 0 e não conclui o período.
+ */
+function goalForDate(dateKeyValue: string, steps: readonly { dateKey: string; goalMl: number }[], activatedOn: string) {
+  if (dateKeyValue < activatedOn) {
+    return null;
+  }
   let carried: number | null = null;
+  let found = false;
   for (const step of steps) {
     if (step.dateKey > dateKeyValue) {
       break;
     }
     carried = step.goalMl;
+    found = true;
   }
-  if (carried != null) {
+  if (found && carried != null) {
     return carried;
   }
-  return steps[0]?.goalMl ?? null;
+  const first = steps[0];
+  if (!first || first.dateKey < activatedOn) {
+    return null;
+  }
+  return first.goalMl;
 }
 
-function summarizeWater(dates: readonly string[], rows: readonly HydrationLog[], today: string): WaterSummary {
+function activationFloor(rows: readonly HydrationLog[], activatedOn: string | null | undefined) {
+  if (activatedOn && /^\d{4}-\d{2}-\d{2}$/.test(activatedOn)) {
+    return activatedOn;
+  }
+  const steps = goalSteps(rows);
+  return (steps.find((step) => step.goalMl > 0) ?? steps[0])?.dateKey ?? null;
+}
+
+function summarizeWater(dates: readonly string[], rows: readonly HydrationLog[]): WaterSummary {
   let consumed = 0;
   let seen = false;
   let goalDays = 0;
   let goalMet = 0;
   let singleGoal: number | null = null;
   for (const key of dates) {
-    if (key > today) {
-      continue;
-    }
     const row = waterOn(rows, key);
     if (!row) {
       continue;
@@ -309,7 +376,7 @@ function monthSeries(today: string, logs: readonly HabitLog[], rows: readonly Hy
       label,
       value: averagePercent(keys.map((key) => habitPercentOn(key, today, logs, routine))),
     });
-    const water = summarizeWater(keys, rows, today);
+    const water = summarizeWater(keys, rows);
     waterPoints.push({
       key: monthKey,
       label,
@@ -449,19 +516,17 @@ export function waterCoverage(dates: readonly string[], rows: readonly Hydration
   return { recordedDays, elapsedDays };
 }
 
-export function periodGoalMl(dates: readonly string[], rows: readonly HydrationLog[], today: string) {
+export function periodGoalMl(dates: readonly string[], rows: readonly HydrationLog[], activatedOn?: string | null) {
   const steps = goalSteps(rows);
-  if (steps.length === 0) {
+  const start = activationFloor(rows, activatedOn);
+  if (!start || steps.length === 0) {
     return null;
   }
   let sum = 0;
   let seen = false;
   for (const key of dates) {
-    if (key > today) {
-      continue;
-    }
-    const goal = goalForDate(key, steps);
-    if (goal == null || goal <= 0) {
+    const goal = goalForDate(key, steps, start);
+    if (goal == null) {
       continue;
     }
     seen = true;
@@ -491,22 +556,25 @@ export function progressReport(input: {
   todayRoutine: TodayRoutine | null;
   habits?: readonly ProgressHabit[];
   todayHabits?: readonly TodayProgressHabit[] | null;
+  activatedOn?: string | null;
 }): ProgressReport {
   const week = weekDateKeys(input.today);
   const month = monthDateKeys(input.today);
   const year = yearDateKeys(input.today);
+  const hydrationWeek = hydrationWeekDateKeys(input.today);
+  const hydrationYear = hydrationYearDateKeys(input.today);
   const percent = (key: string) => habitPercentOn(key, input.today, input.logs, input.todayRoutine);
   let habitPoints: PercentPoint[] = [];
   let waterPoints: WaterPoint[] = [];
-  let waterDates: string[] = [input.today];
+  let waterDates: readonly string[] = [input.today];
   if (input.period === 'dia') {
     habitPoints = habitPointsFor([input.today], dayLabel, input.today, input.logs, input.todayRoutine);
     waterPoints = waterPointsFor([input.today], dayLabel, input.today, input.hydration);
     waterDates = [input.today];
   } else if (input.period === 'semana') {
     habitPoints = habitPointsFor(week, (key) => weekdayLabels[weekdayIndex(key)], input.today, input.logs, input.todayRoutine);
-    waterPoints = waterPointsFor(week, (key) => weekdayLabels[weekdayIndex(key)], input.today, input.hydration);
-    waterDates = week;
+    waterPoints = waterPointsFor(hydrationWeek, (key) => weekdayLabels[weekdayIndex(key)], input.today, input.hydration);
+    waterDates = hydrationWeek;
   } else if (input.period === 'mes') {
     habitPoints = habitPointsFor(month, dayLabel, input.today, input.logs, input.todayRoutine);
     waterPoints = waterPointsFor(month, dayLabel, input.today, input.hydration);
@@ -515,7 +583,7 @@ export function progressReport(input: {
     const series = monthSeries(input.today, input.logs, input.hydration, input.todayRoutine);
     habitPoints = series.habitPoints;
     waterPoints = series.waterPoints;
-    waterDates = year;
+    waterDates = hydrationYear;
   }
   const scope = datesForPeriod(input.period, input.today, week, month, year);
   const habits = input.habits ?? [];
@@ -527,10 +595,10 @@ export function progressReport(input: {
     ano: averagePercent(year.map(percent)),
     habitPoints,
     waterPoints,
-    water: summarizeWater(waterDates, input.hydration, input.today),
+    water: summarizeWater(waterDates, input.hydration),
     pillars: pillarProgress(scope, input.today, input.logs, habits, todayHabits),
     practiced: practicedHabits(scope, input.today, input.logs, habits, todayHabits),
-    periodGoalMl: periodGoalMl(waterDates, input.hydration, input.today),
+    periodGoalMl: periodGoalMl(waterDates, input.hydration, input.activatedOn),
     waterCoverage: waterCoverage(waterDates, input.hydration, input.today),
   };
 }

@@ -8,12 +8,14 @@ import { PercentRing } from '@/components/progress-charts';
 import { fonts, ui } from '@/constants/theme';
 import { getProgressColor, type ProgressBand } from '@/lib/progress-color';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
-import { getSessionUserId } from '@/lib/accounts';
+import { getSessionCreatedAt, getSessionUserId } from '@/lib/accounts';
 import { dailyCounts, getDailyBoard, isDailyHabitDone, refreshDailyBoard } from '@/lib/daily-board';
 import { getCatalogHabits, getUserHabits, habitTitle } from '@/lib/habit-catalog';
 import { formatDailyPercent, loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
 import { hydrationProgress, loadHydrationUntil } from '@/lib/hydration';
 import {
+  activationDateKey,
+  hydrationLoadThrough,
   progressReport,
   type HabitLog,
   type HydrationLog,
@@ -95,6 +97,7 @@ type Snapshot = {
   routine: TodayRoutine | null;
   habits: ProgressHabit[];
   todayHabits: TodayProgressHabit[] | null;
+  activatedOn: string | null;
 };
 
 function formatLiters(ml: number) {
@@ -371,11 +374,13 @@ export default function ProgressScreen() {
     }
     let active = true;
     const today = todayKey();
+    const horizon = hydrationLoadThrough(today);
     void (async () => {
-      const [, logs, water] = await Promise.all([
+      const [, logs, water, createdAt] = await Promise.all([
         refreshDailyBoard(userId, today),
         loadHabitLogsUntil(userId, today),
-        loadHydrationUntil(userId, today),
+        loadHydrationUntil(userId, horizon),
+        getSessionCreatedAt(),
       ]);
       if (!active) {
         return;
@@ -390,6 +395,7 @@ export default function ProgressScreen() {
         routine: captured.routine,
         habits: captured.habits,
         todayHabits: captured.todayHabits,
+        activatedOn: activationDateKey(createdAt),
       });
       setPhase(logs.ok || water.ok ? 'ready' : 'error');
     })();
@@ -407,6 +413,7 @@ export default function ProgressScreen() {
         todayRoutine: snapshot.routine,
         habits: snapshot.habits,
         todayHabits: snapshot.todayHabits,
+        activatedOn: snapshot.activatedOn,
       })
     : null;
 
