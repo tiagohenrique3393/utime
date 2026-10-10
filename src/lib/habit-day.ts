@@ -127,6 +127,13 @@ function sameDay(value: string | null | undefined, day: string) {
   return typeof value !== 'string' || value.startsWith(day);
 }
 
+export function habitLogFromRow(row: DayLogRow, userId: string, day: string) {
+  if (row.user_id !== userId || !sameDay(row.occurred_on, day) || typeof row.user_habit_id !== 'string') {
+    return null;
+  }
+  return { habitId: row.user_habit_id, completed: row.completed === true };
+}
+
 export async function loadHabitDayLogs(userId: string, day: string) {
   const { data, error } = await supabase
     .from('habit_day_logs')
@@ -137,8 +144,8 @@ export async function loadHabitDayLogs(userId: string, day: string) {
     return { ok: false as const, rows: [] as { habitId: string; completed: boolean }[], message: completionErrorMessage(error, 'load') };
   }
   const rows = ((data ?? []) as DayLogRow[])
-    .filter((row) => row.user_id === userId && sameDay(row.occurred_on, day) && typeof row.user_habit_id === 'string')
-    .map((row) => ({ habitId: row.user_habit_id as string, completed: row.completed === true }));
+    .map((row) => habitLogFromRow(row, userId, day))
+    .filter((row): row is { habitId: string; completed: boolean } => row !== null);
   return { ok: true as const, rows, message: '' };
 }
 
@@ -184,14 +191,9 @@ export async function loadCompletedHabitIds(userId: string, day: string) {
     return { ok: false as const, ids: [] as string[], message: completionErrorMessage(error, 'load') };
   }
   const ids = ((data ?? []) as DayLogRow[])
-    .filter(
-      (row) =>
-        row.user_id === userId &&
-        sameDay(row.occurred_on, day) &&
-        row.completed === true &&
-        typeof row.user_habit_id === 'string',
-    )
-    .map((row) => row.user_habit_id as string);
+    .map((row) => habitLogFromRow(row, userId, day))
+    .filter((row): row is { habitId: string; completed: boolean } => row !== null && row.completed)
+    .map((row) => row.habitId);
   return { ok: true as const, ids, message: '' };
 }
 

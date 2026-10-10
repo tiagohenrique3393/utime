@@ -4,8 +4,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen, Eyebrow, TextButton, Track } from '@/components/app-screen';
 import { fonts, ui } from '@/constants/theme';
+import { dailyPillarBoard, isDailyHabitDone, toggleDailyHabit } from '@/lib/daily-board';
 import { useRequireSession } from '@/lib/require-session';
-import { pillarStats, pillars, toggleDayTask, useCompletedTaskIds, type PillarId } from '@/lib/tasks';
+import { pillars, type PillarId } from '@/lib/tasks';
+import { useDailyBoard } from '@/lib/use-daily-board';
 
 function isPillarId(value: string): value is PillarId {
   return pillars.some((pillar) => pillar.id === value);
@@ -16,9 +18,9 @@ export default function PillarScreen() {
   const params = useLocalSearchParams<{ pilar?: string }>();
   const raw = Array.isArray(params.pilar) ? params.pilar[0] : params.pilar;
   const pillar = raw && isPillarId(raw) ? pillars.find((item) => item.id === raw) : undefined;
-  const completed = useCompletedTaskIds();
-  const completedSet = new Set(completed);
-  const stats = pillar ? pillarStats(completed, pillar.id) : { done: 0, total: 0, percent: 0 };
+  const board = useDailyBoard();
+  const stats = pillar ? dailyPillarBoard(board.habits, board.completed).find((item) => item.id === pillar.id) : undefined;
+  const habits = pillar ? board.habits.filter((habit) => habit.pillar === pillar.id) : [];
 
   useEffect(() => {
     if (!signedIn || pillar) {
@@ -41,23 +43,23 @@ export default function PillarScreen() {
         </Text>
         <Text style={styles.explanation}>{pillar.text}</Text>
       </View>
-      <Track percent={stats.percent} />
+      <Track percent={stats?.percent ?? 0} />
       <Text style={styles.count}>
-        {stats.done} de {stats.total} · {stats.percent}%
+        {stats?.done ?? 0} de {stats?.planned ?? 0} · {Math.round(stats?.percent ?? 0)}%
       </Text>
 
       <View style={styles.list}>
-        {pillar.tasks.map((task) => {
-          const checked = completedSet.has(task.id);
+        {habits.map((habit) => {
+          const checked = isDailyHabitDone(habit, board.completed);
           return (
             <Pressable
-              key={task.id}
+              key={habit.id}
               accessibilityRole="checkbox"
               accessibilityState={{ checked }}
-              onPress={() => toggleDayTask(1, task.id)}
+              onPress={() => void toggleDailyHabit(habit)}
               style={({ pressed }) => [styles.task, pressed && styles.pressed]}>
               <View style={styles.copy}>
-                <Text style={[styles.taskLabel, checked && styles.taskDone]}>{task.label}</Text>
+                <Text style={[styles.taskLabel, checked && styles.taskDone]}>{habit.label}</Text>
                 <Text style={styles.state}>{checked ? 'Concluída' : 'Pendente'}</Text>
               </View>
               <View style={[styles.mark, checked && styles.markOn]} />

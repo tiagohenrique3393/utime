@@ -3,14 +3,15 @@ import { StyleSheet, Text, View } from 'react-native';
 import { AppScreen, Eyebrow, PageTitle } from '@/components/app-screen';
 import { RadarThreePillars } from '@/components/radar-pillars';
 import { fonts, ui } from '@/constants/theme';
-import { balanceInsight, currentJourneyDay, dayPillars } from '@/lib/journey-view';
+import { dailyPillarBoard } from '@/lib/daily-board';
+import { balanceInsight } from '@/lib/journey-view';
 import { useRequireSession } from '@/lib/require-session';
-import { useJourneyBoard } from '@/lib/tasks';
+import { useDailyBoard } from '@/lib/use-daily-board';
 
 export default function PillarsScreen() {
   const signedIn = useRequireSession();
-  const journey = useJourneyBoard();
-  const readings = dayPillars(journey, currentJourneyDay(journey));
+  const board = useDailyBoard();
+  const readings = dailyPillarBoard(board.habits, board.completed);
 
   if (!signedIn) {
     return <View style={styles.blocked} />;

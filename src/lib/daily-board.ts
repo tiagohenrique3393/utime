@@ -18,6 +18,7 @@ import {
   setHabitCompleted,
   todayKey,
 } from '@/lib/habit-day';
+import { dailyPillarStats, type PillarDayHabit } from '@/lib/pillar-daily';
 import { suggestedHabits } from '@/lib/suggested-habits';
 
 export type DailyHabit = {
@@ -171,9 +172,20 @@ export function dailyCounts(habits: readonly DailyHabit[], completed: ReadonlySe
   return { total, done, percent: dailyPercent(total, done) };
 }
 
+export function pillarHabitsForDay(habits: readonly DailyHabit[], completed: ReadonlySet<string>): PillarDayHabit[] {
+  return habits.map((habit) => ({
+    id: habit.id,
+    pillar: habit.pillar,
+    done: isDailyHabitDone(habit, completed),
+  }));
+}
+
+export function dailyPillarBoard(habits: readonly DailyHabit[], completed: ReadonlySet<string>) {
+  return dailyPillarStats(pillarHabitsForDay(habits, completed));
+}
+
 export function pillarDailyPercent(habits: readonly DailyHabit[], completed: ReadonlySet<string>, pillar: HabitPillar) {
-  const group = habits.filter((habit) => habit.pillar === pillar);
-  return dailyPercent(group.length, completedCount(group, completed));
+  return dailyPillarBoard(habits, completed).find((item) => item.id === pillar)?.percent ?? 0;
 }
 
 function publish(next: DailySnapshot) {
