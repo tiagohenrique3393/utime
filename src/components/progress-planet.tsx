@@ -30,15 +30,15 @@ const css = `
   transform: translateX(-50%);
   pointer-events: none;
   user-select: none;
-  filter: brightness(0.7) saturate(0.82);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 62%, transparent 94%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 62%, transparent 94%);
+  filter: brightness(0.84) saturate(0.9);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 62%, transparent 90%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 62%, transparent 90%);
 }
 .progress-planet-veil {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(5,5,5,0.62) 0%, rgba(5,5,5,0.38) 26%, rgba(5,5,5,0.55) 48%, rgba(5,5,5,0.88) 72%, #050505 90%);
+  background: linear-gradient(180deg, rgba(5,5,5,0.72) 0%, rgba(5,5,5,0.48) 18%, rgba(5,5,5,0.22) 40%, rgba(5,5,5,0.7) 68%, #050505 86%);
 }
 .progress-planet-layer.bright {
   top: 14%;

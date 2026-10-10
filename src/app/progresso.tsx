@@ -1,10 +1,13 @@
-import { createElement, useEffect, useState, type ReactNode } from 'react';
+import { Image } from 'expo-image';
+import { createElement, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { ProgressPlanet } from '@/components/progress-planet';
 import { PercentRing } from '@/components/progress-charts';
 import { fonts, ui } from '@/constants/theme';
+import { getProgressColor, type ProgressBand } from '@/lib/progress-color';
+import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { getSessionUserId } from '@/lib/accounts';
 import { dailyCounts, getDailyBoard, isDailyHabitDone, refreshDailyBoard } from '@/lib/daily-board';
 import { getCatalogHabits, getUserHabits, habitTitle } from '@/lib/habit-catalog';
@@ -26,6 +29,16 @@ import { useRequireSession } from '@/lib/require-session';
 
 const page = '#050505';
 const waterBlue = '#6EB6F2';
+const corpoMale = require('@/assets/pillars/corpo-mantime.png');
+const corpoFemale = require('@/assets/pillars/corpo-womantime.png');
+const menteFigure = require('@/assets/pillars/mente.png');
+const espiritoFigure = require('@/assets/pillars/espirito.png');
+
+const pillarBands: Record<ProgressBand, { line: string; glow: string }> = {
+  red: { line: '#F90F0F', glow: 'rgba(249, 15, 15, 0.9)' },
+  yellow: { line: '#F5C518', glow: 'rgba(245, 197, 24, 0.9)' },
+  green: { line: '#18F54B', glow: 'rgba(24, 245, 75, 0.9)' },
+};
 
 const periods: { id: ProgressPeriod; label: string; premium: boolean }[] = [
   { id: 'dia', label: 'Dia', premium: false },
@@ -169,36 +182,7 @@ function Drop() {
   );
 }
 
-function PillarMark({ pillar }: { pillar: PillarProgress['pillar'] }) {
-  if (Platform.OS !== 'web') {
-    return <Text style={styles.pillarLetter}>{pillarName[pillar].slice(0, 1)}</Text>;
-  }
-  const stroke = { stroke: ui.champagne, strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round', fill: 'none' };
-  let body: ReactNode = null;
-  if (pillar === 'corpo') {
-    body = glyph(
-      'g',
-      null,
-      glyph('circle', { cx: 12, cy: 8, r: 2.1, ...stroke }),
-      glyph('path', { d: 'M7.2 18.2c.6-2.5 2.3-3.7 4.8-3.7s4.2 1.2 4.8 3.7', ...stroke }),
-    );
-  } else if (pillar === 'mente') {
-    body = glyph(
-      'g',
-      null,
-      glyph('circle', { cx: 12, cy: 12, r: 6.2, ...stroke }),
-      glyph('path', { d: 'M12 8.2v7.6M9.2 12h5.6', ...stroke }),
-    );
-  } else {
-    body = glyph('path', {
-      d: 'M12 4.2c.4 2.4-1.2 3.6-1.2 5.4a1.2 1.2 0 0 0 2.4 0c0-1 .6-1.6 1.4-2.4 1.6 1.5 2.6 3.2 2.6 5.2A5.2 5.2 0 0 1 6.8 17c0-2.6 1.6-4.2 2.6-5.8.6.6 1.2 1.1 1.2 2',
-      ...stroke,
-    });
-  }
-  return glyph('svg', { width: 22, height: 22, viewBox: '0 0 24 24', 'aria-hidden': true }, body);
-}
-
-type GoldKind = 'plus' | 'brain' | 'lotus' | 'book' | 'dumbbell';
+type GoldKind = 'plus' | 'brain' | 'lotus' | 'book' | 'dumbbell' | 'meal';
 
 function GoldIcon({ kind, size = 18 }: { kind: GoldKind; size?: number }) {
   if (Platform.OS !== 'web') {
@@ -230,6 +214,13 @@ function GoldIcon({ kind, size = 18 }: { kind: GoldKind; size?: number }) {
       glyph('path', { d: 'M3.2 5.2 11 7.4 11 18.6 3.2 16.4 3.2 5.2z', fill: ink }),
       glyph('path', { d: 'M20.8 5.2 13 7.4 13 18.6 20.8 16.4 20.8 5.2z', fill: ink }),
     );
+  } else if (kind === 'meal') {
+    body = glyph(
+      'g',
+      null,
+      glyph('path', { d: 'M8 3.4v6.2M6.2 3.4v4.2M9.8 3.4v4.2M8 9.2v11', stroke: ink, strokeWidth: 1.6, strokeLinecap: 'round' }),
+      glyph('path', { d: 'M15.2 3.6c1.6 1.4 1.6 3.4 0 5.2v10.6', stroke: ink, strokeWidth: 1.6, strokeLinecap: 'round' }),
+    );
   } else {
     body = glyph(
       'g',
@@ -242,14 +233,103 @@ function GoldIcon({ kind, size = 18 }: { kind: GoldKind; size?: number }) {
   return glyph('svg', { width: size, height: size, viewBox: '0 0 24 24', 'aria-hidden': true }, body);
 }
 
-function ReferenceMark({ pillar, size = 18 }: { pillar: PillarProgress['pillar']; size?: number }) {
-  const kind: GoldKind = pillar === 'corpo' ? 'plus' : pillar === 'mente' ? 'brain' : 'lotus';
-  return <GoldIcon kind={kind} size={size} />;
+function figureFor(id: PillarProgress['pillar'], feminine: boolean) {
+  if (id === 'corpo') {
+    return feminine ? corpoFemale : corpoMale;
+  }
+  if (id === 'mente') {
+    return menteFigure;
+  }
+  return espiritoFigure;
+}
+
+function DialRing({ percent, size }: { percent: number | null; size: number }) {
+  const tone = percent == null ? null : pillarBands[getProgressColor(percent)];
+  const safe = percent == null ? 0 : Math.max(0, Math.min(100, percent));
+  if (Platform.OS !== 'web') {
+    return <View style={[styles.dialFallback, { borderColor: tone?.line ?? 'rgba(255,255,255,0.16)', borderRadius: size / 2 }]} />;
+  }
+  const stroke = Math.max(2, size * 0.055);
+  const radius = size / 2 - stroke - 1;
+  const turn = 2 * Math.PI * radius;
+  const dash = (safe / 100) * turn;
+  return glyph(
+    'svg',
+    { width: size, height: size, viewBox: `0 0 ${size} ${size}`, 'aria-hidden': true, style: { position: 'absolute', top: 0, left: 0 } },
+    glyph('circle', { cx: size / 2, cy: size / 2, r: radius, fill: 'none', stroke: 'rgba(255,255,255,0.16)', strokeWidth: Math.max(1, stroke * 0.45) }),
+    tone && safe > 0
+      ? glyph('circle', {
+          cx: size / 2,
+          cy: size / 2,
+          r: radius,
+          fill: 'none',
+          stroke: tone.line,
+          strokeWidth: stroke,
+          strokeLinecap: 'round',
+          strokeDasharray: `${dash} ${turn}`,
+          transform: `rotate(-90 ${size / 2} ${size / 2})`,
+          style: { filter: `drop-shadow(0 0 4px ${tone.glow})` },
+        })
+      : null,
+  );
+}
+
+function HoloDial({
+  id,
+  percent,
+  feminine,
+  size,
+}: {
+  id: PillarProgress['pillar'];
+  percent: number | null;
+  feminine: boolean;
+  size: number;
+}) {
+  const inset = Math.round(size * 0.14);
+  return (
+    <View style={{ width: size, height: size }}>
+      <View style={[styles.portrait, { top: inset, right: inset, bottom: inset, left: inset, borderRadius: size }]}>
+        <Image source={figureFor(id, feminine)} contentFit="cover" style={styles.portraitImage} />
+      </View>
+      <DialRing percent={percent} size={size} />
+    </View>
+  );
+}
+
+function PeriodGlyph({ period }: { period: ProgressPeriod }) {
+  if (Platform.OS !== 'web') {
+    return <View style={styles.iconFallback} />;
+  }
+  const ink = '#E6C14A';
+  const stroke = { fill: 'none', stroke: ink, strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  let body: ReactNode = null;
+  if (period === 'dia') {
+    body = glyph('path', { d: 'M13 2.5 6.5 13h5L10 21.5 17.5 10h-5L13 2.5z', fill: ink });
+  } else if (period === 'semana') {
+    body = glyph(
+      'g',
+      null,
+      glyph('path', { d: 'M3.5 16.5 9 11l3 2.5 8-9', ...stroke }),
+      glyph('path', { d: 'M14 4.5h6.5V11', ...stroke }),
+    );
+  } else if (period === 'mes') {
+    body = glyph(
+      'g',
+      null,
+      glyph('path', { d: 'M5 18V11M10 18V7M15 18V13M20 18V9', ...stroke }),
+    );
+  } else {
+    return <Trophy />;
+  }
+  return glyph('svg', { width: 18, height: 18, viewBox: '0 0 24 24', 'aria-hidden': true }, body);
 }
 
 function habitKind(habit: PracticedHabit): GoldKind {
   const text = `${habit.catalogHabitId ?? ''} ${habit.label}`.toLowerCase();
-  if (/leitur|livro|estud/.test(text)) {
+  if (/almo|refei|lanche|jantar|caf[eé]|ceia|comida/.test(text)) {
+    return 'meal';
+  }
+  if (/leitur|livro|estud|agradec|organiza/.test(text)) {
     return 'book';
   }
   if (/medita|ora[cç]|gratid|aten[cç]|respira|silenc/.test(text)) {
@@ -272,14 +352,17 @@ function habitKind(habit: PracticedHabit): GoldKind {
 
 export default function ProgressScreen() {
   const signedIn = useRequireSession();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const [period, setPeriod] = useState<ProgressPeriod>('semana');
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [notice, setNotice] = useState('');
   const [waterNotice, setWaterNotice] = useState('');
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const ringSize = period === 'dia' ? Math.max(188, Math.min(236, width - 132)) : Math.max(148, Math.min(166, width - 196));
+  const dense = height < 780;
+  const ringSize = Math.round(Math.min(dense ? 124 : 142, Math.max(112, width * 0.34)));
   const compact = width < 380;
+  const feminine = profile.journey === 'womantime';
 
   useEffect(() => {
     const userId = getSessionUserId();
@@ -334,60 +417,40 @@ export default function ProgressScreen() {
   const focused = period !== 'dia';
 
   return (
-      <AppScreen backgroundColor={page} backdrop={<ProgressPlanet bright={focused} />}>
-      {focused ? <Text style={styles.brand}>UTime</Text> : null}
-      <Text accessibilityRole="header" style={styles.title}>
+      <AppScreen tight backgroundColor={page} backdrop={<ProgressPlanet bright={focused} />}>
+      <Text style={styles.brand}>UTime</Text>
+      <Text accessibilityRole="header" style={[styles.title, dense && styles.titleDense]}>
         Meu progresso
       </Text>
       <Text style={styles.subtitle}>Disciplina hoje. Liberdade sempre.</Text>
-      {focused ? (
-        <View style={styles.segmentTrack}>
-          {periods.map((item) => {
-            const selected = item.id === period;
-            return (
-              <Pressable
-                key={item.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                onPress={() => setPeriod(item.id)}
-                style={[styles.segment, selected && styles.segmentOn]}>
-                <Text numberOfLines={1} style={[styles.segmentLabel, compact && styles.segmentLabelCompact, selected && styles.segmentLabelOn]}>
-                  {item.label}
-                </Text>
-                {selected && item.premium ? (
-                  <View style={styles.premiumBadge}>
-                    <Text style={styles.premiumBadgeText}>Premium</Text>
-                  </View>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : (
-        <View style={styles.periods}>
-          {periods.map((item) => {
-            const selected = item.id === period;
-            return (
-              <Pressable
-                key={item.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                onPress={() => setPeriod(item.id)}
-                style={styles.period}>
-                <Text style={[styles.premium, !item.premium && styles.premiumSpacer]}>{item.premium ? 'Premium' : ' '}</Text>
-                <Text numberOfLines={1} style={[styles.periodLabel, compact && styles.periodLabelCompact, selected && styles.periodSelected]}>
-                  {item.label}
-                </Text>
-                <View style={[styles.periodMark, selected && styles.periodMarkOn]} />
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
+      <View style={[styles.segmentTrack, dense && styles.segmentTrackDense]}>
+        {periods.map((item) => {
+          const selected = item.id === period;
+          return (
+            <Pressable
+              key={item.id}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => setPeriod(item.id)}
+              style={[styles.segment, selected && styles.segmentOn]}>
+              <Text numberOfLines={1} style={[styles.segmentLabel, compact && styles.segmentLabelCompact, selected && styles.segmentLabelOn]}>
+                {item.label}
+              </Text>
+              {selected && item.premium ? (
+                <View style={styles.premiumBadge}>
+                  <Text style={styles.premiumBadgeText}>Premium</Text>
+                </View>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
 
       {phase === 'loading' ? <Text style={styles.note}>Carregando o seu progresso.</Text> : null}
       {notice ? <Text style={styles.note}>{notice}</Text> : null}
-      {report ? <ProgressBody period={period} report={report} waterNotice={waterNotice} ringSize={ringSize} /> : null}
+      {report ? (
+        <ProgressBody period={period} report={report} waterNotice={waterNotice} ringSize={ringSize} feminine={feminine} dense={dense} />
+      ) : null}
     </AppScreen>
   );
 }
@@ -397,66 +460,57 @@ function ProgressBody({
   report,
   waterNotice,
   ringSize,
+  feminine,
+  dense,
 }: {
   period: ProgressPeriod;
   report: ProgressReport;
   waterNotice: string;
   ringSize: number;
+  feminine: boolean;
+  dense: boolean;
 }) {
-  const { width } = useWindowDimensions();
-  const narrow = width < 370;
   const copy = story[period];
   const headline = report[period];
   const quiet = headline == null;
   const focused = period !== 'dia';
+  const dial = dense ? 52 : 58;
   return (
     <>
-      <View style={[styles.ringBlock, focused && styles.ringBlockTight]}>
-        <PercentRing percent={headline} size={ringSize} caption={focused ? copy.ring : undefined} />
-        {focused ? null : <Text style={styles.ringCaption}>{copy.ring}</Text>}
+      <View style={[styles.ringBlock, styles.ringBlockTight]}>
+        <PercentRing percent={headline} size={ringSize} caption={copy.ring} />
       </View>
 
-      <View style={[styles.card, focused && styles.cardTight]}>
-        <Trophy />
+      <View style={[styles.card, styles.cardTight]}>
+        <PeriodGlyph period={period} />
         <View style={styles.cardCopy}>
           <Text style={styles.cardTitle}>{quiet ? 'Este período ainda não tem conclusões.' : copy.title}</Text>
           <Text style={styles.cardDetail}>{quiet ? 'Os dias registrados aparecem aqui.' : copy.detail}</Text>
         </View>
-        {focused ? <Chevron /> : null}
+        <Chevron />
       </View>
 
-      <HydrationCard report={report} notice={waterNotice} title={copy.water} tight={focused} />
+      <HydrationCard report={report} notice={waterNotice} title={copy.water} />
 
-      <View style={[styles.pillars, focused && styles.pillarsTight]}>
+      <View style={styles.pillarsTight}>
         {report.pillars.map((pillar) => (
           <View
             key={pillar.pillar}
-            style={[styles.pillar, focused && styles.pillarInline]}
+            style={styles.pillarStack}
             accessibilityLabel={`${pillarName[pillar.pillar]}: ${pillar.percent == null ? 'sem registro' : formatDailyPercent(pillar.percent)}`}>
-            <View style={[styles.pillarOrb, focused && styles.pillarOrbTight, focused && narrow && styles.pillarOrbNarrow]}>
-              {focused ? <ReferenceMark pillar={pillar.pillar} size={narrow ? 16 : 18} /> : <PillarMark pillar={pillar.pillar} />}
-            </View>
-            {focused ? (
-              <View style={styles.pillarCopy}>
-                <Text style={[styles.pillarNameTight, narrow && styles.pillarNameNarrow]}>{pillarName[pillar.pillar]}</Text>
-                <Text style={styles.pillarPercentTight}>{pillar.percent == null ? '—' : formatDailyPercent(pillar.percent)}</Text>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.pillarPercent}>{pillar.percent == null ? '—' : formatDailyPercent(pillar.percent)}</Text>
-                <Text style={styles.pillarLabel}>{pillarName[pillar.pillar]}</Text>
-              </>
-            )}
+            <HoloDial id={pillar.pillar} percent={pillar.percent} feminine={feminine} size={dial} />
+            <Text style={styles.pillarPercentTight}>{pillar.percent == null ? '—' : formatDailyPercent(pillar.percent)}</Text>
+            <Text style={styles.pillarNameTight}>{pillarName[pillar.pillar]}</Text>
           </View>
         ))}
       </View>
 
-      <Text style={[styles.section, focused && styles.sectionTight]}>{copy.habits}</Text>
+      <Text style={[styles.section, styles.sectionTight]}>{copy.habits}</Text>
       {focused ? <PracticedCards habits={report.practiced} /> : <PracticedList habits={report.practiced} />}
 
-      <View style={[styles.quote, focused && styles.quoteTight]}>
-        {focused ? <QuoteMark /> : <Text style={styles.quoteMark}>“</Text>}
-        <Text style={[styles.quoteText, focused && styles.quoteTextTight]}>{copy.quote}</Text>
+      <View style={[styles.quote, styles.quoteTight]}>
+        <QuoteMark />
+        <Text style={[styles.quoteText, styles.quoteTextTight]}>{copy.quote}</Text>
       </View>
     </>
   );
@@ -466,56 +520,43 @@ function HydrationCard({
   report,
   notice,
   title,
-  tight = false,
 }: {
   report: ProgressReport;
   notice: string;
   title: string;
-  tight?: boolean;
 }) {
   const consumed = report.water.consumedMl;
   const goal = report.periodGoalMl;
   const percent = consumed != null && goal != null && goal > 0 ? hydrationProgress(consumed, goal) : null;
-  const coverage = report.waterCoverage;
-  const partial = coverage.recordedDays > 0 && coverage.recordedDays < coverage.elapsedDays;
   return (
-    <View style={[styles.waterCard, tight && styles.waterCardTight]}>
+    <View style={[styles.waterCard, styles.waterCardTight]}>
       <View style={styles.waterHead}>
         <Drop />
         <Text style={styles.waterTitle}>{title}</Text>
-        {goal != null && tight ? (
+        {goal != null ? (
           <View style={styles.waterMetaCol}>
             <Text style={styles.waterMeta}>Meta</Text>
             <Text style={styles.waterMetaValue}>{formatLiters(goal)}</Text>
           </View>
         ) : null}
-        {goal != null && !tight ? <Text style={styles.waterMeta}>{`Meta ${formatLiters(goal)}`}</Text> : null}
       </View>
       {notice ? <Text style={styles.waterNote}>{notice}</Text> : null}
       {!notice && consumed == null ? <Text style={styles.waterNote}>Sem registro de água neste período.</Text> : null}
       {!notice && consumed != null ? (
         <>
-          {tight && percent != null ? (
+          {percent != null ? (
             <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: percent }} style={[styles.waterRail, styles.waterRailTight]}>
               {percent > 0 ? <View style={[styles.waterFill, styles.waterFillGlow, { width: `${percent}%` }]} /> : null}
             </View>
-          ) : null}
+          ) : (
+            <Text style={styles.waterNote}>Meta diária ainda não definida neste período.</Text>
+          )}
           <View style={styles.waterAmountRow}>
-            <Text style={[styles.waterAmount, tight && styles.waterAmountTight]}>
+            <Text style={[styles.waterAmount, styles.waterAmountTight]}>
               {goal != null ? `${formatLiters(consumed)} de ${formatLiters(goal)}` : formatLiters(consumed)}
             </Text>
-            {percent != null ? <Text style={[styles.waterPercent, tight && styles.waterPercentTight]}>{percent}%</Text> : null}
+            {percent != null ? <Text style={[styles.waterPercent, styles.waterPercentTight]}>{percent}%</Text> : null}
           </View>
-          {!tight && percent != null ? (
-            <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: percent }} style={styles.waterRail}>
-              {percent > 0 ? <View style={[styles.waterFill, { width: `${percent}%` }]} /> : null}
-            </View>
-          ) : null}
-          {!tight && percent == null ? <Text style={styles.waterNote}>Meta diária ainda não definida neste período.</Text> : null}
-          {tight && percent == null ? <Text style={styles.waterNote}>Meta diária ainda não definida neste período.</Text> : null}
-          {partial ? (
-            <Text style={styles.waterNote}>{`Registro em ${coverage.recordedDays} de ${coverage.elapsedDays} dias.`}</Text>
-          ) : null}
         </>
       ) : null}
     </View>
@@ -552,6 +593,7 @@ function PracticedList({ habits }: { habits: readonly PracticedHabit[] }) {
       {habits.map((habit) => (
         <View key={habit.id} style={styles.habit}>
           <View style={styles.habitRow}>
+            <GoldIcon kind={habitKind(habit)} size={14} />
             <Text numberOfLines={1} style={styles.habitName}>
               {habit.label}
             </Text>
@@ -574,25 +616,33 @@ const styles = StyleSheet.create({
   brand: {
     color: '#E6C14A',
     fontFamily: fonts.display,
-    fontSize: 12,
-    lineHeight: 14,
-    letterSpacing: 1.6,
+    fontSize: 11,
+    lineHeight: 13,
+    letterSpacing: 2.4,
     textTransform: 'uppercase',
-    marginBottom: 2,
   },
   title: {
+    marginTop: 2,
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 32,
-    lineHeight: 36,
-    letterSpacing: 0.2,
+    fontSize: 26,
+    lineHeight: 30,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+  },
+  titleDense: {
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: 1.6,
   },
   subtitle: {
-    marginTop: 6,
-    color: '#8E8A84',
-    fontFamily: fonts.text,
-    fontSize: 13,
-    lineHeight: 18,
+    marginTop: 2,
+    color: '#B7B2AA',
+    fontFamily: fonts.display,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 1.15,
+    textTransform: 'uppercase',
   },
   periods: {
     marginTop: 18,
@@ -643,8 +693,8 @@ const styles = StyleSheet.create({
     backgroundColor: ui.champagne,
   },
   segmentTrack: {
-    marginTop: 14,
-    marginBottom: 8,
+    marginTop: 10,
+    marginBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#141414',
@@ -688,6 +738,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 1,
   },
+  segmentTrackDense: {
+    marginTop: 8,
+    marginBottom: 2,
+  },
   premiumBadgeText: {
     color: '#E6C14A',
     fontFamily: fonts.display,
@@ -704,14 +758,14 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   cardTight: {
-    marginTop: 12,
-    paddingVertical: 10,
+    marginTop: 8,
+    paddingVertical: 8,
     borderRadius: 16,
     borderColor: 'rgba(230,193,74,0.42)',
   },
   waterCardTight: {
-    marginTop: 8,
-    paddingVertical: 10,
+    marginTop: 6,
+    paddingVertical: 8,
     gap: 8,
     borderRadius: 14,
   },
@@ -719,8 +773,28 @@ const styles = StyleSheet.create({
     boxShadow: '0 0 8px rgba(110, 182, 242, 0.9)',
   },
   pillarsTight: {
-    marginTop: 14,
-    gap: 4,
+    marginTop: 8,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  pillarStack: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    gap: 1,
+  },
+  portrait: {
+    position: 'absolute',
+    overflow: 'hidden',
+    backgroundColor: '#05070b',
+  },
+  portraitImage: {
+    width: '100%',
+    height: '100%',
+  },
+  dialFallback: {
+    ...StyleSheet.absoluteFill,
+    borderWidth: 2,
   },
   pillarInline: {
     flexDirection: 'row',
@@ -765,10 +839,12 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   sectionTight: {
-    marginTop: 16,
+    marginTop: 8,
+    fontSize: 11,
+    letterSpacing: 0.8,
   },
   habitCards: {
-    marginTop: 8,
+    marginTop: 6,
     flexDirection: 'row',
     gap: 8,
   },
@@ -781,9 +857,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(230,193,74,0.45)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    gap: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    gap: 5,
   },
   habitCardCopy: {
     flex: 1,
@@ -802,9 +878,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   quoteTight: {
-    marginTop: 10,
-    paddingTop: 10,
-    paddingBottom: 10,
+    marginTop: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -996,8 +1072,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   habitList: {
-    marginTop: 12,
-    gap: 14,
+    marginTop: 6,
+    gap: 7,
   },
   habit: {
     gap: 6,

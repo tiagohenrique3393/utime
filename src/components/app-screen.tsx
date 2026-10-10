@@ -15,6 +15,7 @@ export function AppScreen({
   backdrop,
   navVariant = 'default',
   backgroundColor,
+  tight = false,
 }: {
   children: ReactNode;
   showNav?: boolean;
@@ -22,6 +23,7 @@ export function AppScreen({
   backdrop?: ReactNode;
   navVariant?: 'default' | 'hoje';
   backgroundColor?: string;
+  tight?: boolean;
 }) {
   const window = useWindowDimensions();
   const wide = window.width >= 840;
@@ -40,7 +42,7 @@ export function AppScreen({
         style={[styles.safe, backdrop ? styles.safeAbove : null]}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, wide && styles.contentWide]}
+          contentContainerStyle={[styles.content, tight && styles.contentTight, wide && !tight && styles.contentWide]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <View style={[styles.column, { maxWidth }]}>{children}</View>
@@ -127,6 +129,11 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 36,
     alignItems: 'center',
+  },
+  contentTight: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 12,
   },
   contentWide: {
     paddingHorizontal: 32,
