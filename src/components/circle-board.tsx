@@ -93,19 +93,15 @@ export function CircleBoard({
         <View style={styles.join}>
           <Text style={styles.joinTitle}>Participe do ranking</Text>
           <Text style={styles.joinText}>
-            A inscrição é voluntária. Os pontos consideram os hábitos oficiais concluídos no período vigente quando existe uma data real.
+            A inscrição é voluntária para qualquer conta. Entram os hábitos oficiais concluídos no período vigente quando a data da conclusão é real.
           </Text>
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           <Pressable
             accessibilityRole="button"
-            disabled={!state.hasAccess}
             onPress={onEnroll}
-            style={({ pressed }) => [styles.joinButton, !state.hasAccess && styles.joinButtonOff, pressed && styles.pressed]}>
+            style={({ pressed }) => [styles.joinButton, pressed && styles.pressed]}>
             <Text style={styles.joinButtonLabel}>PARTICIPAR DO RANKING</Text>
           </Pressable>
-          {!state.hasAccess ? (
-            <Text style={styles.joinText}>Esta conta ainda não está autorizada a entrar no Círculo Premium.</Text>
-          ) : null}
         </View>
       ) : (
         <>
@@ -632,9 +628,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
-  },
-  joinButtonOff: {
-    opacity: 0.45,
   },
   joinButtonLabel: {
     color: ui.ink,

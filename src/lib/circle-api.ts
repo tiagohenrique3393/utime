@@ -1,8 +1,7 @@
 import { supabase } from '../../utils/supabase';
-import { isOfficialTask, type CirclePeriod } from '@/lib/circle';
+import type { CirclePeriod } from '@/lib/circle';
 
 export type CircleState = {
-  hasAccess: boolean;
   enrolled: boolean;
   handle: string;
   joinedAt: string | null;
@@ -26,7 +25,6 @@ export type CirclePerson = {
 };
 
 type StateRow = {
-  has_access: boolean;
   enrolled: boolean;
   handle: string | null;
   joined_at: string | null;
@@ -60,9 +58,6 @@ export function circleUnavailable(error: { code?: string; message?: string } | n
 
 export function circleErrorMessage(error: { code?: string; message?: string } | null) {
   const text = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
-  if (text.includes('circle access required')) {
-    return 'Esta conta ainda não está autorizada a entrar no Círculo Premium.';
-  }
   if (text.includes('friend unavailable')) {
     return 'Essa pessoa não está participando do ranking.';
   }
@@ -88,10 +83,9 @@ export async function fetchCircleState() {
   }
   const row = (Array.isArray(data) ? data[0] : data) as StateRow | null;
   if (!row) {
-    return { hasAccess: false, enrolled: false, handle: '', joinedAt: null } satisfies CircleState;
+    return { enrolled: false, handle: '', joinedAt: null } satisfies CircleState;
   }
   return {
-    hasAccess: row.has_access === true,
     enrolled: row.enrolled === true,
     handle: row.handle ?? '',
     joinedAt: row.joined_at,
@@ -160,14 +154,4 @@ export async function fetchCircleFaces() {
     throw error;
   }
   return ((data ?? []) as PersonRow[]).map(person);
-}
-
-export async function recordOfficialHabit(taskId: string) {
-  if (!isOfficialTask(taskId)) {
-    return;
-  }
-  const { error } = await supabase.rpc('circle_record_official_habit', { task_id: taskId });
-  if (error && !missingCircle(error)) {
-    return;
-  }
 }

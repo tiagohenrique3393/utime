@@ -113,6 +113,94 @@ export function periodScore(events: readonly CircleEvent[], start: string, end: 
   return seen.size * CIRCLE_POINTS;
 }
 
+const accentFrom = 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ';
+const accentTo = 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN';
+
+export type CircleLog = {
+  catalogHabitId: string | null;
+  completed: boolean;
+  occurredOn: string;
+};
+
+export function publicHandleCandidate(firstName: string, userId: string, taken: ReadonlySet<string>) {
+  let base = '';
+  for (const char of firstName.trim()) {
+    const index = accentFrom.indexOf(char);
+    base += index >= 0 ? accentTo[index] : char;
+  }
+  base = base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (base === '') {
+    base = 'participante';
+  }
+  base = base.slice(0, 24).replace(/^-+|-+$/g, '');
+  if (base === '') {
+    base = 'participante';
+  }
+  if (!taken.has(base)) {
+    return base;
+  }
+  const suffix = userId.replace(/-/g, '').slice(-4);
+  const stem = base.slice(0, 19).replace(/-+$/g, '');
+  return `${stem === '' ? 'participante' : stem}-${suffix}`;
+}
+
+export function competitionRank(scores: readonly number[]) {
+  return scores.map((score) => 1 + scores.filter((other) => other > score).length);
+}
+
+export function membershipOverlapsPeriod(joinedAt: string, leftAt: string | null, start: string, end: string) {
+  const startAt = `${start}T03:00:00.000Z`;
+  const finishAt = `${end}T03:00:00.000Z`;
+  if (joinedAt >= finishAt) {
+    return false;
+  }
+  if (leftAt !== null && leftAt <= startAt) {
+    return false;
+  }
+  return true;
+}
+
+export function scoreFromLogs(logs: readonly CircleLog[], start: string, end: string) {
+  const seen = new Set<string>();
+  for (const log of logs) {
+    if (!log.completed || log.catalogHabitId === null || !official.has(log.catalogHabitId)) {
+      continue;
+    }
+    if (log.occurredOn < start || log.occurredOn >= end) {
+      continue;
+    }
+    seen.add(`${log.catalogHabitId}|${log.occurredOn}`);
+  }
+  return seen.size * CIRCLE_POINTS;
+}
+
+export function completionCreatesEvent(input: {
+  operation: 'insert' | 'update';
+  completed: boolean;
+  occurredOn: string;
+  previousOccurredOn?: string;
+  today: string;
+}) {
+  if (!input.completed || input.occurredOn !== input.today) {
+    return false;
+  }
+  if (input.operation === 'insert') {
+    return true;
+  }
+  return input.previousOccurredOn === input.today;
+}
+
+export function completionRemovesEvent(completed: boolean, frozen: boolean) {
+  return !completed && !frozen;
+}
+
+export function achievementTotals(results: readonly { rank: number; score: number }[]) {
+  return {
+    podiums: results.filter((result) => result.rank <= 3 && result.score > 0).length,
+    firsts: results.filter((result) => result.rank === 1 && result.score > 0).length,
+  };
+}
+
 export function honorLabel(kind: CirclePeriod, count: number, place: 'podium' | 'first') {
   if (place === 'first') {
     return count === 1 ? 'VEZ EM 1º LUGAR' : 'VEZES EM 1º LUGAR';
