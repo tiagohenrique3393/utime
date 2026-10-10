@@ -195,7 +195,38 @@ export function recordedPercents(
 }
 
 function waterOn(rows: readonly HydrationLog[], dateKeyValue: string) {
-  return rows.find((row) => row.dateKey === dateKeyValue) ?? null;
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    if (rows[index]?.dateKey === dateKeyValue) {
+      return rows[index] ?? null;
+    }
+  }
+  return null;
+}
+
+function goalSteps(rows: readonly HydrationLog[]) {
+  const byDate = new Map<string, number>();
+  for (const row of rows) {
+    if (row.goalMl != null && row.goalMl > 0) {
+      byDate.set(row.dateKey, row.goalMl);
+    }
+  }
+  return [...byDate.entries()]
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([dateKey, goalMl]) => ({ dateKey, goalMl }));
+}
+
+function goalForDate(dateKeyValue: string, steps: readonly { dateKey: string; goalMl: number }[]) {
+  let carried: number | null = null;
+  for (const step of steps) {
+    if (step.dateKey > dateKeyValue) {
+      break;
+    }
+    carried = step.goalMl;
+  }
+  if (carried != null) {
+    return carried;
+  }
+  return steps[0]?.goalMl ?? null;
 }
 
 function summarizeWater(dates: readonly string[], rows: readonly HydrationLog[], today: string): WaterSummary {
@@ -419,18 +450,22 @@ export function waterCoverage(dates: readonly string[], rows: readonly Hydration
 }
 
 export function periodGoalMl(dates: readonly string[], rows: readonly HydrationLog[], today: string) {
+  const steps = goalSteps(rows);
+  if (steps.length === 0) {
+    return null;
+  }
   let sum = 0;
   let seen = false;
   for (const key of dates) {
     if (key > today) {
       continue;
     }
-    const row = waterOn(rows, key);
-    if (!row || row.goalMl == null || row.goalMl <= 0) {
+    const goal = goalForDate(key, steps);
+    if (goal == null || goal <= 0) {
       continue;
     }
     seen = true;
-    sum += row.goalMl;
+    sum += goal;
   }
   return seen ? sum : null;
 }
