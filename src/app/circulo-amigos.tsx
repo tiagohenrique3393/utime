@@ -4,8 +4,10 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { CircleAvatar } from '@/components/circle-avatar';
+import { CircleMark } from '@/components/circle-icons';
+import { circlePalette as palette } from '@/components/circle-palette';
 import { CirclePlanet } from '@/components/circle-planet';
-import { fonts, ui } from '@/constants/theme';
+import { fonts } from '@/constants/theme';
 import {
   addCircleFriend,
   circleErrorMessage,
@@ -91,7 +93,7 @@ export default function AddFriendsScreen() {
     <AppScreen width="narrow" backgroundColor={page} backdrop={<CirclePlanet />}>
       <View style={styles.head}>
         <Pressable accessibilityRole="button" accessibilityLabel="Voltar ao ranking" onPress={() => router.replace('/ranking' as Href)} style={styles.back}>
-          <Text style={styles.backLabel}>‹</Text>
+          <CircleMark name="chevronLeft" size={22} />
         </Pressable>
         <View style={styles.headCopy}>
           <Text accessibilityRole="header" style={styles.title}>
@@ -102,12 +104,12 @@ export default function AddFriendsScreen() {
         <View style={styles.back} />
       </View>
       <View style={styles.search}>
-        <Text style={styles.searchMark}>⌕</Text>
+        <CircleMark name="search" size={16} />
         <TextInput
           value={query}
           onChangeText={(value) => void search(value)}
           placeholder="Buscar por nome ou @usuário"
-          placeholderTextColor={ui.faint}
+          placeholderTextColor={palette.faint}
           autoCapitalize="none"
           autoCorrect={false}
           style={styles.input}
@@ -116,7 +118,7 @@ export default function AddFriendsScreen() {
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       <Text style={styles.section}>{query.trim().length >= 2 ? 'RESULTADOS' : 'MEUS AMIGOS'}</Text>
       {loading ? <Text style={styles.notice}>Buscando…</Text> : null}
-      {!loading && results.length === 0 ? <Text style={styles.notice}>Nenhuma pessoa encontrada.</Text> : null}
+      {!loading && !notice && results.length === 0 ? <Text style={styles.notice}>Nenhuma pessoa encontrada.</Text> : null}
       {results.map((person) => {
         const pending = pendingId === person.userId;
         return (
@@ -134,7 +136,8 @@ export default function AddFriendsScreen() {
             disabled={pending}
             onPress={() => void toggle(person)}
             style={[styles.action, person.added && styles.actionOn, pending && styles.actionPending]}>
-            <Text style={[styles.actionLabel, person.added && styles.actionLabelOn]}>{pending ? '…' : person.added ? '✓ Adicionado' : '+ Adicionar'}</Text>
+            {pending ? null : <CircleMark name={person.added ? 'check' : 'plus'} size={13} color={person.added ? palette.text : palette.champagne} />}
+            <Text style={[styles.actionLabel, person.added && styles.actionLabelOn]}>{pending ? '…' : person.added ? 'Adicionado' : 'Adicionar'}</Text>
           </Pressable>
         </View>
         );
@@ -158,17 +161,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backLabel: {
-    color: ui.champagne,
-    fontSize: 28,
-    lineHeight: 30,
-  },
   headCopy: {
     flex: 1,
     alignItems: 'center',
   },
   title: {
-    color: ui.text,
+    color: palette.text,
     fontFamily: fonts.display,
     fontSize: 22,
     lineHeight: 26,
@@ -177,7 +175,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     marginTop: 4,
-    color: ui.champagne,
+    color: palette.champagne,
     fontFamily: fonts.display,
     fontSize: 11,
     letterSpacing: 1.1,
@@ -188,55 +186,56 @@ const styles = StyleSheet.create({
     minHeight: 46,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(232, 201, 155, 0.28)',
+    borderColor: palette.line,
     backgroundColor: '#121212',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     gap: 8,
   },
-  searchMark: {
-    color: ui.champagne,
-    fontSize: 16,
-  },
   input: {
     flex: 1,
     minHeight: 44,
-    color: ui.text,
+    color: palette.text,
     fontFamily: fonts.text,
     fontSize: 14,
   },
   section: {
     marginTop: 18,
-    color: ui.muted,
+    color: palette.muted,
     fontFamily: fonts.display,
     fontSize: 12,
     letterSpacing: 1.2,
   },
   notice: {
     marginTop: 12,
-    color: ui.muted,
+    color: palette.muted,
     fontFamily: fonts.text,
     fontSize: 13,
   },
   row: {
-    minHeight: 64,
+    marginTop: 8,
+    minHeight: 68,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(232, 201, 155, 0.12)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(214, 181, 122, 0.42)',
+    backgroundColor: '#09090B',
+    paddingHorizontal: 10,
+    boxShadow: '0 0 14px rgba(232, 200, 142, 0.08)',
   },
   copy: {
     flex: 1,
   },
   name: {
-    color: ui.text,
+    color: palette.text,
     fontFamily: fonts.textMedium,
     fontSize: 15,
   },
   handle: {
-    color: ui.muted,
+    color: palette.muted,
     fontFamily: fonts.text,
     fontSize: 12,
   },
@@ -245,11 +244,13 @@ const styles = StyleSheet.create({
     minWidth: 112,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: ui.champagne,
+    borderColor: palette.champagne,
     paddingHorizontal: 12,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 0 10px rgba(232, 201, 155, 0.18)',
+    gap: 4,
+    boxShadow: '0 0 10px rgba(232, 200, 142, 0.18)',
   },
   actionOn: {
     borderColor: 'transparent',
@@ -260,11 +261,11 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   actionLabel: {
-    color: ui.champagne,
+    color: palette.champagne,
     fontFamily: fonts.text,
     fontSize: 12,
   },
   actionLabelOn: {
-    color: ui.text,
+    color: palette.text,
   },
 });
