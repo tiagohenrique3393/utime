@@ -23,8 +23,11 @@ export default function AddFriendsScreen() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CirclePerson[]>([]);
   const [notice, setNotice] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const loadFaces = useCallback(async () => {
+    setLoading(true);
     try {
       const faces = await fetchCircleFaces();
       setResults((current) => {
@@ -35,6 +38,8 @@ export default function AddFriendsScreen() {
       });
     } catch (error) {
       setNotice(circleErrorMessage(error as { code?: string; message?: string }));
+    } finally {
+      setLoading(false);
     }
   }, [query]);
 
@@ -50,15 +55,19 @@ export default function AddFriendsScreen() {
       await loadFaces();
       return;
     }
+    setLoading(true);
     try {
       setResults(await searchCircle(value));
       setNotice('');
     } catch (error) {
       setNotice(circleErrorMessage(error as { code?: string; message?: string }));
+    } finally {
+      setLoading(false);
     }
   }
 
   async function toggle(person: CirclePerson) {
+    setPendingId(person.userId);
     try {
       if (person.added) {
         await removeCircleFriend(person.userId);
@@ -69,6 +78,8 @@ export default function AddFriendsScreen() {
       setNotice('');
     } catch (error) {
       setNotice(circleErrorMessage(error as { code?: string; message?: string }));
+    } finally {
+      setPendingId(null);
     }
   }
 
@@ -104,8 +115,11 @@ export default function AddFriendsScreen() {
       </View>
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       <Text style={styles.section}>{query.trim().length >= 2 ? 'RESULTADOS' : 'MEUS AMIGOS'}</Text>
-      {results.length === 0 ? <Text style={styles.notice}>Nenhuma pessoa encontrada.</Text> : null}
-      {results.map((person) => (
+      {loading ? <Text style={styles.notice}>Buscando…</Text> : null}
+      {!loading && results.length === 0 ? <Text style={styles.notice}>Nenhuma pessoa encontrada.</Text> : null}
+      {results.map((person) => {
+        const pending = pendingId === person.userId;
+        return (
         <View key={person.userId} style={styles.row}>
           <CircleAvatar size={40} />
           <View style={styles.copy}>
@@ -114,11 +128,17 @@ export default function AddFriendsScreen() {
             </Text>
             {person.handle ? <Text style={styles.handle}>{`@${person.handle}`}</Text> : null}
           </View>
-          <Pressable accessibilityRole="button" onPress={() => void toggle(person)} style={[styles.action, person.added && styles.actionOn]}>
-            <Text style={[styles.actionLabel, person.added && styles.actionLabelOn]}>{person.added ? 'Adicionado' : '+ Adicionar'}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: pending, selected: person.added === true }}
+            disabled={pending}
+            onPress={() => void toggle(person)}
+            style={[styles.action, person.added && styles.actionOn, pending && styles.actionPending]}>
+            <Text style={[styles.actionLabel, person.added && styles.actionLabelOn]}>{pending ? '…' : person.added ? '✓ Adicionado' : '+ Adicionar'}</Text>
           </Pressable>
         </View>
-      ))}
+        );
+      })}
     </AppScreen>
   );
 }
@@ -222,15 +242,22 @@ const styles = StyleSheet.create({
   },
   action: {
     minHeight: 34,
+    minWidth: 112,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: ui.champagne,
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    boxShadow: '0 0 10px rgba(232, 201, 155, 0.18)',
   },
   actionOn: {
-    backgroundColor: 'rgba(232, 201, 155, 0.12)',
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+    boxShadow: 'none',
+  },
+  actionPending: {
+    opacity: 0.55,
   },
   actionLabel: {
     color: ui.champagne,

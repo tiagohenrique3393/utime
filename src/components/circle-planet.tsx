@@ -23,21 +23,21 @@ function imageUri(mod: unknown) {
 const css = `
 .circle-planet-layer {
   position: absolute;
-  width: 128%;
+  width: 148%;
   height: auto;
-  left: 22%;
-  top: -8%;
+  left: -6%;
+  top: -36%;
   pointer-events: none;
   user-select: none;
-  filter: brightness(0.58) saturate(0.8);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 42%, transparent 72%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 42%, transparent 72%);
+  filter: brightness(0.76) saturate(0.92);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 8%, #000 46%, transparent 76%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 8%, #000 46%, transparent 76%);
 }
 .circle-planet-veil {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(5,5,5,0.28) 0%, rgba(5,5,5,0.62) 26%, #050505 46%);
+  background: linear-gradient(180deg, rgba(5,5,5,0.05) 0%, rgba(5,5,5,0.22) 16%, rgba(5,5,5,0.55) 34%, #050505 52%);
 }
 `;
 
@@ -70,10 +70,10 @@ const styles = StyleSheet.create({
   },
   native: {
     position: 'absolute',
-    width: '130%',
-    height: 220,
-    top: -10,
-    left: '18%',
-    opacity: 0.7,
+    width: '150%',
+    height: 280,
+    top: -78,
+    left: '-8%',
+    opacity: 0.88,
   },
 });
