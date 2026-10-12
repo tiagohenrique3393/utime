@@ -20,24 +20,6 @@ function imageUri(mod: unknown) {
   return '';
 }
 
-function star(context: CanvasRenderingContext2D, x: number, y: number, r: number) {
-  context.beginPath();
-  for (let i = 0; i < 5; i += 1) {
-    const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
-    const ox = x + Math.cos(angle) * r;
-    const oy = y + Math.sin(angle) * r;
-    const inner = angle + Math.PI / 5;
-    if (i === 0) {
-      context.moveTo(ox, oy);
-    } else {
-      context.lineTo(ox, oy);
-    }
-    context.lineTo(x + Math.cos(inner) * r * 0.42, y + Math.sin(inner) * r * 0.42);
-  }
-  context.closePath();
-  context.fill();
-}
-
 function trophy(context: CanvasRenderingContext2D, x: number, y: number, s: number) {
   const color = context.fillStyle;
   context.save();
@@ -133,12 +115,12 @@ function paint(context: CanvasRenderingContext2D, width: number, height: number,
       context.fillStyle = '#E8C88E';
       context.font = '600 32px Manrope, sans-serif';
       context.fillText(`${slot.row.score} PTS`, slot.x + 24, top + 200);
-      context.fillStyle = '#E8C88E';
-      star(context, slot.x + 34, top + 246, 10);
-      context.font = '500 22px Manrope, sans-serif';
-      context.fillText(String(slot.row.podiums ?? 0), slot.x + 54, top + 254);
-      trophy(context, slot.x + 130, top + 246, 22);
-      context.fillText(String(slot.row.firsts ?? 0), slot.x + 156, top + 254);
+      if ((slot.row.podiums ?? 0) > 0) {
+        context.fillStyle = '#E8C88E';
+        trophy(context, slot.x + 36, top + 246, 22);
+        context.font = '500 22px Manrope, sans-serif';
+        context.fillText(String(slot.row.podiums), slot.x + 64, top + 254);
+      }
     });
     listTop = 820;
   }
@@ -159,14 +141,13 @@ function paint(context: CanvasRenderingContext2D, width: number, height: number,
     context.fillText(row.name, 200, top);
     context.fillStyle = '#E8C88E';
     context.fillText(`${row.score}`, 700, top);
-    star(context, 860, top - 8, 8);
-    context.fillStyle = '#F5F2ED';
-    context.font = '500 22px Manrope, sans-serif';
-    context.fillText(String(row.podiums ?? 0), 878, top);
-    context.fillStyle = '#E8C88E';
-    trophy(context, 960, top - 8, 18);
-    context.fillStyle = '#F5F2ED';
-    context.fillText(String(row.firsts ?? 0), 978, top);
+    if ((row.podiums ?? 0) > 0) {
+      context.fillStyle = '#E8C88E';
+      trophy(context, 900, top - 8, 18);
+      context.fillStyle = '#F5F2ED';
+      context.font = '500 22px Manrope, sans-serif';
+      context.fillText(String(row.podiums), 922, top);
+    }
   });
 }
 

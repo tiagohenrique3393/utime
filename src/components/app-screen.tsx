@@ -1,5 +1,5 @@
-import { type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type TextStyle } from 'react-native';
+import { useRef, type ReactNode } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent, type TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
@@ -16,6 +16,7 @@ export function AppScreen({
   navVariant = 'default',
   backgroundColor,
   tight = false,
+  onNearEnd,
 }: {
   children: ReactNode;
   showNav?: boolean;
@@ -24,10 +25,21 @@ export function AppScreen({
   navVariant?: 'default' | 'hoje';
   backgroundColor?: string;
   tight?: boolean;
+  onNearEnd?: () => void;
 }) {
   const window = useWindowDimensions();
   const wide = window.width >= 840;
   const maxWidth = width === 'stage' ? 1120 : width === 'narrow' ? 460 : wide ? 720 : 520;
+  const viewportHeight = useRef(0);
+  const contentHeight = useRef(0);
+  function revealMore() {
+    if (!onNearEnd) {
+      return;
+    }
+    if (contentHeight.current > 0 && viewportHeight.current > 0 && contentHeight.current <= viewportHeight.current + 280) {
+      onNearEnd();
+    }
+  }
 
   return (
     <View style={[styles.screen, backgroundColor ? { backgroundColor } : null]}>
@@ -44,7 +56,26 @@ export function AppScreen({
           style={styles.scroll}
           contentContainerStyle={[styles.content, tight && styles.contentTight, wide && !tight && styles.contentWide]}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={200}
+          onLayout={(event) => {
+            viewportHeight.current = event.nativeEvent.layout.height;
+            revealMore();
+          }}
+          onContentSizeChange={(_width, height) => {
+            contentHeight.current = height;
+            revealMore();
+          }}
+          onScroll={
+            onNearEnd
+              ? (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+                  const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+                  if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 280) {
+                    onNearEnd();
+                  }
+                }
+              : undefined
+          }>
           <View style={[styles.column, { maxWidth }]}>{children}</View>
         </ScrollView>
       </SafeAreaView>

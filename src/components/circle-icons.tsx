@@ -3,7 +3,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 
 import { circlePalette } from '@/components/circle-palette';
 
-type MarkName = 'crown' | 'trophy' | 'star' | 'search' | 'info' | 'plus' | 'share' | 'chevron' | 'chevronLeft' | 'check';
+type MarkName = 'crown' | 'trophy' | 'star' | 'search' | 'info' | 'plus' | 'share' | 'chevron' | 'chevronLeft' | 'check' | 'group';
 
 const stroke = {
   fill: 'none',
@@ -70,6 +70,15 @@ function webMark(name: MarkName, size: number, color: string) {
     body = createElement('path', { d: 'm5 12.5 4.2 4.2L19 7.5', ...common, strokeWidth: 1.8 });
   } else if (name === 'chevronLeft') {
     body = createElement('path', { d: 'm14.5 5-7 7 7 7', ...common, strokeWidth: 1.7 });
+  } else if (name === 'group') {
+    body = [
+      createElement('circle', { key: 'l', cx: 6.4, cy: 9.2, r: 1.7, ...common, strokeWidth: 1.4 }),
+      createElement('path', { key: 'lb', d: 'M3.6 16.2c.4-2 1.4-3 2.8-3s2.4 1 2.8 3', ...common, strokeWidth: 1.4 }),
+      createElement('circle', { key: 'c', cx: 12, cy: 7.6, r: 2, ...common, strokeWidth: 1.4 }),
+      createElement('path', { key: 'cb', d: 'M8.6 16.4c.5-2.5 1.8-3.7 3.4-3.7s2.9 1.2 3.4 3.7', ...common, strokeWidth: 1.4 }),
+      createElement('circle', { key: 'r', cx: 17.6, cy: 9.2, r: 1.7, ...common, strokeWidth: 1.4 }),
+      createElement('path', { key: 'rb', d: 'M14.8 16.2c.4-2 1.4-3 2.8-3s2.4 1 2.8 3', ...common, strokeWidth: 1.4 }),
+    ];
   } else {
     body = createElement('path', { d: 'm9.5 5 7 7-7 7', ...common, strokeWidth: 1.7 });
   }

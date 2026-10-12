@@ -1,3 +1,5 @@
+import type { CircleEntry } from '@/lib/circle-api';
+import { ordinalPlace, podiumSlots, showsPodiumTrophy, visibleRanking } from '@/lib/circle-rank';
 import { periods } from '@/lib/tasks';
 import { todayKey } from '@/lib/habit-day';
 import { suggestedHabits } from '@/lib/suggested-habits';
@@ -143,5 +145,44 @@ assertEqual(periodStart('mes', todayKey(new Date('2026-11-01T02:59:00.000Z'))), 
 assertEqual(periodStart('mes', todayKey(new Date('2026-11-01T03:00:00.000Z'))), '2026-11-01');
 assertEqual(periodStart('ano', todayKey(new Date('2027-01-01T02:59:00.000Z'))), '2026-01-01');
 assertEqual(periodStart('ano', todayKey(new Date('2027-01-01T03:00:00.000Z'))), '2027-01-01');
+
+function place(position: number, userId = String(position), podiums = 0): CircleEntry {
+  return { userId, name: `Pessoa ${position}`, handle: '', score: position, position, podiums, firsts: 0 };
+}
+
+const alone = [place(1, 'sozinho', 1)];
+assertEqual(podiumSlots(alone).first?.userId, 'sozinho');
+assertEqual(podiumSlots(alone).second, null);
+assertEqual(podiumSlots(alone).third, null);
+assertEqual(ordinalPlace(alone[0].position), '1º');
+
+const many = Array.from({ length: 30 }, (_, index) => place(index + 1, index === 29 ? 'eu' : String(index + 1), index === 0 ? 2 : 0));
+assertEqual(podiumSlots(many).first?.position, 1);
+assertEqual(podiumSlots(many).second?.position, 2);
+assertEqual(podiumSlots(many).third?.position, 3);
+assertEqual(podiumSlots(many).first?.userId === 'eu', false);
+assertEqual(ordinalPlace(1), '1º');
+assertEqual(ordinalPlace(2), '2º');
+assertEqual(ordinalPlace(3), '3º');
+assertEqual(ordinalPlace(20), '20º');
+assertEqual(ordinalPlace(30), '30º');
+assertEqual(ordinalPlace(150), '150º');
+assertEqual(showsPodiumTrophy(0), false);
+assertEqual(showsPodiumTrophy(many[0].podiums), true);
+assertEqual(showsPodiumTrophy(many[19].podiums), false);
+
+const firstPage = visibleRanking(many, 20, 'eu');
+assertEqual(firstPage.map((entry) => entry.position).join(','), '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,30');
+assertEqual(firstPage.filter((entry) => entry.position <= 3).length, 3);
+assertEqual(firstPage.filter((entry) => entry.userId === 'eu').length, 1);
+const fullPage = visibleRanking(many, 30, 'eu');
+assertEqual(fullPage.length, 30);
+assertEqual(fullPage.filter((entry) => entry.userId === 'eu').length, 1);
+assertEqual(fullPage.find((entry) => entry.userId === 'eu')?.position, 30);
+
+const secondPlace = [place(1, 'lider'), place(2, 'eu', 1), place(3, 'terceiro')];
+assertEqual(podiumSlots(secondPlace).second?.userId, 'eu');
+assertEqual(podiumSlots(secondPlace).first?.userId, 'lider');
+assertEqual(visibleRanking(secondPlace, 20, 'eu').filter((entry) => entry.userId === 'eu').length, 1);
 
 console.log('circle-ok');

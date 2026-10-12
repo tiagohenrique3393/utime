@@ -1,5 +1,5 @@
 import { router, type Href } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CircleAvatar } from '@/components/circle-avatar';
@@ -8,7 +8,7 @@ import { circlePalette as palette } from '@/components/circle-palette';
 import { fonts } from '@/constants/theme';
 import { BONUS_CAP, DAY_CAP, essentialPoints, essentialSlots, formatCirclePoints, honorLabel, periodLabel, requirementMessage, type CirclePeriod } from '@/lib/circle';
 import type { CircleEntry, CirclePerson, CircleState } from '@/lib/circle-api';
-import { shareRankingImage } from '@/lib/circle-share';
+import { ordinalPlace, podiumSlots, showsPodiumTrophy, visibleRanking } from '@/lib/circle-rank';
 
 const kinds: { id: CirclePeriod; label: string }[] = [
   { id: 'semana', label: 'SEMANA' },
@@ -32,16 +32,15 @@ function PodiumCard({ entry, place, kind }: { entry: CircleEntry; place: 1 | 2 |
         {formatCirclePoints(entry.score)}
         <Text style={styles.podiumPts}> PTS</Text>
       </Text>
-      <View style={styles.honorRow}>
-        <CircleMark name="star" size={13} />
-        <Text style={styles.podiumCount}>{entry.podiums}</Text>
-        <Text style={styles.podiumMeta}>{honorLabel(kind, entry.podiums, 'podium')}</Text>
-      </View>
-      <View style={styles.honorRow}>
-        <CircleMark name="trophy" size={13} />
-        <Text style={styles.podiumCount}>{entry.firsts}</Text>
-        <Text style={styles.podiumMeta}>{honorLabel(kind, entry.firsts, 'first')}</Text>
-      </View>
+      {showsPodiumTrophy(entry.podiums) ? (
+        <View style={styles.honorStack}>
+          <View style={styles.honorLine}>
+            <CircleMark name="trophy" size={14} />
+            <Text style={styles.podiumCount}>{entry.podiums}</Text>
+          </View>
+          <Text style={styles.podiumMeta}>{honorLabel(kind, entry.podiums, 'podium')}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -62,6 +61,7 @@ export function CircleBoard({
   onScope,
   onEnroll,
   onLeave,
+  onBindLoadMore,
 }: {
   userId: string;
   state: CircleState;
@@ -78,17 +78,22 @@ export function CircleBoard({
   onScope: (scope: 'todos' | 'amigos') => void;
   onEnroll: () => void;
   onLeave: () => void;
+  onBindLoadMore?: (loadMore: () => void) => void;
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
-  const [shareNote, setShareNote] = useState('');
+  const [limit, setLimit] = useState(20);
   const atCurrent = start === todayStart;
-  const mine = entries.find((entry) => entry.userId === userId);
-  const first = entries.find((entry) => entry.position === 1);
-  const second = entries.find((entry) => entry.position === 2);
-  const third = entries.find((entry) => entry.position === 3);
-  const podiumIds = new Set([first?.userId, second?.userId, third?.userId].filter((id): id is string => Boolean(id)));
-  const rest = scope === 'todos' ? entries.filter((entry) => !podiumIds.has(entry.userId)) : entries;
+  const { first, second, third } = podiumSlots(entries);
+  const rows = visibleRanking(entries, limit, userId);
   const shownPodium = [second, first, third].filter(Boolean).length;
+  useEffect(() => {
+    setLimit(20);
+  }, [entries, scope, kind, start]);
+  useEffect(() => {
+    onBindLoadMore?.(() => {
+      setLimit((current) => (current < entries.length ? current + 20 : current));
+    });
+  });
 
   return (
     <View>
@@ -178,26 +183,24 @@ export function CircleBoard({
             </View>
           ) : null}
 
-          {entries.length === 0 && !notice ? (
-            <Text style={styles.empty}>{scope === 'amigos' ? 'Nenhum amigo neste período.' : 'Nenhum participante neste período.'}</Text>
-          ) : null}
+          {entries.length === 0 && !notice && scope === 'todos' ? <Text style={styles.empty}>Nenhum participante neste período.</Text> : null}
+          {entries.length === 0 && !notice && scope === 'amigos' && faces.length > 0 ? <Text style={styles.empty}>Nenhum amigo neste período.</Text> : null}
 
-          {rest.length > 0 ? (
+          {rows.length > 0 ? (
             <View style={styles.table}>
               <View style={styles.tableHead}>
                 <Text style={[styles.headText, styles.colPlace]}>POSIÇÃO</Text>
                 <Text style={[styles.headText, styles.colUser]}>USUÁRIO</Text>
                 <Text style={[styles.headText, styles.colScore]}>PONTOS</Text>
                 <Text style={[styles.headText, styles.colHonor]}>PÓDIO</Text>
-                <Text style={[styles.headText, styles.colHonor]}>1º</Text>
               </View>
-              {rest.map((entry) => {
-                const leader = scope === 'amigos' && entry.position === 1;
+              {rows.map((entry) => {
+                const self = entry.userId === userId;
                 return (
-                  <View key={entry.userId} style={[styles.tableRow, leader && styles.tableLeader, entry.userId === userId && styles.tableSelf]}>
+                  <View key={entry.userId} style={[styles.tableRow, self && styles.tableSelf]}>
                     <View style={[styles.placeCell, styles.colPlace]}>
-                      {leader ? <CircleMark name="crown" size={12} /> : null}
-                      <Text style={[styles.place, leader && styles.placeLeader]}>{entry.position}</Text>
+                      {entry.position === 1 ? <CircleMark name="crown" size={13} /> : null}
+                      <Text style={[styles.place, self && styles.placeSelf]}>{ordinalPlace(entry.position)}</Text>
                     </View>
                     <View style={[styles.user, styles.colUser]}>
                       <CircleAvatar size={28} />
@@ -205,14 +208,14 @@ export function CircleBoard({
                         {entry.name}
                       </Text>
                     </View>
-                    <Text style={[styles.points, styles.colScore, leader && styles.pointsLeader]}>{formatCirclePoints(entry.score)}</Text>
+                    <Text style={[styles.points, styles.colScore, self && styles.pointsSelf]}>{`${formatCirclePoints(entry.score)} PTS`}</Text>
                     <View style={[styles.honor, styles.colHonor]}>
-                      <CircleMark name="star" size={11} />
-                      <Text style={styles.honorValue}>{entry.podiums}</Text>
-                    </View>
-                    <View style={[styles.honor, styles.colHonor]}>
-                      <CircleMark name="trophy" size={11} />
-                      <Text style={styles.honorValue}>{entry.firsts}</Text>
+                      {showsPodiumTrophy(entry.podiums) ? (
+                        <>
+                          <CircleMark name="trophy" size={13} />
+                          <Text style={styles.honorValue}>{entry.podiums}</Text>
+                        </>
+                      ) : null}
                     </View>
                   </View>
                 );
@@ -221,66 +224,27 @@ export function CircleBoard({
           ) : null}
 
           {scope === 'amigos' ? (
-            <>
-              <View style={styles.friendsCard}>
-                <View style={styles.friendsHead}>
-                  <Text style={styles.cardTitle}>MEUS AMIGOS NO RANKING</Text>
+            <View style={styles.friendsCard}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Adicionar amigos" onPress={() => router.push('/circulo-amigos' as Href)} style={styles.friendsHead}>
+                <Text style={styles.cardTitle}>MEUS AMIGOS NO RANKING</Text>
+                <View style={styles.friendsCountWrap}>
                   <Text style={styles.friendsCount}>{faces.length}</Text>
+                  <CircleMark name="chevron" size={16} />
                 </View>
-                <View style={styles.faces}>
-                  {faces.slice(0, 4).map((face) => (
-                    <CircleAvatar key={face.userId} size={36} />
-                  ))}
-                  {faces.length === 0 ? <Text style={styles.cardNote}>Nenhum amigo confirmado.</Text> : null}
-                  <Pressable accessibilityRole="button" accessibilityLabel="Adicionar amigos" onPress={() => router.push('/circulo-amigos' as Href)} style={styles.addFaceWrap}>
-                    <View style={styles.addFace}>
-                      <CircleMark name="plus" size={16} />
-                    </View>
-                    <Text style={styles.addFaceCaption}>Adicionar amigos</Text>
-                  </Pressable>
-                </View>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  const saved = shareRankingImage(
-                    periodLabel(kind, start),
-                    entries.map((entry) => ({
-                      position: entry.position,
-                      name: entry.name,
-                      score: formatCirclePoints(entry.score),
-                      podiums: entry.podiums,
-                      firsts: entry.firsts,
-                    })),
-                  );
-                  setShareNote(saved ? '' : 'A imagem do ranking é gerada na versão web.');
-                }}
-                style={styles.shareCard}>
-                <CircleMark name="share" size={22} />
-                <View style={styles.shareCopy}>
-                  <Text style={styles.cardTitle}>COMPARTILHAR RANKING</Text>
-                  <Text style={styles.cardNote}>Gere uma imagem para compartilhar o seu ranking de amigos.</Text>
-                </View>
-                <CircleMark name="chevron" size={18} />
               </Pressable>
-              {shareNote ? <Text style={styles.notice}>{shareNote}</Text> : null}
-            </>
-          ) : null}
-
-          {mine ? (
-            <View style={styles.mine}>
-              <View>
-                <Text style={styles.mineLabel}>MINHA POSIÇÃO</Text>
-                <Text style={styles.mineValue}>{mine.position}º</Text>
+              <View style={styles.friendsBody}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Adicionar amigos" onPress={() => router.push('/circulo-amigos' as Href)} style={styles.addSide}>
+                  <View style={styles.addFace}>
+                    <CircleMark name="plus" size={16} />
+                  </View>
+                  <Text style={styles.addFaceCaption}>Adicionar amigos</Text>
+                </Pressable>
+                <View style={styles.friendsDivider} />
+                <View style={styles.inviteSide}>
+                  <CircleMark name="group" size={34} />
+                  <Text style={styles.cardNote}>Convide amigos para competir e evoluir juntos.</Text>
+                </View>
               </View>
-              <CircleAvatar size={42} glow />
-              <View style={styles.mineCopy}>
-                <Text numberOfLines={1} style={styles.mineName}>
-                  {mine.name}
-                </Text>
-              </View>
-              <Text style={styles.mineScore}>{formatCirclePoints(mine.score)} PTS</Text>
-              <CircleMark name="chevron" size={16} />
             </View>
           ) : null}
           <Pressable accessibilityRole="button" onPress={onLeave} style={styles.leave}>
@@ -360,28 +324,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   notice: { marginTop: 12, color: palette.muted, fontFamily: fonts.text, fontSize: 13, lineHeight: 18 },
-  podiumRow: { marginTop: 18, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 8 },
-  podiumSparse: { gap: 12 },
+  podiumRow: { marginTop: 16, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center' },
+  podiumSparse: { gap: 10 },
   podium: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    maxWidth: 176,
-    borderRadius: 18,
+    width: '31%',
+    maxWidth: 136,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: palette.line,
-    backgroundColor: palette.surface,
+    borderColor: 'rgba(214, 181, 122, 0.22)',
+    backgroundColor: 'rgba(8, 8, 10, 0.72)',
     alignItems: 'center',
     paddingHorizontal: 6,
-    paddingTop: 10,
-    paddingBottom: 12,
+    paddingTop: 12,
+    paddingBottom: 14,
   },
   podiumFirst: {
+    width: '38%',
+    maxWidth: 168,
+    zIndex: 2,
+    marginHorizontal: -6,
     borderColor: palette.champagne,
     backgroundColor: '#100e0b',
     paddingTop: 14,
     paddingBottom: 16,
-    boxShadow: '0 0 22px rgba(232, 200, 142, 0.32)',
+    boxShadow: '0 0 22px rgba(232, 200, 142, 0.34)',
   },
   podiumPlace: { color: palette.champagne, fontFamily: fonts.display, fontSize: 18, lineHeight: 20 },
   podiumPlaceFirst: { fontSize: 22 },
@@ -397,83 +363,57 @@ const styles = StyleSheet.create({
   podiumScore: { marginTop: 2, color: palette.champagne, fontFamily: fonts.textMedium, fontSize: 16 },
   podiumScoreFirst: { fontSize: 20 },
   podiumPts: { fontSize: 11, letterSpacing: 0.4 },
-  honorRow: { marginTop: 6, width: '100%', flexDirection: 'row', alignItems: 'center', gap: 4 },
-  podiumCount: { color: palette.champagne, fontFamily: fonts.textMedium, fontSize: 13, minWidth: 12 },
-  podiumMeta: { flex: 1, color: palette.muted, fontFamily: fonts.display, fontSize: 8, lineHeight: 10, letterSpacing: 0.2 },
+  honorStack: { marginTop: 8, alignItems: 'center', gap: 2 },
+  honorLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  podiumCount: { color: palette.champagne, fontFamily: fonts.textMedium, fontSize: 13 },
+  podiumMeta: { color: palette.muted, fontFamily: fonts.display, fontSize: 8, lineHeight: 10, letterSpacing: 0.3, textAlign: 'center' },
   empty: { marginTop: 22, color: palette.muted, fontFamily: fonts.text, fontSize: 14 },
   table: { marginTop: 16 },
   tableHead: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8 },
   headText: { color: palette.faint, fontFamily: fonts.display, fontSize: 10, letterSpacing: 0.6 },
-  tableRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: 'rgba(214, 181, 122, 0.14)' },
-  tableSelf: { borderTopColor: 'rgba(232, 200, 142, 0.4)' },
-  tableLeader: {
+  tableRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: 'rgba(214, 181, 122, 0.12)' },
+  tableSelf: {
     borderWidth: 1,
     borderColor: palette.lineStrong,
-    borderRadius: 12,
-    backgroundColor: 'rgba(232, 200, 142, 0.06)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(232, 200, 142, 0.05)',
     marginVertical: 4,
-    paddingHorizontal: 6,
-    boxShadow: '0 0 12px rgba(232, 200, 142, 0.14)',
+    paddingHorizontal: 8,
+    boxShadow: '0 0 14px rgba(232, 200, 142, 0.16)',
   },
-  colPlace: { width: 52 },
+  colPlace: { width: 54 },
   colUser: { flex: 1 },
-  colScore: { width: 48, textAlign: 'right' },
-  colHonor: { width: 46, alignItems: 'center', textAlign: 'center' },
+  colScore: { width: 72, textAlign: 'right' },
+  colHonor: { width: 52, alignItems: 'center', textAlign: 'center' },
   placeCell: { alignItems: 'center', justifyContent: 'center' },
-  place: { color: palette.champagne, fontFamily: fonts.textMedium, fontSize: 14 },
-  placeLeader: { fontSize: 16 },
+  place: { color: palette.text, fontFamily: fonts.textMedium, fontSize: 16 },
+  placeSelf: { color: palette.champagne },
   user: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   userName: { flex: 1, color: palette.text, fontFamily: fonts.text, fontSize: 13 },
   points: { color: palette.text, fontFamily: fonts.textMedium, fontSize: 13 },
-  pointsLeader: { color: palette.champagne },
+  pointsSelf: { color: palette.champagne },
   honor: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 3 },
   honorValue: { color: palette.text, fontFamily: fonts.text, fontSize: 12 },
-  friendsCard: { marginTop: 16, borderRadius: 16, borderWidth: 1, borderColor: palette.line, padding: 14, gap: 10 },
+  friendsCard: { marginTop: 14, borderRadius: 16, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 14, paddingVertical: 12, gap: 12 },
   friendsHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  friendsCount: { color: palette.text, fontFamily: fonts.textMedium, fontSize: 22 },
-  faces: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  addFaceWrap: { width: 72, alignItems: 'center', gap: 4 },
+  friendsCountWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  friendsCount: { color: palette.text, fontFamily: fonts.textMedium, fontSize: 20 },
+  friendsBody: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  addSide: { width: 108, alignItems: 'center', gap: 6 },
   addFace: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 1,
     borderColor: palette.champagne,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addFaceCaption: { color: palette.muted, fontFamily: fonts.text, fontSize: 9, lineHeight: 11, textAlign: 'center' },
-  cardTitle: { color: palette.champagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 0.8 },
-  cardNote: { color: palette.muted, fontFamily: fonts.text, fontSize: 12, lineHeight: 16 },
-  shareCard: {
-    marginTop: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.lineStrong,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    boxShadow: '0 0 16px rgba(232, 200, 142, 0.12)',
-  },
-  shareCopy: { flex: 1, gap: 2 },
-  mine: {
-    marginTop: 16,
-    minHeight: 74,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.champagne,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    boxShadow: '0 0 16px rgba(232, 200, 142, 0.16)',
-  },
-  mineLabel: { color: palette.champagne, fontFamily: fonts.display, fontSize: 10, letterSpacing: 0.8 },
-  mineValue: { color: palette.text, fontFamily: fonts.textMedium, fontSize: 22 },
-  mineCopy: { flex: 1 },
-  mineName: { color: palette.text, fontFamily: fonts.textMedium, fontSize: 13, textTransform: 'uppercase' },
-  mineScore: { color: palette.champagne, fontFamily: fonts.textMedium, fontSize: 13 },
+  addFaceCaption: { color: palette.muted, fontFamily: fonts.text, fontSize: 11, lineHeight: 14, textAlign: 'center' },
+  friendsDivider: { width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(214, 181, 122, 0.2)' },
+  inviteSide: { flex: 1, alignItems: 'center', gap: 6, paddingHorizontal: 4 },
+  cardTitle: { flex: 1, color: palette.champagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 0.6 },
+  cardNote: { color: palette.muted, fontFamily: fonts.text, fontSize: 12, lineHeight: 16, textAlign: 'center' },
   leave: { marginTop: 12, minHeight: 36, justifyContent: 'center' },
   leaveLabel: { color: palette.muted, fontFamily: fonts.text, fontSize: 12 },
   join: { marginTop: 28, gap: 12 },

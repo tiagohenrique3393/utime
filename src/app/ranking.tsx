@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -37,6 +37,7 @@ export default function CircleScreen() {
   const [faces, setFaces] = useState<CirclePerson[]>([]);
   const [notice, setNotice] = useState('');
   const [confirmingLeave, setConfirmingLeave] = useState(false);
+  const loadMore = useRef<() => void>(() => undefined);
 
   const load = useCallback(async (nextKind: CirclePeriod, nextStart: string, nextScope: 'todos' | 'amigos') => {
     const today = todayKey();
@@ -110,7 +111,7 @@ export default function CircleScreen() {
   const todayStart = start ? periodStart(kind, today) : '';
 
   return (
-    <AppScreen width="narrow" backgroundColor={page} backdrop={<CirclePlanet />}>
+    <AppScreen width="narrow" backgroundColor={page} backdrop={<CirclePlanet footing={scope === 'amigos'} />} onNearEnd={() => loadMore.current()}>
       {mode === 'loading' ? <Text style={{ marginTop: 28, color: ui.muted, fontFamily: fonts.text }}>Carregando o Círculo.</Text> : null}
       {mode === 'circle' && start ? (
         <CircleBoard
@@ -143,6 +144,9 @@ export default function CircleScreen() {
           }}
           onEnroll={() => void enroll()}
           onLeave={() => void leave()}
+          onBindLoadMore={(next) => {
+            loadMore.current = next;
+          }}
         />
       ) : null}
     </AppScreen>
