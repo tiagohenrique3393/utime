@@ -2,7 +2,7 @@ import { router, useFocusEffect, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { AppScreen, TextButton } from '@/components/app-screen';
+import { AppScreen } from '@/components/app-screen';
 import { CircleAvatar } from '@/components/circle-avatar';
 import { CirclePlanet } from '@/components/circle-planet';
 import { fonts, ui } from '@/constants/theme';
@@ -78,20 +78,30 @@ export default function AddFriendsScreen() {
 
   return (
     <AppScreen width="narrow" backgroundColor={page} backdrop={<CirclePlanet />}>
-      <TextButton label="Ranking" onPress={() => router.replace('/ranking' as Href)} />
-      <Text accessibilityRole="header" style={styles.title}>
-        ADICIONAR AMIGOS
-      </Text>
-      <Text style={styles.subtitle}>BUSQUE USUÁRIOS NO RANKING</Text>
-      <TextInput
-        value={query}
-        onChangeText={(value) => void search(value)}
-        placeholder="Buscar por nome ou @usuário"
-        placeholderTextColor={ui.faint}
-        autoCapitalize="none"
-        autoCorrect={false}
-        style={styles.input}
-      />
+      <View style={styles.head}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Voltar ao ranking" onPress={() => router.replace('/ranking' as Href)} style={styles.back}>
+          <Text style={styles.backLabel}>‹</Text>
+        </Pressable>
+        <View style={styles.headCopy}>
+          <Text accessibilityRole="header" style={styles.title}>
+            ADICIONAR AMIGOS
+          </Text>
+          <Text style={styles.subtitle}>BUSQUE USUÁRIOS NO RANKING</Text>
+        </View>
+        <View style={styles.back} />
+      </View>
+      <View style={styles.search}>
+        <Text style={styles.searchMark}>⌕</Text>
+        <TextInput
+          value={query}
+          onChangeText={(value) => void search(value)}
+          placeholder="Buscar por nome ou @usuário"
+          placeholderTextColor={ui.faint}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.input}
+        />
+      </View>
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       <Text style={styles.section}>{query.trim().length >= 2 ? 'RESULTADOS' : 'MEUS AMIGOS'}</Text>
       {results.length === 0 ? <Text style={styles.notice}>Nenhuma pessoa encontrada.</Text> : null}
@@ -118,31 +128,63 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: page,
   },
+  head: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  back: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backLabel: {
+    color: ui.champagne,
+    fontSize: 28,
+    lineHeight: 30,
+  },
+  headCopy: {
+    flex: 1,
+    alignItems: 'center',
+  },
   title: {
-    marginTop: 8,
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 22,
+    lineHeight: 26,
     letterSpacing: 0.8,
+    textAlign: 'center',
   },
   subtitle: {
     marginTop: 4,
     color: ui.champagne,
     fontFamily: fonts.display,
-    fontSize: 12,
-    letterSpacing: 1.4,
+    fontSize: 11,
+    letterSpacing: 1.1,
+    textAlign: 'center',
   },
-  input: {
-    marginTop: 18,
+  search: {
+    marginTop: 16,
     minHeight: 46,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(232, 201, 155, 0.35)',
+    borderColor: 'rgba(232, 201, 155, 0.28)',
+    backgroundColor: '#121212',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  searchMark: {
+    color: ui.champagne,
+    fontSize: 16,
+  },
+  input: {
+    flex: 1,
+    minHeight: 44,
     color: ui.text,
     fontFamily: fonts.text,
     fontSize: 14,
-    paddingHorizontal: 14,
   },
   section: {
     marginTop: 18,

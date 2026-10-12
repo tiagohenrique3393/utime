@@ -29,7 +29,7 @@ const css = `
   top: -8%;
   pointer-events: none;
   user-select: none;
-  filter: brightness(0.72) saturate(0.85);
+  filter: brightness(0.58) saturate(0.8);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 42%, transparent 72%);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 42%, transparent 72%);
 }
@@ -37,7 +37,7 @@ const css = `
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(5,5,5,0.2) 0%, rgba(5,5,5,0.55) 28%, #050505 48%);
+  background: linear-gradient(180deg, rgba(5,5,5,0.28) 0%, rgba(5,5,5,0.62) 26%, #050505 46%);
 }
 `;
 

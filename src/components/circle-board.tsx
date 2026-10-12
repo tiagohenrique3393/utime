@@ -21,14 +21,17 @@ function Crown() {
 function PodiumCard({ entry, place, kind }: { entry: CircleEntry; place: 1 | 2 | 3; kind: CirclePeriod }) {
   return (
     <View style={[styles.podium, place === 1 && styles.podiumFirst]}>
+      <Text style={[styles.podiumPlace, place === 1 && styles.podiumPlaceFirst]}>{place}º</Text>
       {place === 1 ? <Crown /> : null}
-      <CircleAvatar size={place === 1 ? 54 : 42} />
+      <CircleAvatar size={place === 1 ? 52 : 40} />
       <Text numberOfLines={2} style={styles.podiumName}>
         {entry.name}
       </Text>
       <Text style={styles.podiumScore}>{formatCirclePoints(entry.score)} PTS</Text>
-      <Text style={styles.podiumMeta}>{`${entry.podiums} ${honorLabel(kind, entry.podiums, 'podium')}`}</Text>
-      <Text style={styles.podiumMeta}>{`${entry.firsts} ${honorLabel(kind, entry.firsts, 'first')}`}</Text>
+      <Text style={styles.podiumCount}>{entry.podiums}</Text>
+      <Text style={styles.podiumMeta}>{honorLabel(kind, entry.podiums, 'podium')}</Text>
+      <Text style={styles.podiumCount}>{entry.firsts}</Text>
+      <Text style={styles.podiumMeta}>{honorLabel(kind, entry.firsts, 'first')}</Text>
     </View>
   );
 }
@@ -84,7 +87,7 @@ export function CircleBoard({
           <Text style={styles.subtitle}>DISCIPLINA CONECTA PESSOAS</Text>
         </View>
         <View style={styles.premium}>
-          <Crown />
+          <Text style={styles.premiumCrown}>♛</Text>
           <Text style={styles.premiumLabel}>PREMIUM</Text>
         </View>
       </View>
@@ -132,12 +135,14 @@ export function CircleBoard({
             </Pressable>
           </View>
           <View style={styles.filters}>
-            <Pressable accessibilityRole="button" accessibilityState={{ selected: scope === 'todos' }} onPress={() => onScope('todos')} style={[styles.filter, scope === 'todos' && styles.filterOn]}>
-              <Text style={[styles.filterLabel, scope === 'todos' && styles.filterLabelOn]}>TODOS</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityState={{ selected: scope === 'amigos' }} onPress={() => onScope('amigos')} style={[styles.filter, scope === 'amigos' && styles.filterOn]}>
-              <Text style={[styles.filterLabel, scope === 'amigos' && styles.filterLabelOn]}>AMIGOS</Text>
-            </Pressable>
+            <View style={styles.scopeTabs}>
+              <Pressable accessibilityRole="button" accessibilityState={{ selected: scope === 'todos' }} onPress={() => onScope('todos')} style={[styles.filter, scope === 'todos' && styles.filterOn]}>
+                <Text style={[styles.filterLabel, scope === 'todos' && styles.filterLabelOn]}>TODOS</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityState={{ selected: scope === 'amigos' }} onPress={() => onScope('amigos')} style={[styles.filter, scope === 'amigos' && styles.filterOn]}>
+                <Text style={[styles.filterLabel, scope === 'amigos' && styles.filterLabelOn]}>AMIGOS</Text>
+              </Pressable>
+            </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Adicionar amigos" onPress={() => router.push('/circulo-amigos' as Href)} style={styles.search}>
               <Text style={styles.searchLabel}>⌕</Text>
             </Pressable>
@@ -163,9 +168,11 @@ export function CircleBoard({
                 <Text style={[styles.headText, styles.colHonor]}>PÓDIO</Text>
                 <Text style={[styles.headText, styles.colHonor]}>1º</Text>
               </View>
-              {rest.map((entry) => (
-                <View key={entry.userId} style={[styles.tableRow, entry.userId === userId && styles.tableSelf]}>
-                  <Text style={[styles.place, styles.colPlace]}>{entry.position}</Text>
+              {rest.map((entry) => {
+                const leader = scope === 'amigos' && entry.position === 1;
+                return (
+                <View key={entry.userId} style={[styles.tableRow, leader && styles.tableLeader, entry.userId === userId && styles.tableSelf]}>
+                  <Text style={[styles.place, styles.colPlace]}>{leader ? '♛ ' : ''}{entry.position}</Text>
                   <View style={[styles.user, styles.colUser]}>
                     <CircleAvatar size={28} />
                     <Text numberOfLines={1} style={styles.userName}>
@@ -182,7 +189,8 @@ export function CircleBoard({
                     <Text style={styles.honorValue}>{entry.firsts}</Text>
                   </View>
                 </View>
-              ))}
+                );
+              })}
             </View>
           ) : null}
 
@@ -197,11 +205,13 @@ export function CircleBoard({
                   {faces.slice(0, 5).map((face) => (
                     <CircleAvatar key={face.userId} size={36} />
                   ))}
-                  <Pressable accessibilityRole="button" accessibilityLabel="Adicionar amigos" onPress={() => router.push('/circulo-amigos' as Href)} style={styles.addFace}>
-                    <Text style={styles.addFaceLabel}>+</Text>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Adicionar amigos" onPress={() => router.push('/circulo-amigos' as Href)} style={styles.addFaceWrap}>
+                    <View style={styles.addFace}>
+                      <Text style={styles.addFaceLabel}>+</Text>
+                    </View>
+                    <Text style={styles.addFaceCaption}>Adicionar amigos</Text>
                   </Pressable>
                 </View>
-                <Text style={styles.cardNote}>Adicionar amigos</Text>
               </View>
               <Pressable
                 accessibilityRole="button"
@@ -212,8 +222,12 @@ export function CircleBoard({
                   )
                 }
                 style={styles.shareCard}>
-                <Text style={styles.cardTitle}>COMPARTILHAR RANKING</Text>
-                <Text style={styles.cardNote}>Gere uma imagem com os nomes e os pontos exibidos.</Text>
+                <Text style={styles.shareMark}>⌁</Text>
+                <View style={styles.shareCopy}>
+                  <Text style={styles.cardTitle}>COMPARTILHAR RANKING</Text>
+                  <Text style={styles.cardNote}>Gere uma imagem com os nomes e os pontos exibidos.</Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
               </Pressable>
             </>
           ) : null}
@@ -229,8 +243,8 @@ export function CircleBoard({
                 <Text numberOfLines={1} style={styles.mineName}>
                   {mine.name}
                 </Text>
-                <Text style={styles.mineScore}>{formatCirclePoints(mine.score)} PTS</Text>
               </View>
+              <Text style={styles.mineScore}>{formatCirclePoints(mine.score)} PTS</Text>
             </View>
           ) : null}
           <Pressable accessibilityRole="button" onPress={onLeave} style={styles.leave}>
@@ -269,18 +283,22 @@ const styles = StyleSheet.create({
   premium: {
     minHeight: 28,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: ui.champagne,
-    paddingHorizontal: 8,
+    backgroundColor: ui.champagne,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
+  premiumCrown: {
+    color: ui.ink,
+    fontSize: 11,
+    lineHeight: 14,
+  },
   premiumLabel: {
-    color: ui.champagne,
+    color: ui.ink,
     fontFamily: fonts.display,
     fontSize: 11,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   crown: {
     color: ui.champagne,
@@ -302,13 +320,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   segmentOn: {
-    backgroundColor: 'rgba(232, 201, 155, 0.14)',
+    margin: 3,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(232, 201, 155, 0.55)',
+    backgroundColor: '#161616',
   },
   segmentLabel: {
-    color: ui.muted,
+    color: '#B7B2AA',
     fontFamily: fonts.display,
     fontSize: 13,
-    letterSpacing: 1.2,
+    letterSpacing: 1,
   },
   segmentLabelOn: {
     color: ui.champagne,
@@ -343,25 +365,35 @@ const styles = StyleSheet.create({
   filters: {
     marginTop: 8,
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+  },
+  scopeTabs: {
+    flex: 1,
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(232, 201, 155, 0.28)',
+    overflow: 'hidden',
   },
   filter: {
     flex: 1,
     minHeight: 36,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(232, 201, 155, 0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterOn: {
-    borderColor: ui.champagne,
+    margin: 3,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(232, 201, 155, 0.55)',
+    backgroundColor: '#161616',
   },
   filterLabel: {
-    color: ui.muted,
+    color: '#B7B2AA',
     fontFamily: fonts.display,
     fontSize: 13,
-    letterSpacing: 1.1,
+    letterSpacing: 1,
   },
   filterLabelOn: {
     color: ui.champagne,
@@ -394,19 +426,35 @@ const styles = StyleSheet.create({
   },
   podium: {
     flex: 1,
-    minHeight: 168,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(232, 201, 155, 0.28)',
     backgroundColor: 'rgba(8, 8, 8, 0.92)',
     alignItems: 'center',
     paddingHorizontal: 6,
-    paddingVertical: 12,
-    gap: 4,
+    paddingTop: 10,
+    paddingBottom: 12,
+    gap: 2,
   },
   podiumFirst: {
-    minHeight: 210,
-    borderColor: ui.champagne,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderColor: 'rgba(232, 201, 155, 0.72)',
+  },
+  podiumPlace: {
+    color: ui.champagne,
+    fontFamily: fonts.display,
+    fontSize: 16,
+    lineHeight: 18,
+  },
+  podiumPlaceFirst: {
+    fontSize: 18,
+  },
+  podiumCount: {
+    marginTop: 4,
+    color: ui.champagne,
+    fontFamily: fonts.textMedium,
+    fontSize: 12,
   },
   podiumGap: {
     flex: 1,
@@ -425,9 +473,10 @@ const styles = StyleSheet.create({
   },
   podiumMeta: {
     color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 8,
-    letterSpacing: 0.4,
+    fontFamily: fonts.display,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.3,
     textAlign: 'center',
   },
   empty: {
@@ -459,6 +508,9 @@ const styles = StyleSheet.create({
   },
   tableSelf: {
     borderTopColor: 'rgba(232, 201, 155, 0.4)',
+  },
+  tableLeader: {
+    backgroundColor: 'rgba(232, 201, 155, 0.06)',
   },
   colPlace: {
     width: 42,
@@ -522,14 +574,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   friendsCount: {
-    color: ui.champagne,
+    color: ui.text,
     fontFamily: fonts.textMedium,
-    fontSize: 16,
+    fontSize: 22,
   },
   faces: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  addFaceWrap: {
+    width: 72,
+    alignItems: 'center',
+    gap: 4,
   },
   addFace: {
     width: 36,
@@ -539,6 +596,13 @@ const styles = StyleSheet.create({
     borderColor: ui.champagne,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  addFaceCaption: {
+    color: ui.muted,
+    fontFamily: fonts.text,
+    fontSize: 9,
+    lineHeight: 11,
+    textAlign: 'center',
   },
   addFaceLabel: {
     color: ui.champagne,
@@ -562,9 +626,25 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(232, 201, 155, 0.45)',
+    borderColor: 'rgba(232, 201, 155, 0.4)',
     padding: 14,
-    gap: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  shareMark: {
+    color: ui.champagne,
+    fontFamily: fonts.textMedium,
+    fontSize: 18,
+  },
+  shareCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  chevron: {
+    color: ui.champagne,
+    fontSize: 22,
+    lineHeight: 24,
   },
   mine: {
     marginTop: 16,
@@ -593,14 +673,13 @@ const styles = StyleSheet.create({
   },
   mineName: {
     color: ui.text,
-    fontFamily: fonts.display,
-    fontSize: 16,
-    letterSpacing: 0.6,
+    fontFamily: fonts.textMedium,
+    fontSize: 14,
   },
   mineScore: {
     color: ui.champagne,
     fontFamily: fonts.textMedium,
-    fontSize: 13,
+    fontSize: 14,
   },
   leave: {
     marginTop: 12,

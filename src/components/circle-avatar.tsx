@@ -8,18 +8,18 @@ export function CircleAvatar({ size = 36 }: { size?: number }) {
           width: size * 0.28,
           height: size * 0.28,
           borderRadius: size,
-          backgroundColor: '#E8C99B',
+          backgroundColor: '#14120F',
           marginTop: size * 0.16,
         }}
       />
       <View
         style={{
-          width: size * 0.48,
-          height: size * 0.2,
+          width: size * 0.5,
+          height: size * 0.22,
           borderTopLeftRadius: size,
           borderTopRightRadius: size,
-          backgroundColor: '#E8C99B',
-          marginTop: size * 0.06,
+          backgroundColor: '#14120F',
+          marginTop: size * 0.05,
         }}
       />
     </View>
@@ -30,8 +30,8 @@ const styles = StyleSheet.create({
   ring: {
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(232, 201, 155, 0.75)',
-    backgroundColor: '#070707',
+    borderColor: 'rgba(232, 201, 155, 0.7)',
+    backgroundColor: '#0C0B0A',
     overflow: 'hidden',
   },
 });
