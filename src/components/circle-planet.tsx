@@ -23,35 +23,37 @@ function imageUri(mod: unknown) {
 const css = `
 .circle-planet-layer {
   position: absolute;
-  width: 156%;
-  height: auto;
-  left: -16%;
-  top: -18%;
+  height: 175%;
+  width: auto;
+  max-width: none;
+  left: 92%;
+  top: -52%;
+  transform: translateX(-50%);
   pointer-events: none;
   user-select: none;
-  filter: brightness(0.72) saturate(0.9);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 6%, #000 62%, transparent 96%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 6%, #000 62%, transparent 96%);
+  filter: brightness(0.46) saturate(0.74);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 72%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 72%, transparent 100%);
 }
 .circle-planet-veil {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(5,5,5,0.08) 0%, rgba(5,5,5,0.18) 24%, rgba(5,5,5,0.62) 62%, #050505 88%);
+  background: linear-gradient(180deg, rgba(5,5,5,0.34) 0%, rgba(5,5,5,0.08) 14%, rgba(5,5,5,0.2) 42%, rgba(5,5,5,0.78) 76%, #050505 100%);
 }
 .circle-planet-foot {
   position: absolute;
-  width: 150%;
-  height: 280px;
-  left: -25%;
-  bottom: 0;
-  object-fit: cover;
-  object-position: center 68%;
+  height: 150%;
+  width: auto;
+  max-width: none;
+  left: 48%;
+  bottom: -46%;
+  transform: translateX(-50%);
   pointer-events: none;
   user-select: none;
-  filter: brightness(0.42) saturate(0.75);
-  mask-image: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 42%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 42%, transparent 100%);
+  filter: brightness(0.3) saturate(0.55) contrast(1.2);
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.4) 28%, transparent 58%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.4) 28%, transparent 58%);
 }
 `;
 
@@ -89,29 +91,30 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     left: 0,
-    height: 460,
+    height: '78%',
     overflow: 'hidden',
   },
   native: {
     position: 'absolute',
-    width: '156%',
-    height: 460,
-    top: -36,
-    left: '-16%',
-    opacity: 0.88,
+    width: '190%',
+    height: '175%',
+    top: '-46%',
+    left: '-12%',
+    opacity: 0.86,
   },
   foot: {
     position: 'absolute',
     right: 0,
     bottom: 0,
     left: 0,
-    height: 240,
+    height: '42%',
     overflow: 'hidden',
   },
   footImage: {
-    width: '150%',
-    height: 280,
-    marginLeft: '-25%',
-    opacity: 0.5,
+    width: '170%',
+    height: '160%',
+    marginLeft: '-32%',
+    marginTop: '-20%',
+    opacity: 0.55,
   },
 });
