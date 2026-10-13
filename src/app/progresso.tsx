@@ -621,7 +621,7 @@ const styles = StyleSheet.create({
     backgroundColor: page,
   },
   brand: {
-    color: '#E6C14A',
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 11,
     lineHeight: 13,
@@ -664,7 +664,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   premium: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 8,
     lineHeight: 10,
@@ -750,7 +750,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   premiumBadgeText: {
-    color: '#E6C14A',
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 8,
     lineHeight: 10,
@@ -832,7 +832,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   pillarNameTight: {
-    color: '#E6C14A',
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 10,
     lineHeight: 12,
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   pillarPercentTight: {
-    color: '#F3D56A',
+    color: ui.textChampagne,
     fontFamily: fonts.textMedium,
     fontSize: 15,
     lineHeight: 18,
@@ -873,14 +873,14 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   habitCardName: {
-    color: '#E6C14A',
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 11,
     lineHeight: 14,
     textTransform: 'uppercase',
   },
   habitCardPercent: {
-    color: '#F3D56A',
+    color: ui.textChampagne,
     fontFamily: fonts.textMedium,
     fontSize: 14,
     lineHeight: 18,
@@ -1061,7 +1061,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(8,8,8,0.55)',
   },
   pillarLetter: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 16,
   },
@@ -1072,7 +1072,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   pillarLabel: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 11,
     lineHeight: 14,
@@ -1081,7 +1081,7 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: 26,
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 13,
     lineHeight: 16,
@@ -1109,7 +1109,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   habitPercent: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.textMedium,
     fontSize: 14,
     lineHeight: 18,
@@ -1135,7 +1135,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   quoteMark: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 42,
     lineHeight: 46,

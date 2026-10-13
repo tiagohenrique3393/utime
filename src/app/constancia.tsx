@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   number: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.textMedium,
     fontSize: 38,
     lineHeight: 40,
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   unit: {
     marginLeft: 6,
     marginBottom: 6,
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 11,
     letterSpacing: 1.1,
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   },
   excellenceTitle: {
     flex: 1,
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 16,
     letterSpacing: 1.5,

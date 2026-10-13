@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   },
   groupTitle: {
     marginBottom: 4,
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 11,
     letterSpacing: 2,
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actionLabel: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 14,
   },
@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   chipLabelOn: {
-    color: ui.champagne,
+    color: ui.textChampagne,
   },
   input: {
     height: 52,
@@ -607,7 +607,7 @@ const styles = StyleSheet.create({
   },
   notice: {
     marginTop: 16,
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 14,
     lineHeight: 20,

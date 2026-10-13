@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   taskDone: {
-    color: ui.champagne,
+    color: ui.textChampagne,
   },
   state: {
     color: ui.faint,

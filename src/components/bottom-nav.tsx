@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.35,
   },
   labelSelected: {
-    color: ui.champagne,
+    color: ui.textChampagne,
   },
   pressed: {
     opacity: 0.8,

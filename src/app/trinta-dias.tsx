@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   cue: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 16,
   },

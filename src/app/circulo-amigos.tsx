@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     marginTop: 4,
-    color: palette.champagne,
+    color: palette.textChampagne,
     fontFamily: fonts.display,
     fontSize: 11,
     letterSpacing: 1.1,
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   actionLabel: {
-    color: palette.champagne,
+    color: palette.textChampagne,
     fontFamily: fonts.text,
     fontSize: 12,
   },

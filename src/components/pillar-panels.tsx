@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   },
   kicker: {
     flex: 1,
-    color: ink.champagne,
+    color: ink.textChampagne,
     fontFamily: fonts.display,
     fontSize: 12,
     letterSpacing: 1.1,
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     borderColor: ink.champagne,
   },
   adjustTitle: {
-    color: ink.champagne,
+    color: ink.textChampagne,
     fontFamily: fonts.display,
     fontSize: 12,
     letterSpacing: 1.3,

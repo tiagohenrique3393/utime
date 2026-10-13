@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   kicker: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.displayLight,
     fontSize: 11,
     lineHeight: 14,
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   },
   figureLabel: {
     marginTop: 2,
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.displayLight,
     fontSize: 12,
     letterSpacing: 2.8,

@@ -21,11 +21,14 @@ export const fonts = {
   textMedium: 'Manrope_500Medium',
 } as const;
 
+export const textChampagne = '#B8A078';
+
 export const ui = {
   background: '#000000',
   text: '#F3EFE8',
   muted: '#8C8882',
   faint: '#5E5A55',
+  textChampagne,
   champagne: '#E8C99B',
   champagneDeep: '#C4A574',
   ink: '#141210',

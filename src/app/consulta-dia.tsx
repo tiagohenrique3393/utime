@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   },
   readOnly: {
     marginTop: 10,
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 11,
     letterSpacing: 1.6,
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   percent: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.textMedium,
     fontSize: 32,
     lineHeight: 36,
@@ -202,6 +202,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   stateOn: {
-    color: ui.champagne,
+    color: ui.textChampagne,
   },
 });

@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   eyebrow: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 11,
     letterSpacing: 2.4,

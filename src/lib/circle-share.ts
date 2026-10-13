@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
 
+import { textChampagne } from '@/constants/theme';
+
 type ShareRow = { position: number; name: string; score: string; podiums?: number; firsts?: number };
 
 const planetModule = require('@/assets/hoje-planet.png');
@@ -79,7 +81,7 @@ function paint(context: CanvasRenderingContext2D, width: number, height: number,
   context.fillText('UTIME', 96, 150);
   context.font = '600 84px Barlow Semi Condensed, sans-serif';
   context.fillText('RANKING', 96, 248);
-  context.fillStyle = '#E8C88E';
+  context.fillStyle = textChampagne;
   context.font = '500 26px Barlow Semi Condensed, sans-serif';
   context.fillText('DISCIPLINA CONECTA PESSOAS', 96, 298);
   context.fillStyle = '#F5F2ED';
@@ -106,18 +108,19 @@ function paint(context: CanvasRenderingContext2D, width: number, height: number,
       context.strokeStyle = slot.row.position === 1 ? 'rgba(232, 200, 142, 0.9)' : 'rgba(214, 181, 122, 0.35)';
       context.lineWidth = slot.row.position === 1 ? 3 : 2;
       context.strokeRect(slot.x, top, slot.w, slot.h);
-      context.fillStyle = '#E8C88E';
+      context.fillStyle = textChampagne;
       context.font = '600 36px Barlow Semi Condensed, sans-serif';
       context.fillText(`${slot.row.position}º`, slot.x + 24, top + 56);
       context.fillStyle = '#F5F2ED';
       context.font = '600 28px Barlow Semi Condensed, sans-serif';
       context.fillText(slot.row.name.slice(0, 16).toUpperCase(), slot.x + 24, top + 150);
-      context.fillStyle = '#E8C88E';
+      context.fillStyle = textChampagne;
       context.font = '600 32px Manrope, sans-serif';
       context.fillText(`${slot.row.score} PTS`, slot.x + 24, top + 200);
       if ((slot.row.podiums ?? 0) > 0) {
         context.fillStyle = '#E8C88E';
         trophy(context, slot.x + 36, top + 246, 22);
+        context.fillStyle = textChampagne;
         context.font = '500 22px Manrope, sans-serif';
         context.fillText(String(slot.row.podiums), slot.x + 64, top + 254);
       }
@@ -133,13 +136,13 @@ function paint(context: CanvasRenderingContext2D, width: number, height: number,
     if (top > 1760) {
       return;
     }
-    context.fillStyle = '#E8C88E';
+    context.fillStyle = textChampagne;
     context.font = '600 26px Manrope, sans-serif';
     context.fillText(`${row.position}º`, 110, top);
     context.fillStyle = '#F5F2ED';
     context.font = '500 26px Manrope, sans-serif';
     context.fillText(row.name, 200, top);
-    context.fillStyle = '#E8C88E';
+    context.fillStyle = textChampagne;
     context.fillText(`${row.score}`, 700, top);
     if ((row.podiums ?? 0) > 0) {
       context.fillStyle = '#E8C88E';

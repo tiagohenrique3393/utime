@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   mineLabel: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 11,
     letterSpacing: 1.8,
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   positionPodium: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 22,
   },

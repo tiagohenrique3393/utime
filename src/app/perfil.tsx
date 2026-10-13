@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   initial: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 28,
     lineHeight: 32,
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   nameActionLabel: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 15,
   },
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editNameLabel: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 14,
     letterSpacing: 0.4,

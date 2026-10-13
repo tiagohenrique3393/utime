@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 14,
     lineHeight: 18,
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   amountPercent: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.textLight,
     fontSize: 28,
     lineHeight: 32,
@@ -326,12 +326,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   goalActionLabel: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 13,
   },
   notice: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 13,
     lineHeight: 18,

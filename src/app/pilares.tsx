@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   eyebrow: {
-    color: ink.champagne,
+    color: ink.textChampagne,
     fontFamily: fonts.display,
     fontSize: 12,
     letterSpacing: 2.4,
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   filterLabelOn: {
-    color: ink.champagne,
+    color: ink.textChampagne,
   },
   map: {
     marginTop: 8,

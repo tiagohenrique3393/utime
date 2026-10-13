@@ -1,3 +1,5 @@
+import { textChampagne } from '@/constants/theme';
+
 export const circlePalette = {
   page: '#050505',
   surface: '#0B0B0D',
@@ -5,6 +7,7 @@ export const circlePalette = {
   text: '#F5F2ED',
   muted: '#A6A19A',
   faint: '#6F6A64',
+  textChampagne,
   champagne: '#E8C88E',
   champagneDeep: '#D6B57A',
   line: 'rgba(214, 181, 122, 0.28)',

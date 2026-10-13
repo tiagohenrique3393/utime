@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   },
   groupTitle: {
     flex: 1,
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.display,
     fontSize: 14,
     lineHeight: 18,
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   },
   notice: {
     marginTop: 12,
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 14,
     lineHeight: 20,

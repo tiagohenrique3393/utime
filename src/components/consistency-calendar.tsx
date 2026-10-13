@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   arrowLabel: {
-    color: ui.champagne,
+    color: ui.textChampagne,
     fontFamily: fonts.text,
     fontSize: 26,
     lineHeight: 28,
