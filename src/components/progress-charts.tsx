@@ -41,7 +41,7 @@ export function PercentRing({
           {percent == null ? '—' : formatDailyPercent(percent)}
         </Text>
         {caption ? (
-          <Text numberOfLines={1} style={[styles.ringCaption, { maxWidth: size * 0.78 }]}>
+          <Text numberOfLines={2} style={[styles.ringCaption, { maxWidth: size * 0.72 }]}>
             {caption}
           </Text>
         ) : null}
@@ -80,7 +80,7 @@ export function PercentRing({
           {percent == null ? '—' : formatDailyPercent(percent)}
         </Text>
         {caption ? (
-          <Text numberOfLines={1} style={[styles.ringCaption, { maxWidth: size * 0.78 }]}>
+          <Text numberOfLines={2} style={[styles.ringCaption, { maxWidth: size * 0.72 }]}>
             {caption}
           </Text>
         ) : null}
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   },
   ringValue: {
     color: ui.text,
-    fontFamily: fonts.textLight,
+    fontFamily: fonts.textMedium,
     fontSize: 36,
     lineHeight: 42,
   },
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 10,
     lineHeight: 12,
-    letterSpacing: 1.1,
+    letterSpacing: 0.7,
     textAlign: 'center',
     textTransform: 'uppercase',
   },

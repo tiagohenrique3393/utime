@@ -601,7 +601,7 @@ function PracticedList({ habits }: { habits: readonly PracticedHabit[] }) {
         <View key={habit.id} style={styles.habit}>
           <View style={styles.habitRow}>
             <GoldIcon kind={habitKind(habit)} size={14} />
-            <Text numberOfLines={1} style={styles.habitName}>
+            <Text numberOfLines={2} style={styles.habitName}>
               {habit.label}
             </Text>
             <Text style={styles.habitPercent}>{formatDailyPercent(habit.percent)}</Text>
@@ -841,7 +841,7 @@ const styles = StyleSheet.create({
   },
   pillarPercentTight: {
     color: '#F3D56A',
-    fontFamily: fonts.textLight,
+    fontFamily: fonts.textMedium,
     fontSize: 15,
     lineHeight: 18,
   },
@@ -876,11 +876,12 @@ const styles = StyleSheet.create({
     color: '#E6C14A',
     fontFamily: fonts.text,
     fontSize: 11,
-    lineHeight: 13,
+    lineHeight: 14,
+    textTransform: 'uppercase',
   },
   habitCardPercent: {
     color: '#F3D56A',
-    fontFamily: fonts.textLight,
+    fontFamily: fonts.textMedium,
     fontSize: 14,
     lineHeight: 18,
   },
@@ -933,15 +934,19 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: ui.text,
-    fontFamily: fonts.textMedium,
-    fontSize: 15,
-    lineHeight: 20,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    lineHeight: 18,
+    letterSpacing: 0.45,
+    textTransform: 'uppercase',
   },
   cardDetail: {
     color: '#8E8A84',
     fontFamily: fonts.text,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
   },
   waterCard: {
     marginTop: 12,
@@ -969,9 +974,11 @@ const styles = StyleSheet.create({
   },
   waterMeta: {
     color: '#8FB4D4',
-    fontFamily: fonts.text,
-    fontSize: 11,
-    lineHeight: 14,
+    fontFamily: fonts.display,
+    fontSize: 10,
+    lineHeight: 12,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
   },
   waterAmountRow: {
     flexDirection: 'row',
@@ -981,9 +988,10 @@ const styles = StyleSheet.create({
   waterAmount: {
     flex: 1,
     color: ui.text,
-    fontFamily: fonts.textLight,
+    fontFamily: fonts.textMedium,
     fontSize: 22,
     lineHeight: 28,
+    textTransform: 'uppercase',
   },
   waterAmountTight: {
     fontSize: 16,
@@ -1002,13 +1010,13 @@ const styles = StyleSheet.create({
   },
   waterMetaValue: {
     color: '#D5E6F5',
-    fontFamily: fonts.text,
+    fontFamily: fonts.textMedium,
     fontSize: 13,
     lineHeight: 16,
   },
   waterPercent: {
     color: waterBlue,
-    fontFamily: fonts.textLight,
+    fontFamily: fonts.textMedium,
     fontSize: 22,
     lineHeight: 28,
   },
@@ -1026,8 +1034,10 @@ const styles = StyleSheet.create({
   waterNote: {
     color: '#8FB4D4',
     fontFamily: fonts.text,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.15,
+    textTransform: 'uppercase',
   },
   pillars: {
     marginTop: 18,
@@ -1057,7 +1067,7 @@ const styles = StyleSheet.create({
   },
   pillarPercent: {
     color: ui.text,
-    fontFamily: fonts.textLight,
+    fontFamily: fonts.textMedium,
     fontSize: 18,
     lineHeight: 22,
   },
@@ -1094,12 +1104,13 @@ const styles = StyleSheet.create({
     flex: 1,
     color: ui.text,
     fontFamily: fonts.text,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 17,
+    textTransform: 'uppercase',
   },
   habitPercent: {
     color: ui.champagne,
-    fontFamily: fonts.text,
+    fontFamily: fonts.textMedium,
     fontSize: 14,
     lineHeight: 18,
   },
@@ -1132,16 +1143,20 @@ const styles = StyleSheet.create({
   quoteText: {
     marginTop: -6,
     color: ui.text,
-    fontFamily: fonts.displayLight,
-    fontSize: 18,
-    lineHeight: 24,
+    fontFamily: fonts.text,
+    fontSize: 14,
+    lineHeight: 19,
+    letterSpacing: 0.25,
+    textTransform: 'uppercase',
   },
   note: {
     marginTop: 16,
     color: ui.muted,
     fontFamily: fonts.text,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
   },
   iconFallback: {
     width: 18,
