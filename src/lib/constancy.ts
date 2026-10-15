@@ -220,7 +220,13 @@ export function scoreDates(marks: ReadonlyMap<string, DayMark>, dates: readonly 
 
 export function monthScore(marks: ReadonlyMap<string, DayMark>, year: number, month: number, today: string) {
   const dates = monthCells(year, month).filter((cell): cell is string => cell !== null);
-  return scoreDates(marks, dates, today);
+  const score = scoreDates(marks, dates, today);
+  const monthDays = monthLength(year, month);
+  return {
+    ...score,
+    monthDays,
+    monthPercent: Math.round((score.meta / monthDays) * 100),
+  };
 }
 
 export function recentWeekScores(marks: ReadonlyMap<string, DayMark>, today: string) {

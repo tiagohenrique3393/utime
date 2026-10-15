@@ -134,6 +134,20 @@ assertEqual(octoberScore.meta, 2);
 assertEqual(octoberScore.below, 1);
 assertEqual(octoberScore.eligible, 3);
 assertEqual(octoberScore.percent, 67);
+assertEqual(octoberScore.monthDays, 31);
+assertEqual(octoberScore.monthPercent, 6);
+
+const fourMetaDays = marksFromLogs([
+  ...[1, 2, 3, 5].flatMap((day) => Array.from({ length: 10 }, (_, index) => log(`2026-10-${String(day).padStart(2, '0')}`, `h${index}`, true))),
+  ...Array.from({ length: 10 }, (_, index) => log('2026-10-16', `h${index}`, true)),
+  log('2026-10-20', 'a', false),
+]);
+const fourOfOctober = monthScore(fourMetaDays, 2026, 10, '2026-10-15');
+assertEqual(fourOfOctober.meta, 4);
+assertEqual(fourOfOctober.excellence, 4);
+assertEqual(fourOfOctober.below, 0);
+assertEqual(fourOfOctober.monthDays, 31);
+assertEqual(fourOfOctober.monthPercent, 13);
 
 const weekBars = recentWeekScores(octoberMarks, '2026-10-15');
 assertEqual(weekBars.length, 4);

@@ -223,13 +223,11 @@ export function ConstancyBoard({
           <View style={styles.summary}>
             <View style={styles.summaryHead}>
               <Text style={styles.cardTitle}>Resumo do mês</Text>
-              <Text style={styles.summaryCount}>
-                {summary.eligible === 0 ? 'Sem dias encerrados' : `${summary.meta} de ${summary.eligible} dias`}
-              </Text>
-              <Text style={styles.summaryPercent}>{summary.percent == null ? '—' : `${summary.percent}%`}</Text>
+              <Text style={styles.summaryCount}>{`${summary.meta} de ${summary.monthDays} dias`}</Text>
+              <Text style={styles.summaryPercent}>{`${summary.monthPercent}%`}</Text>
             </View>
             <View style={styles.track}>
-              {summary.percent != null && summary.percent > 0 ? <View style={[styles.fill, { width: `${summary.percent}%` }]} /> : null}
+              {summary.monthPercent > 0 ? <View style={[styles.fill, { width: `${summary.monthPercent}%` }]} /> : null}
             </View>
             <View style={styles.metrics}>
               <View style={styles.metric}>
