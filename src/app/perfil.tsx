@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppScreen, Eyebrow, PageTitle } from '@/components/app-screen';
+import { ProfilePhoto } from '@/components/profile-photo';
 import { colors, fonts, ui } from '@/constants/theme';
 import { getSessionEmail, getSessionUserId, signOut } from '@/lib/accounts';
 import { loadProfile, updateProfileName, type JourneyId } from '@/lib/profile';
@@ -122,9 +123,7 @@ export default function ProfileScreen() {
     <AppScreen width="narrow">
       <Eyebrow>Conta</Eyebrow>
       <PageTitle compact>Perfil</PageTitle>
-      <View style={styles.mark}>
-        <Text style={styles.initial}>{initial}</Text>
-      </View>
+      <ProfilePhoto initial={initial} />
 
       <View style={styles.fields}>
         <Text style={styles.fieldLabel}>Nome</Text>
@@ -191,22 +190,6 @@ const styles = StyleSheet.create({
   blank: {
     flex: 1,
     backgroundColor: ui.background,
-  },
-  mark: {
-    marginTop: 28,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: ui.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  initial: {
-    color: ui.textChampagne,
-    fontFamily: fonts.display,
-    fontSize: 28,
-    lineHeight: 32,
   },
   fields: {
     marginTop: 28,

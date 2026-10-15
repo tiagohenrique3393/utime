@@ -1,5 +1,5 @@
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -8,9 +8,14 @@ import { CircleMark } from '@/components/circle-icons';
 import { circlePalette as palette } from '@/components/circle-palette';
 import { CirclePlanet } from '@/components/circle-planet';
 import { fonts } from '@/constants/theme';
+import { getSessionUserId } from '@/lib/accounts';
+import { getOwnAvatarPath, isOwnAvatarReady, subscribeOwnAvatar } from '@/lib/avatar';
+import { publicAvatarUrl } from '@/lib/avatar-store';
 import {
   addCircleFriend,
+  applyAvatars,
   circleErrorMessage,
+  fetchAvatarMap,
   fetchCircleFaces,
   removeCircleFriend,
   searchCircle,
@@ -27,17 +32,34 @@ export default function AddFriendsScreen() {
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [ownPath, setOwnPath] = useState(getOwnAvatarPath());
+  const [ownReady, setOwnReady] = useState(isOwnAvatarReady());
+  const paintGeneration = useRef(0);
+
+  useEffect(
+    () =>
+      subscribeOwnAvatar(() => {
+        setOwnPath(getOwnAvatarPath());
+        setOwnReady(isOwnAvatarReady());
+      }),
+    [],
+  );
 
   const loadFaces = useCallback(async () => {
+    if (query.trim().length >= 2) {
+      return;
+    }
     setLoading(true);
     try {
       const faces = await fetchCircleFaces();
-      setResults((current) => {
-        if (query.trim().length >= 2) {
-          return current;
-        }
-        return faces.map((face) => ({ ...face, added: true }));
-      });
+      const generation = paintGeneration.current + 1;
+      paintGeneration.current = generation;
+      setResults(faces.map((face) => ({ ...face, added: true })));
+      const paths = await fetchAvatarMap(faces.map((face) => face.userId));
+      if (!paths || paintGeneration.current !== generation) {
+        return;
+      }
+      setResults((current) => applyAvatars(current, paths));
     } catch (error) {
       setNotice(circleErrorMessage(error as { code?: string; message?: string }));
     } finally {
@@ -59,8 +81,15 @@ export default function AddFriendsScreen() {
     }
     setLoading(true);
     try {
-      setResults(await searchCircle(value));
+      const found = await searchCircle(value);
+      const generation = paintGeneration.current + 1;
+      paintGeneration.current = generation;
+      setResults(found);
       setNotice('');
+      const paths = await fetchAvatarMap(found.map((person) => person.userId));
+      if (paths && paintGeneration.current === generation) {
+        setResults((current) => applyAvatars(current, paths));
+      }
     } catch (error) {
       setNotice(circleErrorMessage(error as { code?: string; message?: string }));
     } finally {
@@ -123,7 +152,10 @@ export default function AddFriendsScreen() {
         const pending = pendingId === person.userId;
         return (
         <View key={person.userId} style={styles.row}>
-          <CircleAvatar size={40} />
+          <CircleAvatar
+            size={40}
+            uri={publicAvatarUrl(ownReady && person.userId === getSessionUserId() ? ownPath : person.avatarPath)}
+          />
           <View style={styles.copy}>
             <Text numberOfLines={1} style={styles.name}>
               {person.name}

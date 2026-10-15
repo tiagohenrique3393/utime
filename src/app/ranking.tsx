@@ -12,7 +12,9 @@ import { periodStart, shiftPeriod, type CirclePeriod } from '@/lib/circle';
 import {
   circleErrorMessage,
   circleUnavailable,
+  applyAvatars,
   enrollCircle,
+  fetchAvatarMap,
   fetchCircleBoard,
   fetchCircleFaces,
   fetchCircleState,
@@ -38,6 +40,7 @@ export default function CircleScreen() {
   const [notice, setNotice] = useState('');
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const loadMore = useRef<() => void>(() => undefined);
+  const loadGeneration = useRef(0);
 
   const load = useCallback(async (nextKind: CirclePeriod, nextStart: string, nextScope: 'todos' | 'amigos') => {
     const today = todayKey();
@@ -57,9 +60,18 @@ export default function CircleScreen() {
         fetchCircleBoard(nextKind, selected, nextScope),
         fetchCircleFaces(),
       ]);
+      const generation = loadGeneration.current + 1;
+      loadGeneration.current = generation;
       setEntries(board);
       setFaces(friends);
       setNotice('');
+      void fetchAvatarMap([...board, ...friends].map((item) => item.userId)).then((paths) => {
+        if (!paths || loadGeneration.current !== generation) {
+          return;
+        }
+        setEntries((current) => applyAvatars(current, paths));
+        setFaces((current) => applyAvatars(current, paths));
+      });
     } catch (error) {
       const details = error as { code?: string; message?: string };
       if (circleUnavailable(details)) {

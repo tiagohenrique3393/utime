@@ -1,4 +1,5 @@
 import { supabase } from '../../utils/supabase';
+import { isAvatarPath, withAvatars } from '@/lib/avatar';
 import type { CirclePeriod } from '@/lib/circle';
 
 export type CircleState = {
@@ -19,6 +20,7 @@ export type CircleEntry = {
   position: number;
   podiums: number;
   firsts: number;
+  avatarPath?: string | null;
 };
 
 export type CirclePerson = {
@@ -26,6 +28,7 @@ export type CirclePerson = {
   name: string;
   handle: string;
   added?: boolean;
+  avatarPath?: string | null;
 };
 
 type StateRow = {
@@ -169,4 +172,26 @@ export async function fetchCircleFaces() {
     throw error;
   }
   return ((data ?? []) as PersonRow[]).map(person);
+}
+
+export async function fetchAvatarMap(ids: readonly string[]) {
+  const unique = [...new Set(ids.filter(Boolean))].slice(0, 200);
+  if (unique.length === 0) {
+    return new Map<string, string>();
+  }
+  const { data, error } = await supabase.rpc('circle_avatars', { ids: unique });
+  if (error) {
+    return null;
+  }
+  const paths = new Map<string, string>();
+  for (const row of (data ?? []) as { user_id?: string; avatar_path?: string | null }[]) {
+    if (typeof row.user_id === 'string' && typeof row.avatar_path === 'string' && isAvatarPath(row.avatar_path)) {
+      paths.set(row.user_id, row.avatar_path);
+    }
+  }
+  return paths;
+}
+
+export function applyAvatars<T extends { userId: string; avatarPath?: string | null }>(rows: readonly T[], paths: ReadonlyMap<string, string>) {
+  return withAvatars(rows, paths);
 }

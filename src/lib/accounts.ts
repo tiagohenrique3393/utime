@@ -3,6 +3,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
 import { supabase } from '../../utils/supabase';
+import { clearOwnAvatar } from '@/lib/avatar';
 import { establishSessionFromUrl } from '@/lib/session';
 import { setHabitOwner } from '@/lib/habit-catalog';
 import { setProfileOwner } from '@/lib/profile';
@@ -87,11 +88,13 @@ export function applySessionOwner(userId: string | null) {
   setHabitOwner(userId);
   if (!userId) {
     hydration = null;
+    clearOwnAvatar();
     return Promise.resolve();
   }
   if (hydration?.userId === userId) {
     return hydration.promise;
   }
+  clearOwnAvatar();
   const promise = hydrateAccount(userId);
   hydration = { userId, promise };
   return promise;

@@ -1,4 +1,5 @@
 import { supabase } from '../../utils/supabase';
+import { loadOwnAvatar } from '@/lib/avatar-store';
 import {
   getProfileOwner,
   getProfileRevision,
@@ -105,6 +106,7 @@ export async function hydrateAccount(userId: string) {
     } else if (hasRemoteProfile && profileRevision === getProfileRevision()) {
       replaceProfile(userId, profileFromRow(remoteProfile));
     }
+    await loadOwnAvatar(userId);
 
     if (!hasRemoteJourney && journeyRevision === getJourneyRevision() && journeyHasContent()) {
       await pushJourney(userId);

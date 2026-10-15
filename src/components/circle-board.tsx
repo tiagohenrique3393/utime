@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CircleAvatar } from '@/components/circle-avatar';
+import { getOwnAvatarPath, isOwnAvatarReady, subscribeOwnAvatar } from '@/lib/avatar';
+import { publicAvatarUrl } from '@/lib/avatar-store';
 import { CircleMark } from '@/components/circle-icons';
 import { circlePalette as palette } from '@/components/circle-palette';
 import { fonts } from '@/constants/theme';
@@ -16,14 +18,14 @@ const kinds: { id: CirclePeriod; label: string }[] = [
   { id: 'ano', label: 'ANO' },
 ];
 
-function PodiumCard({ entry, place, kind }: { entry: CircleEntry; place: 1 | 2 | 3; kind: CirclePeriod }) {
+function PodiumCard({ entry, place, kind, uri }: { entry: CircleEntry; place: 1 | 2 | 3; kind: CirclePeriod; uri: string | null }) {
   const first = place === 1;
   return (
     <View style={[styles.podium, first && styles.podiumFirst]}>
       <Text style={[styles.podiumPlace, first && styles.podiumPlaceFirst]}>{place}º</Text>
       <View style={styles.podiumAvatar}>
         {first ? <CircleMark name="crown" size={26} /> : null}
-        <CircleAvatar size={first ? 62 : 46} glow={first} />
+        <CircleAvatar size={first ? 62 : 46} glow={first} uri={uri} />
       </View>
       <Text numberOfLines={2} style={styles.podiumName}>
         {entry.name}
@@ -82,6 +84,20 @@ export function CircleBoard({
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [limit, setLimit] = useState(20);
+  const [ownPath, setOwnPath] = useState(getOwnAvatarPath());
+  const [ownReady, setOwnReady] = useState(isOwnAvatarReady());
+  useEffect(
+    () =>
+      subscribeOwnAvatar(() => {
+        setOwnPath(getOwnAvatarPath());
+        setOwnReady(isOwnAvatarReady());
+      }),
+    [],
+  );
+  function photoFor(entryUserId: string, path: string | null | undefined) {
+    const chosen = ownReady && entryUserId === userId ? ownPath : path;
+    return publicAvatarUrl(chosen);
+  }
   const atCurrent = start === todayStart;
   const { first, second, third } = podiumSlots(entries);
   const rows = visibleRanking(entries, limit, userId);
@@ -177,9 +193,9 @@ export function CircleBoard({
 
           {scope === 'todos' && shownPodium > 0 ? (
             <View style={[styles.podiumRow, shownPodium < 3 && styles.podiumSparse]}>
-              {second ? <PodiumCard entry={second} place={2} kind={kind} /> : null}
-              {first ? <PodiumCard entry={first} place={1} kind={kind} /> : null}
-              {third ? <PodiumCard entry={third} place={3} kind={kind} /> : null}
+              {second ? <PodiumCard entry={second} place={2} kind={kind} uri={photoFor(second.userId, second.avatarPath)} /> : null}
+              {first ? <PodiumCard entry={first} place={1} kind={kind} uri={photoFor(first.userId, first.avatarPath)} /> : null}
+              {third ? <PodiumCard entry={third} place={3} kind={kind} uri={photoFor(third.userId, third.avatarPath)} /> : null}
             </View>
           ) : null}
 
@@ -203,7 +219,7 @@ export function CircleBoard({
                       <Text style={[styles.place, self && styles.placeSelf]}>{ordinalPlace(entry.position)}</Text>
                     </View>
                     <View style={[styles.user, styles.colUser]}>
-                      <CircleAvatar size={28} />
+                      <CircleAvatar size={28} uri={photoFor(entry.userId, entry.avatarPath)} />
                       <Text numberOfLines={1} style={styles.userName}>
                         {entry.name}
                       </Text>

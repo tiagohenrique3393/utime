@@ -1,4 +1,5 @@
-import { createElement, useId } from 'react';
+import { Image } from 'expo-image';
+import { createElement, useEffect, useId, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { circlePalette } from '@/components/circle-palette';
@@ -52,7 +53,18 @@ function WebAvatar({ size, glow }: { size: number; glow: boolean }) {
   );
 }
 
-export function CircleAvatar({ size = 36, glow = false }: { size?: number; glow?: boolean }) {
+export function CircleAvatar({ size = 36, glow = false, uri = null }: { size?: number; glow?: boolean; uri?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [uri]);
+  if (uri && !failed) {
+    return (
+      <View style={[styles.ring, (glow || size >= 48) && styles.glow, { width: size, height: size, borderRadius: size / 2 }]}>
+        <Image accessibilityIgnoresInvertColors source={{ uri }} style={{ width: size, height: size }} contentFit="cover" onError={() => setFailed(true)} />
+      </View>
+    );
+  }
   if (Platform.OS === 'web') {
     return <WebAvatar size={size} glow={glow || size >= 48} />;
   }
