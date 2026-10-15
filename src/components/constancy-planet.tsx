@@ -23,10 +23,10 @@ function imageUri(mod: unknown) {
 const css = `
 .constancy-planet-layer {
   position: absolute;
-  width: 132%;
+  width: 128%;
   height: auto;
-  left: 16%;
-  top: -4%;
+  left: 34%;
+  top: -8%;
   pointer-events: none;
   user-select: none;
   filter: brightness(0.76) saturate(0.86);
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     width: '140%',
     height: 280,
     top: -20,
-    left: '8%',
+    left: '28%',
     opacity: 0.72,
   },
   nativeVeil: {

@@ -165,6 +165,73 @@ export function dayStatusLabel(outcome: DayOutcome) {
   return '';
 }
 
+export function monthGrid(year: number, month: number) {
+  const cells = monthCells(year, month);
+  const firstIndex = cells.findIndex((cell) => cell !== null);
+  const first = cells[firstIndex];
+  if (!first) {
+    return [] as { dateKey: string; outside: boolean }[];
+  }
+  return cells.map((cell, index) => {
+    if (cell) {
+      return { dateKey: cell, outside: false };
+    }
+    return { dateKey: shiftDateKey(first, index - firstIndex), outside: true };
+  });
+}
+
+export function weekStartMonday(key: string) {
+  const sunday = weekdayIndex(key);
+  return shiftDateKey(key, -(sunday === 0 ? 6 : sunday - 1));
+}
+
+export type PeriodScore = {
+  meta: number;
+  excellence: number;
+  below: number;
+  eligible: number;
+  percent: number | null;
+};
+
+export function scoreDates(marks: ReadonlyMap<string, DayMark>, dates: readonly string[], today: string): PeriodScore {
+  let meta = 0;
+  let excellence = 0;
+  let below = 0;
+  for (const key of dates) {
+    const outcome = dayOutcome(marks.get(key), key, today);
+    if (outcome === 'star') {
+      meta += 1;
+      excellence += 1;
+    } else if (outcome === 'keep') {
+      meta += 1;
+    } else if (outcome === 'miss') {
+      below += 1;
+    }
+  }
+  const eligible = meta + below;
+  return {
+    meta,
+    excellence,
+    below,
+    eligible,
+    percent: eligible === 0 ? null : Math.round((meta / eligible) * 100),
+  };
+}
+
+export function monthScore(marks: ReadonlyMap<string, DayMark>, year: number, month: number, today: string) {
+  const dates = monthCells(year, month).filter((cell): cell is string => cell !== null);
+  return scoreDates(marks, dates, today);
+}
+
+export function recentWeekScores(marks: ReadonlyMap<string, DayMark>, today: string) {
+  const current = weekStartMonday(today);
+  return [3, 2, 1, 0].map((offset, index) => {
+    const start = shiftDateKey(current, -7 * offset);
+    const dates = Array.from({ length: 7 }, (_, day) => shiftDateKey(start, day));
+    return { label: `SEM ${index + 1}`, percent: scoreDates(marks, dates, today).percent };
+  });
+}
+
 export function yearExcellence(marks: ReadonlyMap<string, DayMark>, year: number, today: string) {
   const months = monthLabels.map((label, index) => {
     const month = index + 1;

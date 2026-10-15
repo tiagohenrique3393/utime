@@ -8,7 +8,7 @@ export function GoldStar({ size = 12, style }: { size?: number; style?: StylePro
       accessible={false}
       style={[
         {
-          color: ui.champagne,
+          color: ui.textChampagne,
           fontFamily: fonts.textMedium,
           fontSize: size,
           lineHeight: size + 2,

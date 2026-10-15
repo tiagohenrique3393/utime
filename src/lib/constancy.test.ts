@@ -1,4 +1,4 @@
-import { bestStreak, currentStreak, dayOutcome, keepsStreak, marksFromLogs, monthCells, perfectDay, yearExcellence, type DayLog } from '@/lib/constancy';
+import { bestStreak, currentStreak, dayOutcome, keepsStreak, marksFromLogs, monthCells, monthGrid, monthScore, perfectDay, recentWeekScores, weekStartMonday, yearExcellence, type DayLog } from '@/lib/constancy';
 import { isWritableDay, todayKey } from '@/lib/habit-day';
 import { shiftDateKey } from '@/lib/progress-view';
 
@@ -108,5 +108,41 @@ assertEqual(todayKey(new Date('2026-10-10T03:00:00.000Z')), '2026-10-10');
 assertEqual(isWritableDay(todayKey()), true);
 assertEqual(isWritableDay(shiftDateKey(todayKey(), -1)), false);
 assertEqual(isWritableDay(shiftDateKey(todayKey(), 1)), false);
+
+assertEqual(weekStartMonday('2026-10-12'), '2026-10-12');
+assertEqual(weekStartMonday('2026-10-15'), '2026-10-12');
+assertEqual(weekStartMonday('2026-10-11'), '2026-10-05');
+
+const octoberGrid = monthGrid(2026, 10);
+assertEqual(octoberGrid[0]?.dateKey, '2026-09-27');
+assertEqual(octoberGrid[0]?.outside, true);
+assertEqual(octoberGrid[4]?.dateKey, '2026-10-01');
+assertEqual(octoberGrid[4]?.outside, false);
+assertEqual(octoberGrid[octoberGrid.length - 1]?.dateKey, '2026-10-31');
+assertEqual(octoberGrid[octoberGrid.length - 1]?.outside, false);
+
+const octoberMarks = marksFromLogs([
+  ...Array.from({ length: 10 }, (_, index) => log('2026-10-08', `h${index}`, true)),
+  ...Array.from({ length: 10 }, (_, index) => log('2026-10-10', `h${index}`, index < 7)),
+  ...Array.from({ length: 10 }, (_, index) => log('2026-10-04', `h${index}`, false)),
+  log('2026-10-15', 'a', false),
+  log('2026-10-16', 'a', true),
+]);
+const octoberScore = monthScore(octoberMarks, 2026, 10, '2026-10-15');
+assertEqual(octoberScore.excellence, 1);
+assertEqual(octoberScore.meta, 2);
+assertEqual(octoberScore.below, 1);
+assertEqual(octoberScore.eligible, 3);
+assertEqual(octoberScore.percent, 67);
+
+const weekBars = recentWeekScores(octoberMarks, '2026-10-15');
+assertEqual(weekBars.length, 4);
+assertEqual(weekBars[0]?.label, 'SEM 1');
+assertEqual(weekBars[3]?.label, 'SEM 4');
+assertEqual(weekBars[0]?.percent, null);
+assertEqual(weekBars[1]?.percent, 0);
+assertEqual(weekBars[2]?.percent, 100);
+assertEqual(weekBars[3]?.percent, null);
+assertEqual(recentWeekScores(new Map(), '2026-10-15').every((bar) => bar.percent === null), true);
 
 console.log('constancy-ok');
