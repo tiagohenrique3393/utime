@@ -25,7 +25,7 @@ function CameraMark() {
   );
 }
 
-export function ProfilePhoto({ initial }: { initial: string }) {
+export function ProfilePhoto({ initial, size = 156 }: { initial: string; size?: number }) {
   const input = useRef<HTMLInputElement | null>(null);
   const [path, setPath] = useState(getOwnAvatarPath());
   const [ready, setReady] = useState(isOwnAvatarReady());
@@ -103,13 +103,13 @@ export function ProfilePhoto({ initial }: { initial: string }) {
           setFailedNotice(false);
           setMenu((open) => !open);
         }}
-        style={styles.mark}>
+        style={[styles.mark, { width: size, height: size, borderRadius: size / 2 }]}>
         {uri && !failed ? (
-          <Image source={{ uri }} style={styles.photo} contentFit="cover" onError={() => setFailed(true)} />
+          <Image source={{ uri }} style={{ width: size, height: size }} contentFit="cover" onError={() => setFailed(true)} />
         ) : (
-          <Text style={styles.initial}>{initial}</Text>
+          <Text style={[styles.initial, { fontSize: Math.round(size * 0.34), lineHeight: Math.round(size * 0.38) }]}>{initial}</Text>
         )}
-        <View style={styles.camera}>
+        <View style={[styles.camera, { right: Math.round(size * 0.06), bottom: Math.round(size * 0.06) }]}>
           <CameraMark />
         </View>
       </Pressable>
@@ -143,40 +143,30 @@ export function ProfilePhoto({ initial }: { initial: string }) {
 
 const styles = StyleSheet.create({
   wrap: {
-    marginTop: 28,
-    alignSelf: 'flex-start',
+    alignItems: 'center',
+    alignSelf: 'center',
   },
   mark: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
     borderWidth: 1,
-    borderColor: ui.line,
+    borderColor: ui.champagneDeep,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     backgroundColor: '#141210',
-  },
-  photo: {
-    width: 64,
-    height: 64,
+    boxShadow: '0 0 16px rgba(196, 165, 116, 0.24)',
   },
   initial: {
-    color: ui.textChampagne,
+    color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 28,
-    lineHeight: 32,
   },
   camera: {
     position: 'absolute',
-    right: 2,
-    bottom: 2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: ui.line,
-    backgroundColor: 'rgba(8, 8, 8, 0.88)',
+    borderColor: ui.champagneDeep,
+    backgroundColor: 'rgba(8, 8, 8, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -187,12 +177,14 @@ const styles = StyleSheet.create({
     backgroundColor: ui.textChampagne,
   },
   menu: {
-    marginTop: 8,
+    marginTop: 10,
+    alignItems: 'center',
     gap: 2,
   },
   menuButton: {
     minHeight: 36,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   menuLabel: {
     color: ui.textChampagne,
@@ -207,6 +199,7 @@ const styles = StyleSheet.create({
   notice: {
     marginTop: 4,
     maxWidth: 280,
+    textAlign: 'center',
     color: ui.muted,
     fontFamily: fonts.text,
     fontSize: 13,

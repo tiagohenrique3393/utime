@@ -1,12 +1,15 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { createElement, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 
-import { AppScreen, Eyebrow, PageTitle } from '@/components/app-screen';
+import { AppScreen } from '@/components/app-screen';
 import { ProfilePhoto } from '@/components/profile-photo';
+import { ProfilePlanet } from '@/components/profile-planet';
 import { colors, fonts, ui } from '@/constants/theme';
 import { getSessionEmail, getSessionUserId, signOut } from '@/lib/accounts';
-import { loadProfile, updateProfileName, type JourneyId } from '@/lib/profile';
+import { getProfileSnapshot, subscribeProfile, updateProfileName, type JourneyId } from '@/lib/profile';
+
+const page = '#050505';
 
 const journeyTitles: Record<JourneyId, string> = {
   metime: 'ManTime',
@@ -20,9 +23,70 @@ function journeyLabel(journey: JourneyId | null) {
   return journeyTitles[journey];
 }
 
+function svg(size: number, ...children: ReactNode[]) {
+  return createElement('svg', { width: size, height: size, viewBox: '0 0 24 24', 'aria-hidden': true }, ...children);
+}
+
+function stroke(extra?: Record<string, unknown>) {
+  return {
+    fill: 'none',
+    stroke: ui.champagneDeep,
+    strokeWidth: 1.5,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    ...extra,
+  };
+}
+
+function Mark({ name, size = 18 }: { name: 'user' | 'mail' | 'layers' | 'chevron' | 'logout' | 'pencil'; size?: number }) {
+  if (Platform.OS !== 'web') {
+    return <View style={styles.nativeMark} />;
+  }
+  if (name === 'user') {
+    return svg(
+      size,
+      createElement('circle', { cx: 12, cy: 8, r: 3.1, ...stroke() }),
+      createElement('path', { d: 'M5.4 18.6c.9-3.1 3.2-4.6 6.6-4.6s5.7 1.5 6.6 4.6', ...stroke() }),
+    );
+  }
+  if (name === 'mail') {
+    return svg(
+      size,
+      createElement('rect', { x: 3.5, y: 5.5, width: 17, height: 13, rx: 2, ...stroke() }),
+      createElement('path', { d: 'M4.2 7.2 12 13.1l7.8-5.9', ...stroke() }),
+    );
+  }
+  if (name === 'layers') {
+    return svg(
+      size,
+      createElement('path', { d: 'M12 4.2 20 8.4 12 12.6 4 8.4 12 4.2Z', ...stroke() }),
+      createElement('path', { d: 'M4 12.2 12 16.4 20 12.2', ...stroke() }),
+      createElement('path', { d: 'M4 15.6 12 19.8 20 15.6', ...stroke() }),
+    );
+  }
+  if (name === 'chevron') {
+    return svg(size, createElement('path', { d: 'M9 6.5 15 12 9 17.5', ...stroke({ stroke: ui.muted }) }));
+  }
+  if (name === 'pencil') {
+    return svg(
+      size,
+      createElement('path', { d: 'M13.2 6.2 17.8 10.8 8.4 20.2H3.8v-4.6L13.2 6.2Z', ...stroke() }),
+      createElement('path', { d: 'M11.6 7.8 16.2 12.4', ...stroke() }),
+    );
+  }
+  return svg(
+    size,
+    createElement('path', { d: 'M10 7V5.6A1.6 1.6 0 0 1 11.6 4h7A1.6 1.6 0 0 1 20.2 5.6v12.8a1.6 1.6 0 0 1-1.6 1.6h-7A1.6 1.6 0 0 1 10 18.4V17', ...stroke() }),
+    createElement('path', { d: 'M13 12H3.2', ...stroke() }),
+    createElement('path', { d: 'M6 8.8 2.8 12 6 15.2', ...stroke() }),
+  );
+}
+
 export default function ProfileScreen() {
   const signedIn = getSessionUserId() !== null;
-  const profile = loadProfile();
+  const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
+  const { width } = useWindowDimensions();
+  const photoSize = Math.round(Math.min(164, Math.max(150, width * 0.42)));
   const [email, setEmail] = useState('');
   const [emailState, setEmailState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [leaving, setLeaving] = useState(false);
@@ -116,61 +180,111 @@ export default function ProfileScreen() {
 
   const name = profile.firstName.trim() || 'Não informado';
   const initial = (profile.firstName.trim().charAt(0) || 'U').toUpperCase();
+  const modality = journeyLabel(profile.journey);
   const emailText =
     emailState === 'loading' ? 'Carregando' : emailState === 'error' ? 'Não foi possível carregar o e-mail.' : email || 'Não informado';
 
   return (
-    <AppScreen width="narrow">
-      <Eyebrow>Conta</Eyebrow>
-      <PageTitle compact>Perfil</PageTitle>
-      <ProfilePhoto initial={initial} />
+    <AppScreen width="narrow" backgroundColor={page} backdrop={<ProfilePlanet />}>
+      <Text style={styles.eyebrow}>Conta</Text>
+      <Text accessibilityRole="header" style={styles.title}>
+        Perfil
+      </Text>
 
-      <View style={styles.fields}>
-        <Text style={styles.fieldLabel}>Nome</Text>
+      <View style={styles.identity}>
+        <ProfilePhoto initial={initial} size={photoSize} />
+        <View style={styles.nameLine}>
+          <Text numberOfLines={2} style={styles.displayName}>
+            {name}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Editar nome"
+            disabled={savingName}
+            onPress={startNameEdit}
+            style={styles.pencil}>
+            <Mark name="pencil" size={16} />
+          </Pressable>
+        </View>
+        {profile.journey ? (
+          <View style={styles.capsule}>
+            <Text style={styles.capsuleLabel}>{modality}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.card}>
         {editingName ? (
-          <>
-            <TextInput
-              value={nameDraft}
-              onChangeText={(value) => {
-                setNameDraft(value);
-                setNameNotice('');
-              }}
-              autoCapitalize="words"
-              autoCorrect={false}
-              autoFocus
-              editable={!savingName}
-              textContentType="givenName"
-              autoComplete="given-name"
-              placeholder="Seu primeiro nome"
-              placeholderTextColor={ui.faint}
-              onSubmitEditing={saveName}
-              style={styles.input}
-            />
-            {nameNotice ? <Text style={styles.nameNotice}>{nameNotice}</Text> : null}
-            <View style={styles.nameActions}>
-              <Pressable accessibilityRole="button" disabled={savingName} onPress={cancelNameEdit} style={styles.nameAction}>
-                <Text style={styles.nameActionMuted}>Cancelar</Text>
-              </Pressable>
-              <Pressable accessibilityRole="button" disabled={savingName} onPress={saveName} style={styles.nameAction}>
-                <Text style={styles.nameActionLabel}>{savingName ? 'Salvando' : 'Salvar'}</Text>
-              </Pressable>
+          <View style={styles.row}>
+            <View style={styles.iconWell}>
+              <Mark name="user" />
             </View>
-          </>
+            <View style={styles.copy}>
+              <Text style={styles.rowLabel}>Nome</Text>
+              <TextInput
+                value={nameDraft}
+                onChangeText={(value) => {
+                  setNameDraft(value);
+                  setNameNotice('');
+                }}
+                autoCapitalize="words"
+                autoCorrect={false}
+                autoFocus
+                editable={!savingName}
+                textContentType="givenName"
+                autoComplete="given-name"
+                placeholder="Seu primeiro nome"
+                placeholderTextColor={ui.faint}
+                onSubmitEditing={saveName}
+                style={styles.input}
+              />
+              {nameNotice ? <Text style={styles.nameNotice}>{nameNotice}</Text> : null}
+              <View style={styles.nameActions}>
+                <Pressable accessibilityRole="button" disabled={savingName} onPress={cancelNameEdit} style={styles.nameAction}>
+                  <Text style={styles.nameActionMuted}>Cancelar</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" disabled={savingName} onPress={saveName} style={styles.nameAction}>
+                  <Text style={styles.nameActionLabel}>{savingName ? 'Salvando' : 'Salvar'}</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
         ) : (
-          <>
-            <Text style={styles.fieldValue}>{name}</Text>
-            <Pressable accessibilityRole="button" onPress={startNameEdit} style={styles.editName}>
-              <Text style={styles.editNameLabel}>Editar nome</Text>
-            </Pressable>
-          </>
+          <Pressable accessibilityRole="button" accessibilityLabel="Editar nome" onPress={startNameEdit} style={styles.row}>
+            <View style={styles.iconWell}>
+              <Mark name="user" />
+            </View>
+            <View style={styles.copy}>
+              <Text style={styles.rowLabel}>Nome</Text>
+              <Text numberOfLines={2} style={styles.rowValue}>
+                {name}
+              </Text>
+            </View>
+            <Mark name="chevron" size={16} />
+          </Pressable>
         )}
 
-        <View style={styles.separator} />
-        <Text style={styles.fieldLabel}>E-mail</Text>
-        <Text style={styles.fieldValue}>{emailText}</Text>
-        <View style={styles.separator} />
-        <Text style={styles.fieldLabel}>Modalidade</Text>
-        <Text style={styles.fieldValue}>{journeyLabel(profile.journey)}</Text>
+        <View style={styles.divider} />
+        <View style={styles.row}>
+          <View style={styles.iconWell}>
+            <Mark name="mail" />
+          </View>
+          <View style={styles.copy}>
+            <Text style={styles.rowLabel}>E-mail</Text>
+            <Text style={styles.rowValue}>{emailText}</Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+        <View style={styles.row}>
+          <View style={styles.iconWell}>
+            <Mark name="layers" />
+          </View>
+          <View style={styles.copy}>
+            <Text style={styles.rowLabel}>Modalidade</Text>
+            <Text style={styles.rowValue}>{modality}</Text>
+          </View>
+        </View>
       </View>
 
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
@@ -180,7 +294,10 @@ export default function ProfileScreen() {
         disabled={leaving}
         onPress={handleSignOut}
         style={({ pressed }) => [styles.signOut, (pressed || leaving) && styles.pressed]}>
-        <Text style={styles.signOutLabel}>{leaving ? 'Saindo' : 'Sair'}</Text>
+        <View style={styles.signOutInner}>
+          <Mark name="logout" size={16} />
+          <Text style={styles.signOutLabel}>{leaving ? 'Saindo' : 'Sair'}</Text>
+        </View>
       </Pressable>
     </AppScreen>
   );
@@ -189,35 +306,128 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   blank: {
     flex: 1,
-    backgroundColor: ui.background,
+    backgroundColor: page,
   },
-  fields: {
-    marginTop: 28,
-  },
-  fieldLabel: {
-    marginTop: 16,
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 11,
-    letterSpacing: 1.6,
+  eyebrow: {
+    color: ui.textChampagne,
+    fontFamily: fonts.display,
+    fontSize: 12,
+    letterSpacing: 2.6,
     textTransform: 'uppercase',
   },
-  fieldValue: {
-    marginTop: 6,
-    marginBottom: 14,
+  title: {
+    marginTop: 2,
+    color: ui.text,
+    fontFamily: fonts.display,
+    fontSize: 36,
+    lineHeight: 40,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  identity: {
+    alignItems: 'center',
+    marginTop: 28,
+  },
+  nameLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 18,
+    maxWidth: '100%',
+    paddingHorizontal: 8,
+  },
+  displayName: {
+    flexShrink: 1,
+    color: ui.text,
+    fontFamily: fonts.display,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: 1.4,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  pencil: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  capsule: {
+    marginTop: 10,
+    minHeight: 26,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(196, 165, 116, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  capsuleLabel: {
+    color: ui.textChampagne,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+  },
+  card: {
+    marginTop: 26,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(196, 165, 116, 0.22)',
+    backgroundColor: 'rgba(17, 18, 20, 0.72)',
+    overflow: 'hidden',
+  },
+  row: {
+    minHeight: 74,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  iconWell: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: ui.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(8, 8, 8, 0.35)',
+  },
+  copy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rowLabel: {
+    color: ui.textChampagne,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  rowValue: {
+    marginTop: 3,
     color: ui.text,
     fontFamily: fonts.text,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  divider: {
+    height: 1,
+    marginHorizontal: 16,
+    backgroundColor: ui.lineSoft,
   },
   input: {
-    height: 52,
+    height: 44,
     marginTop: 8,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: ui.line,
-    backgroundColor: ui.background,
-    paddingHorizontal: 14,
+    backgroundColor: 'rgba(5, 5, 5, 0.72)',
+    paddingHorizontal: 12,
     color: ui.text,
     fontFamily: fonts.text,
     fontSize: 16,
@@ -226,71 +436,71 @@ const styles = StyleSheet.create({
     marginTop: 8,
     color: colors.danger,
     fontFamily: fonts.text,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   nameActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 18,
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: 4,
   },
   nameAction: {
-    minHeight: 44,
+    minHeight: 40,
     justifyContent: 'center',
   },
   nameActionMuted: {
     color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 15,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
   },
   nameActionLabel: {
     color: ui.textChampagne,
-    fontFamily: fonts.text,
-    fontSize: 15,
-  },
-  editName: {
-    alignSelf: 'flex-start',
-    marginTop: -8,
-    marginBottom: 10,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  editNameLabel: {
-    color: ui.textChampagne,
-    fontFamily: fonts.text,
-    fontSize: 14,
-    letterSpacing: 0.4,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: ui.lineSoft,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
   },
   notice: {
-    marginTop: 16,
+    marginTop: 14,
     color: colors.danger,
     fontFamily: fonts.text,
     fontSize: 14,
     lineHeight: 20,
+    textAlign: 'center',
   },
   signOut: {
-    marginTop: 28,
-    minHeight: 52,
+    marginTop: 18,
+    minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: ui.line,
+    borderColor: 'rgba(196, 165, 116, 0.7)',
+    backgroundColor: '#050505',
+    boxShadow: '0 0 18px rgba(196, 165, 116, 0.16)',
+  },
+  signOutInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   signOutLabel: {
     color: ui.text,
-    fontFamily: fonts.text,
-    fontSize: 13,
-    letterSpacing: 1.4,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    letterSpacing: 1.8,
     textTransform: 'uppercase',
   },
   pressed: {
     opacity: 0.75,
+  },
+  nativeMark: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: ui.champagne,
   },
 });
