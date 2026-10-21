@@ -1,14 +1,17 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
-import { createElement, useState } from 'react';
+import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
+import { DayCelebration } from '@/components/day-celebration';
 import { DayPlanet } from '@/components/day-planet';
 import { HabitGlyph } from '@/components/habit-glyph';
 import { HydrationMeter } from '@/components/hydration-meter';
 import { fonts, ui } from '@/constants/theme';
-import { dailyCounts, isDailyHabitDone, refreshDailyBoard, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
+import { dailyCounts, getDailyBoard, isDailyHabitDone, refreshDailyBoard, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
+import { dismissCelebration, initialCelebrationView, noteCelebrationsLoaded, openCelebration, type CompletionSnapshot } from '@/lib/day-celebration';
+import { loadDayCelebrations, rememberDayCelebration } from '@/lib/day-celebration-store';
 import { useDailyBoard } from '@/lib/use-daily-board';
 import { habitPeriods, type HabitPeriod } from '@/lib/habit-catalog';
 import { formatCalendarDate, formatDailyPercent, parseDateKey, todayKey, zonedHour } from '@/lib/habit-day';
@@ -85,7 +88,7 @@ function Ring({ percent, color }: { percent: number; color: string }) {
   );
 }
 
-function HabitRow({ habit, checked, locked }: { habit: DailyHabit; checked: boolean; locked: boolean }) {
+function HabitRow({ habit, checked, locked, onToggle }: { habit: DailyHabit; checked: boolean; locked: boolean; onToggle: () => void }) {
   const minutes = habit.minutes;
   const icon = habitIconFor(habit.label, habit.catalogHabitId);
   const color = pillarTone[habit.pillar];
@@ -109,7 +112,7 @@ function HabitRow({ habit, checked, locked }: { habit: DailyHabit; checked: bool
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
       accessibilityLabel={habit.label}
-      onPress={() => void toggleDailyHabit(habit)}
+      onPress={onToggle}
       style={({ pressed }) => [styles.task, rowPress, pressed && styles.pressed]}>
       {body}
     </Pressable>
@@ -127,6 +130,77 @@ export default function MyDayScreen() {
   const tone = bandColor[getProgressColor(counts.percent)];
   const periodNow = currentPeriod();
   const [overrides, setOverrides] = useState<Partial<Record<HabitPeriod, boolean>>>({});
+  const [celebration, setCelebration] = useState(initialCelebrationView);
+  const celebrationRef = useRef(celebration);
+  const celebrationsReady = useRef(false);
+  const pendingCompletion = useRef<(CompletionSnapshot & { day: string }) | null>(null);
+  celebrationRef.current = celebration;
+  const today = board.dateKey !== '' && board.dateKey === todayKey() ? board.dateKey : '';
+
+  const closeCelebration = useCallback(() => {
+    const next = dismissCelebration(celebrationRef.current);
+    celebrationRef.current = next;
+    setCelebration(next);
+  }, []);
+
+  useEffect(() => {
+    const cleared = initialCelebrationView();
+    celebrationRef.current = cleared;
+    setCelebration(cleared);
+    celebrationsReady.current = false;
+    pendingCompletion.current = null;
+    if (!signedIn || !userId || !today) {
+      return;
+    }
+    let cancel = false;
+    void loadDayCelebrations(userId, today).then((seen) => {
+      if (cancel) {
+        return;
+      }
+      const pending = pendingCompletion.current;
+      pendingCompletion.current = null;
+      const loaded = noteCelebrationsLoaded({ visible: null, seen: celebrationRef.current.seen }, seen);
+      const opened = pending && pending.day === today ? openCelebration(loaded, pending) : { view: loaded, shown: null };
+      celebrationRef.current = opened.view;
+      celebrationsReady.current = true;
+      setCelebration(opened.view);
+      if (opened.shown) {
+        void rememberDayCelebration(userId, today, opened.shown);
+      }
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [signedIn, today, userId]);
+
+  function finishHabit(habit: DailyHabit) {
+    const day = board.dateKey;
+    const before = dailyCounts(board.habits, board.completed);
+    void toggleDailyHabit(habit).then(() => {
+      const next = getDailyBoard();
+      if (!day || day !== todayKey() || next.dateKey !== day) {
+        return;
+      }
+      const after = dailyCounts(next.habits, next.completed);
+      const snapshot = {
+        day,
+        beforeDone: before.done,
+        afterDone: after.done,
+        beforeTotal: before.total,
+        afterTotal: after.total,
+      };
+      if (!celebrationsReady.current) {
+        pendingCompletion.current = snapshot;
+        return;
+      }
+      const opened = openCelebration(celebrationRef.current, snapshot);
+      celebrationRef.current = opened.view;
+      setCelebration(opened.view);
+      if (opened.shown && userId) {
+        void rememberDayCelebration(userId, day, opened.shown);
+      }
+    });
+  }
   const groups = habitPeriods.map((period) => ({
     period,
     habits: board.habits.filter((habit) => habit.period === period && habit.catalogHabitId !== HYDRATION_HABIT_ID),
@@ -147,6 +221,7 @@ export default function MyDayScreen() {
   }
 
   return (
+    <>
     <AppScreen width="narrow" backgroundColor={page} backdrop={<DayPlanet />}>
       <Text style={styles.kicker}>Evolução pessoal</Text>
       <Text accessibilityRole="header" style={styles.title}>
@@ -206,7 +281,7 @@ export default function MyDayScreen() {
                 </Pressable>
                 {open
                   ? group.habits.map((habit) => (
-                      <HabitRow key={habit.id} habit={habit} checked={isDailyHabitDone(habit, board.completed)} locked={locked} />
+                      <HabitRow key={habit.id} habit={habit} checked={isDailyHabitDone(habit, board.completed)} locked={locked} onToggle={() => finishHabit(habit)} />
                     ))
                   : null}
               </View>
@@ -237,6 +312,8 @@ export default function MyDayScreen() {
         </Pressable>
       ) : null}
     </AppScreen>
+    <DayCelebration kind={today ? celebration.visible : null} onClose={closeCelebration} />
+  </>
   );
 }
 
