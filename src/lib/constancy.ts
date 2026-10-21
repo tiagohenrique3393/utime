@@ -46,6 +46,21 @@ function realDate(key: string) {
   return probe.getUTCFullYear() === year && probe.getUTCMonth() === month - 1 && probe.getUTCDate() === day;
 }
 
+export function applyTodayRoutine(
+  marks: ReadonlyMap<string, DayMark>,
+  today: string,
+  routine: { total: number; done: number } | null,
+) {
+  const next = new Map(marks);
+  if (!today || !routine) {
+    return next;
+  }
+  const planned = Math.max(0, routine.total);
+  const done = Math.max(0, Math.min(planned, routine.done));
+  next.set(today, { planned, done });
+  return next;
+}
+
 export function marksFromLogs(rows: readonly DayLog[]) {
   const byDay = new Map<string, Map<string, boolean>>();
   for (const row of rows) {

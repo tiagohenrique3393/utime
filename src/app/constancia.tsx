@@ -8,8 +8,8 @@ import { ConstancyPlanet } from '@/components/constancy-planet';
 import { GoldStar } from '@/components/gold-star';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
-import { bestStreak, currentStreak, marksFromLogs, monthScore, recentWeekScores, yearExcellence, type DayMark } from '@/lib/constancy';
-import { refreshDailyBoard } from '@/lib/daily-board';
+import { applyTodayRoutine, bestStreak, currentStreak, marksFromLogs, monthScore, recentWeekScores, yearExcellence, type DayMark } from '@/lib/constancy';
+import { dailyCounts, getDailyBoard, refreshDailyBoard } from '@/lib/daily-board';
 import { loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
 import { useRequireSession } from '@/lib/require-session';
 
@@ -337,8 +337,10 @@ export default function ConstancyScreen() {
           setNotice(logs.message);
           return;
         }
+        const board = getDailyBoard();
+        const routine = board.ready && board.dateKey === closed ? dailyCounts(board.habits, board.completed) : null;
         setToday(closed);
-        setMarks(marksFromLogs(logs.rows));
+        setMarks(applyTodayRoutine(marksFromLogs(logs.rows), closed, routine));
         setCursor((current) => current ?? monthOf(closed));
         setNotice('');
         setPhase('ready');

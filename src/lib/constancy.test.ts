@@ -1,4 +1,4 @@
-import { bestStreak, currentStreak, dayOutcome, keepsStreak, marksFromLogs, monthCells, monthGrid, monthScore, perfectDay, recentWeekScores, weekStartMonday, yearExcellence, type DayLog } from '@/lib/constancy';
+import { applyTodayRoutine, bestStreak, currentStreak, dayOutcome, keepsStreak, marksFromLogs, monthCells, monthGrid, monthScore, perfectDay, recentWeekScores, weekStartMonday, yearExcellence, type DayLog } from '@/lib/constancy';
 import { isWritableDay, todayKey } from '@/lib/habit-day';
 import { shiftDateKey } from '@/lib/progress-view';
 
@@ -158,5 +158,24 @@ assertEqual(weekBars[1]?.percent, 0);
 assertEqual(weekBars[2]?.percent, 100);
 assertEqual(weekBars[3]?.percent, null);
 assertEqual(recentWeekScores(new Map(), '2026-10-15').every((bar) => bar.percent === null), true);
+
+const todayLogs = marksFromLogs([
+  ...Array.from({ length: 8 }, (_, index) => log('2026-10-21', `ativo-${index}`, true)),
+  log('2026-10-21', 'fora-da-rotina', false),
+  ...Array.from({ length: 10 }, (_, index) => log('2026-10-08', `h${index}`, index < 7)),
+  ...Array.from({ length: 4 }, (_, index) => log('2026-10-04', `h${index}`, true)),
+]);
+assertEqual(dayOutcome(todayLogs.get('2026-10-21'), '2026-10-21', '2026-10-21'), 'keep');
+const aligned = applyTodayRoutine(todayLogs, '2026-10-21', { total: 8, done: 8 });
+assertEqual(dayOutcome(aligned.get('2026-10-21'), '2026-10-21', '2026-10-21'), 'star');
+assertEqual(dayOutcome(aligned.get('2026-10-08'), '2026-10-08', '2026-10-21'), 'keep');
+assertEqual(dayOutcome(aligned.get('2026-10-04'), '2026-10-04', '2026-10-21'), 'star');
+const partial = applyTodayRoutine(todayLogs, '2026-10-21', { total: 10, done: 7 });
+assertEqual(dayOutcome(partial.get('2026-10-21'), '2026-10-21', '2026-10-21'), 'keep');
+const belowToday = applyTodayRoutine(todayLogs, '2026-10-21', { total: 10, done: 6 });
+assertEqual(dayOutcome(belowToday.get('2026-10-21'), '2026-10-21', '2026-10-21'), 'open');
+const unchanged = applyTodayRoutine(todayLogs, '2026-10-21', null);
+assertEqual(unchanged.get('2026-10-21')?.planned, 9);
+assertEqual(monthScore(aligned, 2026, 10, '2026-10-21').excellence, 2);
 
 console.log('constancy-ok');
