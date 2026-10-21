@@ -22,6 +22,7 @@ import {
 } from '@/lib/habit-day';
 import { dailyPillarStats, type PillarDayHabit } from '@/lib/pillar-daily';
 import { suggestedHabits } from '@/lib/suggested-habits';
+import { suggestedMinutes } from '@/lib/habit-visual';
 
 export type DailyHabit = {
   id: string;
@@ -31,6 +32,7 @@ export type DailyHabit = {
   period: HabitPeriod;
   pillar: HabitPillar;
   relevance: HabitRelevance | null;
+  minutes: number | null;
 };
 
 export type DayLogRef = {
@@ -78,6 +80,7 @@ function toDailyHabit(habit: ReturnType<typeof getUserHabits>[number]): DailyHab
     period: habit.period,
     pillar: habit.pillar,
     relevance: habit.relevance,
+    minutes: habit.minutes ?? suggestedMinutes(habitTitle(habit, getCatalogHabits()), habit.catalogHabitId),
   };
 }
 
@@ -93,6 +96,7 @@ function officialHabits(): DailyHabit[] {
       period: suggestion.period,
       pillar: suggestion.pillar,
       relevance: row?.relevance ?? suggestion.relevance,
+      minutes: row?.minutes ?? suggestedMinutes(suggestion.label, suggestion.id),
     };
   });
 }

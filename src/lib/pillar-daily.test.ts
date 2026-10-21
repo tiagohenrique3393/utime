@@ -124,6 +124,7 @@ const dailyHabit = (id: string, pillar: DailyHabit['pillar']): DailyHabit => ({
   period: 'manha',
   pillar,
   relevance: null,
+  minutes: null,
 });
 const boardHabits = [dailyHabit('treino', 'corpo'), dailyHabit('leitura', 'mente')];
 const completed = new Set(['treino']);

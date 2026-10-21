@@ -24,7 +24,7 @@ function Drop() {
       { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
       createElement('path', {
         d: 'M8 1.7C8 1.7 3.3 7.1 3.3 10.1a4.7 4.7 0 0 0 9.4 0C12.7 7.1 8 1.7 8 1.7z',
-        stroke: ui.champagne,
+        stroke: '#6EB6F2',
         strokeWidth: 1.1,
         strokeLinejoin: 'round',
       }),
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 7,
     borderBottomRightRadius: 1,
     borderWidth: 1.15,
-    borderColor: ui.champagne,
+    borderColor: '#6EB6F2',
     transform: [{ rotate: '45deg' }],
   },
   title: {
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   fill: {
     height: '100%',
     borderRadius: 2,
-    backgroundColor: ui.champagne,
+    backgroundColor: '#6EB6F2',
   },
   ticks: {
     flexDirection: 'row',

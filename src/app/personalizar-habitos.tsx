@@ -1,205 +1,89 @@
+import { Image } from 'expo-image';
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useState, useSyncExternalStore } from 'react';
+import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { AppScreen, Eyebrow, Meta, PageTitle, PrimaryButton, TextButton } from '@/components/app-screen';
-import { colors, fonts, ui } from '@/constants/theme';
+import { AppScreen } from '@/components/app-screen';
+import { DayPlanet } from '@/components/day-planet';
+import { HabitGlyph } from '@/components/habit-glyph';
+import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import {
-  addCustomHabit,
-  chooseCatalogHabit,
   getCatalogHabits,
   getUserHabits,
   habitPeriods,
   habitPillars,
-  habitRelevances,
   habitTitle,
   hydrateHabitRoutine,
-  isHabitRoutinePersonalized,
-  periodLabels,
   pillarLabels,
-  relevanceLabels,
   removeUserHabit,
-  savePersonalizedRoutine,
+  reorderPeriodHabits,
   subscribeHabitRoutine,
   updateUserHabit,
-  type CatalogHabit,
   type HabitPeriod,
-  type HabitPillar,
-  type HabitRelevance,
-  type HabitResult,
   type UserHabit,
 } from '@/lib/habit-catalog';
-import { suggestedHabits } from '@/lib/suggested-habits';
+import { habitIconFor, periodCopy, pillarTone } from '@/lib/habit-visual';
 import { useRequireSession } from '@/lib/require-session';
 
-type Draft = {
-  label: string;
-  period: HabitPeriod;
-  pillar: HabitPillar;
-  relevance: HabitRelevance | null;
+const page = '#050505';
+const periodImage: Record<HabitPeriod, number> = {
+  manha: require('@/assets/period-manha.jpg'),
+  tarde: require('@/assets/period-tarde.jpg'),
+  noite: require('@/assets/period-noite.jpg'),
 };
-
-function ChoiceChips<T extends string>({
-  options,
-  labels,
-  value,
-  onChange,
-}: {
-  options: readonly T[];
-  labels: Record<T, string>;
-  value: T | null;
-  onChange: (next: T) => void;
-}) {
-  return (
-    <View style={styles.chips}>
-      {options.map((option) => {
-        const selected = value === option;
-        return (
-          <Pressable
-            key={option}
-            accessibilityRole="button"
-            accessibilityState={{ selected }}
-            onPress={() => onChange(option)}
-            style={[styles.chip, selected && styles.chipOn]}>
-            <Text style={[styles.chipLabel, selected && styles.chipLabelOn]}>{labels[option]}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
 
 export default function PersonalizeHabitsScreen() {
   const signedIn = useRequireSession();
   const catalog = useSyncExternalStore(subscribeHabitRoutine, getCatalogHabits, getCatalogHabits);
   const habits = useSyncExternalStore(subscribeHabitRoutine, getUserHabits, getUserHabits);
-  const personalized = useSyncExternalStore(
-    subscribeHabitRoutine,
-    isHabitRoutinePersonalized,
-    isHabitRoutinePersonalized,
-  );
-  const [phase, setPhase] = useState<'loading' | 'ready'>('loading');
-  const [pending, setPending] = useState(false);
+  const [open, setOpen] = useState<Record<HabitPeriod, boolean>>({ manha: true, tarde: true, noite: true });
+  const [editing, setEditing] = useState<string | null>(null);
+  const [minutesText, setMinutesText] = useState('');
   const [notice, setNotice] = useState('');
-  const [noticeError, setNoticeError] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [pickingId, setPickingId] = useState<string | null>(null);
-  const [pickRelevance, setPickRelevance] = useState<HabitRelevance | null>(null);
-  const [customLabel, setCustomLabel] = useState('');
-  const [customPeriod, setCustomPeriod] = useState<HabitPeriod | null>(null);
-  const [customPillar, setCustomPillar] = useState<HabitPillar | null>(null);
-  const [customRelevance, setCustomRelevance] = useState<HabitRelevance | null>(null);
+  const dragY = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
       const userId = getSessionUserId();
-      if (!userId) {
-        return;
+      if (userId) {
+        void hydrateHabitRoutine(userId);
       }
-      let active = true;
-      hydrateHabitRoutine(userId).finally(() => {
-        if (active) {
-          setPhase('ready');
-        }
-      });
-      return () => {
-        active = false;
-      };
     }, []),
   );
 
-  async function run(action: () => Promise<HabitResult>) {
-    if (pending) {
-      return null;
-    }
-    setPending(true);
-    const result = await action();
-    setNotice(result.message);
-    setNoticeError(!result.ok);
-    setPending(false);
-    return result;
-  }
+  const active = habits.filter((habit) => habit.active);
 
-  function beginEdit(habit: UserHabit) {
-    setConfirmId(null);
-    setEditingId(habit.id);
-    setDraft({
-      label: habit.customLabel ?? '',
-      period: habit.period,
-      pillar: habit.pillar,
-      relevance: habit.relevance,
-    });
-  }
-
-  async function saveEdit(habit: UserHabit) {
-    if (!draft) {
+  async function shift(period: HabitPeriod, habitId: string, delta: number) {
+    const group = active.filter((habit) => habit.period === period);
+    const index = group.findIndex((habit) => habit.id === habitId);
+    const next = index + delta;
+    if (index < 0 || next < 0 || next >= group.length) {
       return;
     }
-    if (!draft.relevance) {
-      setNotice('Escolha a relevância alta, média ou baixa.');
-      setNoticeError(true);
+    const order = group.map((habit) => habit.id);
+    const [moved] = order.splice(index, 1);
+    if (!moved) {
       return;
     }
-    const result = await run(() =>
-      updateUserHabit(habit.id, {
-        label: habit.catalogHabitId ? undefined : draft.label,
-        period: draft.period,
-        pillar: draft.pillar,
-        relevance: draft.relevance,
-      }),
-    );
-    if (result?.ok) {
-      setEditingId(null);
-      setDraft(null);
+    order.splice(next, 0, moved);
+    const result = await reorderPeriodHabits(period, order);
+    if (!result.ok) {
+      setNotice(result.message);
     }
   }
 
-  async function removeHabit(habitId: string) {
-    const result = await run(() => removeUserHabit(habitId));
-    if (result?.ok) {
-      setConfirmId(null);
-      if (editingId === habitId) {
-        setEditingId(null);
-        setDraft(null);
-      }
-    }
-  }
-
-  async function chooseOfficial(habit: CatalogHabit) {
-    if (!pickRelevance) {
-      setNotice('Escolha a relevância alta, média ou baixa.');
-      setNoticeError(true);
+  async function saveMinutes(habit: UserHabit) {
+    const trimmed = minutesText.trim();
+    const minutes = trimmed.length === 0 ? null : Number(trimmed);
+    if (minutes !== null && (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440)) {
+      setNotice('Informe os minutos com um número de 0 a 1440.');
       return;
     }
-    const result = await run(() => chooseCatalogHabit(habit.id, pickRelevance));
-    if (result?.ok) {
-      setPickingId(null);
-      setPickRelevance(null);
-    }
-  }
-
-  async function createCustom() {
-    if (!customPeriod || !customPillar || !customRelevance) {
-      setNotice('Informe o nome, o período, o pilar e a relevância.');
-      setNoticeError(true);
-      return;
-    }
-    const result = await run(() =>
-      addCustomHabit({
-        label: customLabel,
-        period: customPeriod,
-        pillar: customPillar,
-        relevance: customRelevance,
-      }),
-    );
-    if (result?.ok) {
-      setCustomLabel('');
-      setCustomPeriod(null);
-      setCustomPillar(null);
-      setCustomRelevance(null);
+    const result = await updateUserHabit(habit.id, { minutes });
+    setNotice(result.ok ? '' : result.message);
+    if (result.ok) {
+      setEditing(null);
     }
   }
 
@@ -207,416 +91,151 @@ export default function PersonalizeHabitsScreen() {
     return <View style={styles.blank} />;
   }
 
-  const catalogReady = catalog.length > 0;
-  const suggestedIds = new Set(suggestedHabits.map((item) => item.id));
-  const offered = catalog.filter((item) => suggestedIds.has(item.id));
-  const officialCatalog = offered.length > 0 ? offered : catalog;
-  const routine = habits.filter((habit) => habit.active);
-  const failed = phase === 'ready' && !catalogReady && routine.length === 0 && !personalized;
-  const chosenIds = new Set(routine.map((habit) => habit.catalogHabitId).filter((id): id is string => Boolean(id)));
-
   return (
-    <AppScreen>
-      <View style={styles.links}>
-        <TextButton label="Meu dia" onPress={() => router.navigate('/meu-dia' as Href)} />
-      </View>
-      <View style={styles.header}>
-        <Eyebrow>Rotina</Eyebrow>
-        <PageTitle compact>Personalizar hábitos</PageTitle>
-        <Meta>A relevância organiza a sua evolução pessoal.</Meta>
-        <Meta>Ela não altera o ranking nem o UTime Score.</Meta>
-        <Meta>A rotina pode ficar vazia.</Meta>
-      </View>
-
-      {notice ? <Text style={noticeError ? styles.noticeError : styles.notice}>{notice}</Text> : null}
-      {phase === 'loading' ? <Text style={styles.note}>Carregando sua rotina.</Text> : null}
-      {failed ? <Text style={styles.note}>Não foi possível carregar os hábitos.</Text> : null}
-
-      {phase === 'ready' && !failed ? (
-        <>
-          <Text style={styles.section}>Sua rotina</Text>
-          {routine.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.note}>
-                {personalized
-                  ? 'Nenhum hábito na rotina. Você pode incluir um quando quiser.'
-                  : 'Sua rotina personalizada ainda não foi guardada. Os hábitos oficiais da jornada continuam em Hoje.'}
-              </Text>
-              {!personalized ? (
-                <PrimaryButton
-                  label={pending ? 'Salvando' : 'Guardar rotina vazia'}
-                  onPress={() => {
-                    void run(savePersonalizedRoutine);
-                  }}
-                />
-              ) : null}
+    <AppScreen width="narrow" backgroundColor={page} backdrop={<DayPlanet />}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.navigate('/meu-dia' as Href)} style={styles.back}>
+        <Text style={styles.backLabel}>‹ Voltar</Text>
+      </Pressable>
+      <Text accessibilityRole="header" style={styles.title}>
+        Personalizar{'\n'}hábitos
+      </Text>
+      <Text style={styles.lead}>Monte sua rotina ideal</Text>
+      <Text style={styles.copy}>Adicione, remova ou ajuste os hábitos. Sua rotina, no seu ritmo.</Text>
+      <View style={styles.pillars}>
+        {habitPillars.map((pillar) => {
+          const count = active.filter((habit) => habit.pillar === pillar).length;
+          return (
+            <View key={pillar} style={styles.pillar}>
+              <HabitGlyph name={pillar === 'corpo' ? 'run' : pillar === 'mente' ? 'brain' : 'lotus'} color={pillarTone[pillar]} size={22} />
+              <Text style={[styles.pillarName, { color: pillarTone[pillar] }]}>{pillarLabels[pillar]}</Text>
+              <Text style={styles.pillarCount}>{`${count} ${count === 1 ? 'hábito' : 'hábitos'}`}</Text>
             </View>
-          ) : (
-            habitPillars.map((pillar) => {
-              const group = routine.filter((habit) => habit.pillar === pillar);
-              return (
-                <View key={pillar} style={styles.group}>
-                  <Text style={styles.groupTitle}>{pillarLabels[pillar]}</Text>
-                  {group.length === 0 ? <Text style={styles.note}>Nenhum hábito neste pilar.</Text> : null}
-                  {group.map((habit) => {
-                    const editing = editingId === habit.id ? draft : null;
-                    const confirming = confirmId === habit.id;
-                    return (
-                      <View key={habit.id} style={styles.row}>
-                        <View style={styles.copy}>
-                          <Text style={styles.habitName}>{habitTitle(habit, catalog)}</Text>
-                          <Text style={styles.habitMeta}>
-                            {periodLabels[habit.period]}
-                            {habit.relevance ? ` · ${relevanceLabels[habit.relevance]}` : ' · Sem relevância'}
-                            {habit.catalogHabitId ? ' · Oficial' : ' · Próprio'}
-                          </Text>
-                        </View>
-                        {editing ? (
-                          <View style={styles.editor}>
-                            {habit.catalogHabitId ? null : (
-                              <TextInput
-                                value={editing.label}
-                                onChangeText={(value) => setDraft({ ...editing, label: value })}
-                                autoCapitalize="sentences"
-                                autoCorrect={false}
-                                editable={!pending}
-                                placeholder="Nome do hábito"
-                                placeholderTextColor={ui.faint}
-                                style={styles.input}
-                              />
-                            )}
-                            <Text style={styles.field}>Período</Text>
-                            <ChoiceChips
-                              options={habitPeriods}
-                              labels={periodLabels}
-                              value={editing.period}
-                              onChange={(period) => setDraft({ ...editing, period })}
-                            />
-                            <Text style={styles.field}>Pilar</Text>
-                            <ChoiceChips
-                              options={habitPillars}
-                              labels={pillarLabels}
-                              value={editing.pillar}
-                              onChange={(nextPillar) => setDraft({ ...editing, pillar: nextPillar })}
-                            />
-                            <Text style={styles.field}>Relevância</Text>
-                            <ChoiceChips
-                              options={habitRelevances}
-                              labels={relevanceLabels}
-                              value={editing.relevance}
-                              onChange={(relevance) => setDraft({ ...editing, relevance })}
-                            />
-                            <View style={styles.actions}>
-                              <Pressable
-                                accessibilityRole="button"
-                                disabled={pending}
-                                onPress={() => {
-                                  setEditingId(null);
-                                  setDraft(null);
-                                }}
-                                style={styles.action}>
-                                <Text style={styles.actionMuted}>Cancelar</Text>
-                              </Pressable>
-                              <Pressable
-                                accessibilityRole="button"
-                                disabled={pending}
-                                onPress={() => {
-                                  void saveEdit(habit);
-                                }}
-                                style={styles.action}>
-                                <Text style={styles.actionLabel}>{pending ? 'Salvando' : 'Salvar'}</Text>
-                              </Pressable>
-                            </View>
-                          </View>
-                        ) : (
-                          <View style={styles.actions}>
-                            <Pressable accessibilityRole="button" onPress={() => beginEdit(habit)} style={styles.action}>
-                              <Text style={styles.actionLabel}>Editar</Text>
-                            </Pressable>
-                            <Pressable
-                              accessibilityRole="button"
-                              onPress={() => {
-                                if (confirming) {
-                                  void removeHabit(habit.id);
-                                  return;
-                                }
-                                setConfirmId(habit.id);
-                              }}
-                              style={styles.action}>
-                              <Text style={styles.actionMuted}>{confirming ? 'Confirmar' : 'Remover'}</Text>
-                            </Pressable>
-                            {confirming ? (
-                              <Pressable accessibilityRole="button" onPress={() => setConfirmId(null)} style={styles.action}>
-                                <Text style={styles.actionMuted}>Cancelar</Text>
-                              </Pressable>
-                            ) : null}
-                          </View>
-                        )}
+          );
+        })}
+      </View>
+      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+      {habitPeriods.map((period) => {
+        const group = active.filter((habit) => habit.period === period);
+        return (
+          <View key={period} style={styles.block}>
+            <Image source={periodImage[period]} contentFit="cover" style={styles.periodPhoto} />
+            <View pointerEvents="none" style={styles.periodShade} />
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: open[period] }} onPress={() => setOpen((current) => ({ ...current, [period]: !current[period] }))} style={styles.blockHead}>
+              <HabitGlyph name={period === 'noite' ? 'moon' : 'sun'} color={period === 'noite' ? '#8EB7E8' : '#E8C88E'} />
+              <View style={styles.blockCopy}>
+                <Text style={styles.blockTitle}>{periodCopy[period].title}</Text>
+                <Text style={styles.blockSubtitle}>{periodCopy[period].subtitle}</Text>
+              </View>
+              <Text style={styles.blockCount}>{String(group.length)}</Text>
+              <Text style={styles.chevron}>{open[period] ? '⌃' : '⌄'}</Text>
+            </Pressable>
+            {open[period]
+              ? group.map((habit) => {
+                  const label = habitTitle(habit, catalog);
+                  return (
+                    <View key={habit.id} style={styles.row}>
+                      <View
+                        accessibilityLabel={`Reordenar ${label}`}
+                        onStartShouldSetResponder={() => true}
+                        onMoveShouldSetResponder={() => true}
+                        onResponderGrant={(event) => {
+                          dragY.current = event.nativeEvent.pageY;
+                        }}
+                        onResponderMove={(event) => {
+                          const delta = event.nativeEvent.pageY - dragY.current;
+                          if (delta > 28) {
+                            dragY.current += 28;
+                            void shift(period, habit.id, 1);
+                          } else if (delta < -28) {
+                            dragY.current -= 28;
+                            void shift(period, habit.id, -1);
+                          }
+                        }}
+                        style={styles.grip}>
+                        <Text style={styles.gripMark}>≡</Text>
                       </View>
-                    );
-                  })}
-                </View>
-              );
-            })
-          )}
-
-          <Text style={styles.section}>Hábito próprio</Text>
-          <TextInput
-            value={customLabel}
-            onChangeText={setCustomLabel}
-            autoCapitalize="sentences"
-            autoCorrect={false}
-            editable={!pending}
-            placeholder="Nome do hábito"
-            placeholderTextColor={ui.faint}
-            style={styles.input}
-          />
-          <Text style={styles.field}>Período</Text>
-          <ChoiceChips options={habitPeriods} labels={periodLabels} value={customPeriod} onChange={setCustomPeriod} />
-          <Text style={styles.field}>Pilar</Text>
-          <ChoiceChips options={habitPillars} labels={pillarLabels} value={customPillar} onChange={setCustomPillar} />
-          <Text style={styles.field}>Relevância</Text>
-          <ChoiceChips
-            options={habitRelevances}
-            labels={relevanceLabels}
-            value={customRelevance}
-            onChange={setCustomRelevance}
-          />
-          <View style={styles.add}>
-            <PrimaryButton label={pending ? 'Salvando' : 'Adicionar hábito'} onPress={() => void createCustom()} />
+                      <HabitGlyph name={habitIconFor(label, habit.catalogHabitId)} color={pillarTone[habit.pillar]} />
+                      <View style={styles.rowCopy}>
+                        <Text numberOfLines={1} style={styles.rowLabel}>
+                          {label}
+                        </Text>
+                        {editing === habit.id ? (
+                          <TextInput
+                            value={minutesText}
+                            onChangeText={setMinutesText}
+                            onSubmitEditing={() => void saveMinutes(habit)}
+                            keyboardType="number-pad"
+                            placeholder="Minutos"
+                            placeholderTextColor={ui.faint}
+                            style={styles.minutesInput}
+                          />
+                        ) : habit.minutes != null ? (
+                          <Pressable accessibilityRole="button" onPress={() => { setEditing(habit.id); setMinutesText(String(habit.minutes)); }}>
+                            <Text style={styles.minutes}>{`${habit.minutes} MIN`}</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remover ${label}`}
+                        onPress={() => void removeUserHabit(habit.id)}
+                        style={styles.remove}>
+                        <Text style={styles.removeLabel}>−</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })
+              : null}
+            <Pressable accessibilityRole="button" onPress={() => router.push(`/adicionar-habito?periodo=${period}` as Href)} style={styles.add}>
+              <Text style={styles.addLabel}>+ Adicionar hábito</Text>
+            </Pressable>
           </View>
-
-          {catalogReady ? (
-            <>
-              <Text style={styles.section}>Hábitos oficiais</Text>
-              {habitPillars.map((pillar) => {
-                const group = officialCatalog.filter((habit) => habit.pillar === pillar);
-                if (group.length === 0) {
-                  return null;
-                }
-                return (
-                  <View key={pillar} style={styles.group}>
-                    <Text style={styles.groupTitle}>{pillarLabels[pillar]}</Text>
-                    {group.map((habit) => {
-                      const chosen = chosenIds.has(habit.id);
-                      const picking = pickingId === habit.id;
-                      return (
-                        <View key={habit.id} style={styles.row}>
-                          <View style={styles.copy}>
-                            <Text style={styles.habitName}>{habit.label}</Text>
-                            <Text style={styles.habitMeta}>{periodLabels[habit.period]}</Text>
-                          </View>
-                          {chosen ? (
-                            <Text style={styles.chosen}>Na sua rotina</Text>
-                          ) : picking ? (
-                            <View style={styles.editor}>
-                              <Text style={styles.field}>Relevância</Text>
-                              <ChoiceChips
-                                options={habitRelevances}
-                                labels={relevanceLabels}
-                                value={pickRelevance}
-                                onChange={setPickRelevance}
-                              />
-                              <View style={styles.actions}>
-                                <Pressable
-                                  accessibilityRole="button"
-                                  disabled={pending}
-                                  onPress={() => {
-                                    setPickingId(null);
-                                    setPickRelevance(null);
-                                  }}
-                                  style={styles.action}>
-                                  <Text style={styles.actionMuted}>Cancelar</Text>
-                                </Pressable>
-                                <Pressable
-                                  accessibilityRole="button"
-                                  disabled={pending}
-                                  onPress={() => void chooseOfficial(habit)}
-                                  style={styles.action}>
-                                  <Text style={styles.actionLabel}>{pending ? 'Salvando' : 'Adicionar'}</Text>
-                                </Pressable>
-                              </View>
-                            </View>
-                          ) : (
-                            <Pressable
-                              accessibilityRole="button"
-                              onPress={() => {
-                                setPickingId(habit.id);
-                                setPickRelevance(null);
-                              }}
-                              style={styles.action}>
-                              <Text style={styles.actionLabel}>Escolher</Text>
-                            </Pressable>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              })}
-            </>
-          ) : null}
-        </>
-      ) : null}
+        );
+      })}
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  blank: {
+  blank: { flex: 1, backgroundColor: page },
+  back: { minHeight: 36, justifyContent: 'center' },
+  backLabel: { color: ui.text, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1.2, textTransform: 'uppercase' },
+  title: { color: ui.text, fontFamily: fonts.display, fontSize: 34, lineHeight: 36, letterSpacing: 0.4, textTransform: 'uppercase' },
+  lead: { marginTop: 8, color: ui.textChampagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1.2, textTransform: 'uppercase' },
+  copy: { marginTop: 6, color: '#A39E96', fontFamily: fonts.text, fontSize: 14, lineHeight: 20 },
+  pillars: { marginTop: 18, flexDirection: 'row', gap: 8 },
+  pillar: {
     flex: 1,
-    backgroundColor: ui.background,
-  },
-  links: {
-    flexDirection: 'row',
-    gap: 18,
-  },
-  header: {
-    marginTop: 8,
-    marginBottom: 8,
-    gap: 8,
-  },
-  section: {
-    marginTop: 32,
-    marginBottom: 8,
-    color: ui.text,
-    fontFamily: fonts.display,
-    fontSize: 22,
-    lineHeight: 26,
-    letterSpacing: 0.4,
-  },
-  group: {
-    marginTop: 14,
-  },
-  groupTitle: {
-    marginBottom: 4,
-    color: ui.textChampagne,
-    fontFamily: fonts.text,
-    fontSize: 11,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
-  row: {
-    minHeight: 56,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: ui.lineSoft,
-    gap: 8,
-  },
-  copy: {
-    gap: 3,
-  },
-  habitName: {
-    color: ui.text,
-    fontFamily: fonts.text,
-    fontSize: 16,
-    lineHeight: 21,
-  },
-  habitMeta: {
-    color: ui.faint,
-    fontFamily: fonts.text,
-    fontSize: 11,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  chosen: {
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 13,
-  },
-  actions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  action: {
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  actionLabel: {
-    color: ui.textChampagne,
-    fontFamily: fonts.text,
-    fontSize: 14,
-  },
-  actionMuted: {
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 14,
-  },
-  editor: {
-    gap: 8,
-  },
-  field: {
-    marginTop: 8,
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 11,
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    minHeight: 36,
-    paddingHorizontal: 14,
-    borderRadius: 999,
+    minHeight: 92,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: ui.line,
+    borderColor: 'rgba(232,200,142,0.16)',
+    backgroundColor: 'rgba(12,12,12,0.72)',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
   },
-  chipOn: {
-    borderColor: ui.champagne,
-  },
-  chipLabel: {
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 13,
-  },
-  chipLabelOn: {
-    color: ui.textChampagne,
-  },
-  input: {
-    height: 52,
-    marginTop: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: ui.line,
-    backgroundColor: ui.background,
-    paddingHorizontal: 14,
-    color: ui.text,
-    fontFamily: fonts.text,
-    fontSize: 16,
-  },
-  add: {
-    marginTop: 18,
-  },
-  empty: {
-    gap: 16,
-    marginTop: 8,
-  },
-  note: {
-    marginTop: 8,
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  notice: {
-    marginTop: 16,
-    color: ui.textChampagne,
-    fontFamily: fonts.text,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  noticeError: {
-    marginTop: 16,
-    color: colors.danger,
-    fontFamily: fonts.text,
-    fontSize: 14,
-    lineHeight: 20,
-  },
+  pillarName: { fontFamily: fonts.display, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
+  pillarCount: { color: '#A39E96', fontFamily: fonts.text, fontSize: 11 },
+  notice: { marginTop: 12, color: '#E7B4B4', fontFamily: fonts.text, fontSize: 13 },
+  block: { marginTop: 14, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(232,200,142,0.16)', backgroundColor: '#0A0A0A', overflow: 'hidden' },
+  periodPhoto: { position: 'absolute', top: 0, right: 0, left: 0, height: 72 },
+  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 72, backgroundColor: 'rgba(5,5,5,0.58)' },
+  blockHead: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
+  blockCopy: { flex: 1 },
+  blockTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 16, letterSpacing: 1.1, textTransform: 'uppercase' },
+  blockSubtitle: { color: '#A39E96', fontFamily: fonts.display, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },
+  blockCount: { color: ui.text, fontFamily: fonts.textMedium, fontSize: 14 },
+  chevron: { color: ui.textChampagne, width: 16, textAlign: 'center' },
+  row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: 'rgba(243,239,232,0.08)' },
+  grip: { width: 28, height: 36, alignItems: 'center', justifyContent: 'center' },
+  gripMark: { color: '#8E8A84', fontSize: 16 },
+  rowCopy: { flex: 1, minWidth: 0 },
+  rowLabel: { color: ui.text, fontFamily: fonts.text, fontSize: 15 },
+  minutes: { marginTop: 2, color: '#A39E96', fontFamily: fonts.text, fontSize: 11, letterSpacing: 0.6 },
+  minutesInput: { marginTop: 4, height: 32, borderRadius: 8, borderWidth: 1, borderColor: ui.line, color: ui.text, fontFamily: fonts.text, paddingHorizontal: 8 },
+  remove: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#E15A4C', alignItems: 'center', justifyContent: 'center' },
+  removeLabel: { color: '#fff', fontSize: 18, lineHeight: 20 },
+  add: { minHeight: 46, margin: 12, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(232,200,142,0.45)', alignItems: 'center', justifyContent: 'center' },
+  addLabel: { color: ui.textChampagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
 });

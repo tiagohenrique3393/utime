@@ -10,7 +10,7 @@ const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = 
     label: 'Hoje',
     href: '/inicio',
     match: (path) =>
-      path === '/inicio' || path === '/jornada' || path === '/meu-dia' || path === '/personalizar-habitos',
+      path === '/inicio' || path === '/jornada' || path === '/meu-dia' || path === '/personalizar-habitos' || path === '/adicionar-habito',
   },
   {
     label: 'Progresso',
