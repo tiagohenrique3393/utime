@@ -23,7 +23,7 @@ const timedMinutes: { words: readonly string[]; minutes: number }[] = [
   { words: ['refeic', 'aliment'], minutes: 30 },
 ];
 
-const timeless = ['escovar', 'dente', 'banho', 'higiene', 'arrumar', 'cama', 'gratidao', 'grato', 'quarto'];
+const timeless = ['escovar', 'dente', 'banho', 'higiene', 'arrumar', 'cama', 'gratidao', 'grato', 'quarto', 'agua', 'hidrat', 'vitamina'];
 
 export function suggestedMinutes(label: string, catalogHabitId?: string | null) {
   const text = normalizeHabitText(`${catalogHabitId ?? ''} ${label}`);
@@ -31,6 +31,22 @@ export function suggestedMinutes(label: string, catalogHabitId?: string | null) 
     return null;
   }
   return timedMinutes.find((item) => item.words.some((word) => text.includes(word)))?.minutes ?? null;
+}
+
+export function habitAcceptsDuration(label: string, catalogHabitId?: string | null) {
+  return suggestedMinutes(label, catalogHabitId) != null;
+}
+
+export function parseHabitMinutes(value: string): { ok: true; minutes: number } | { ok: false; message: string } {
+  const trimmed = value.trim();
+  if (!/^\d{1,4}$/.test(trimmed)) {
+    return { ok: false, message: 'Informe a duração em minutos.' };
+  }
+  const minutes = Number(trimmed);
+  if (minutes > 1440) {
+    return { ok: false, message: 'Informe os minutos com um número de 0 a 1440.' };
+  }
+  return { ok: true, minutes };
 }
 
 export function habitIconFor(label: string, catalogHabitId?: string | null): HabitIcon {

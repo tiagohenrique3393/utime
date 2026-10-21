@@ -275,6 +275,9 @@ async function writeUserHabit(
   }
   if (!result.error) {
     relevanceAvailable = true;
+    if (Object.prototype.hasOwnProperty.call(values, 'minutes')) {
+      minutesAvailable = true;
+    }
   }
   return { data: (result.data ?? null) as HabitRow | null, error: result.error };
 }

@@ -23,7 +23,7 @@ import {
   type HabitPeriod,
   type UserHabit,
 } from '@/lib/habit-catalog';
-import { habitIconFor, periodCopy, pillarTone } from '@/lib/habit-visual';
+import { habitAcceptsDuration, habitIconFor, parseHabitMinutes, periodCopy, pillarTone, suggestedMinutes } from '@/lib/habit-visual';
 import { useRequireSession } from '@/lib/require-session';
 
 const page = '#050505';
@@ -73,18 +73,26 @@ export default function PersonalizeHabitsScreen() {
     }
   }
 
+  function openMinutes(habit: UserHabit, label: string) {
+    const current = habit.minutes ?? suggestedMinutes(label, habit.catalogHabitId);
+    setEditing(habit.id);
+    setMinutesText(current == null ? '' : String(current));
+    setNotice('');
+  }
+
   async function saveMinutes(habit: UserHabit) {
-    const trimmed = minutesText.trim();
-    const minutes = trimmed.length === 0 ? null : Number(trimmed);
-    if (minutes !== null && (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440)) {
-      setNotice('Informe os minutos com um número de 0 a 1440.');
+    const parsed = parseHabitMinutes(minutesText);
+    if (!parsed.ok) {
+      setNotice(parsed.message);
       return;
     }
-    const result = await updateUserHabit(habit.id, { minutes });
-    setNotice(result.ok ? '' : result.message);
-    if (result.ok) {
-      setEditing(null);
+    const result = await updateUserHabit(habit.id, { minutes: parsed.minutes });
+    if (!result.ok) {
+      setNotice('Não foi possível salvar a duração. Tente novamente.');
+      return;
     }
+    setNotice('');
+    setEditing(null);
   }
 
   if (!signedIn) {
@@ -118,7 +126,7 @@ export default function PersonalizeHabitsScreen() {
         const group = active.filter((habit) => habit.period === period);
         return (
           <View key={period} style={styles.block}>
-            <Image source={periodImage[period]} contentFit="cover" style={styles.periodPhoto} />
+            <Image pointerEvents="none" source={periodImage[period]} contentFit="cover" style={styles.periodPhoto} />
             <View pointerEvents="none" style={styles.periodShade} />
             <Pressable accessibilityRole="button" accessibilityState={{ expanded: open[period] }} onPress={() => setOpen((current) => ({ ...current, [period]: !current[period] }))} style={styles.blockHead}>
               <HabitGlyph name={period === 'noite' ? 'moon' : 'sun'} color={period === 'noite' ? '#8EB7E8' : '#E8C88E'} />
@@ -132,6 +140,8 @@ export default function PersonalizeHabitsScreen() {
             {open[period]
               ? group.map((habit) => {
                   const label = habitTitle(habit, catalog);
+                  const duration = habit.minutes ?? suggestedMinutes(label, habit.catalogHabitId);
+                  const canEditDuration = habitAcceptsDuration(label, habit.catalogHabitId) && duration != null;
                   return (
                     <View key={habit.id} style={styles.row}>
                       <View
@@ -159,19 +169,41 @@ export default function PersonalizeHabitsScreen() {
                         <Text numberOfLines={1} style={styles.rowLabel}>
                           {label}
                         </Text>
-                        {editing === habit.id ? (
-                          <TextInput
-                            value={minutesText}
-                            onChangeText={setMinutesText}
-                            onSubmitEditing={() => void saveMinutes(habit)}
-                            keyboardType="number-pad"
-                            placeholder="Minutos"
-                            placeholderTextColor={ui.faint}
-                            style={styles.minutesInput}
-                          />
-                        ) : habit.minutes != null ? (
-                          <Pressable accessibilityRole="button" onPress={() => { setEditing(habit.id); setMinutesText(String(habit.minutes)); }}>
-                            <Text style={styles.minutes}>{`${habit.minutes} MIN`}</Text>
+                        {canEditDuration && editing === habit.id ? (
+                          <View style={styles.minutesEdit}>
+                            <TextInput
+                              autoFocus
+                              value={minutesText}
+                              onChangeText={(value) => {
+                                setMinutesText(value.replace(/\D/g, '').slice(0, 4));
+                                setNotice('');
+                              }}
+                              onSubmitEditing={() => void saveMinutes(habit)}
+                              keyboardType="number-pad"
+                              inputMode="numeric"
+                              returnKeyType="done"
+                              maxLength={4}
+                              placeholder="Minutos"
+                              placeholderTextColor={ui.faint}
+                              accessibilityLabel={`Duração de ${label} em minutos`}
+                              style={styles.minutesInput}
+                            />
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={`Salvar duração de ${label}`}
+                              onPress={() => void saveMinutes(habit)}
+                              style={styles.minutesSave}>
+                              <Text style={styles.minutesSaveLabel}>OK</Text>
+                            </Pressable>
+                          </View>
+                        ) : canEditDuration ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Editar duração de ${label}`}
+                            hitSlop={10}
+                            onPress={() => openMinutes(habit, label)}
+                            style={styles.minutesButton}>
+                            <Text style={styles.minutes}>{`${duration} MIN`}</Text>
                           </Pressable>
                         ) : null}
                       </View>
@@ -232,8 +264,12 @@ const styles = StyleSheet.create({
   gripMark: { color: '#8E8A84', fontSize: 16 },
   rowCopy: { flex: 1, minWidth: 0 },
   rowLabel: { color: ui.text, fontFamily: fonts.text, fontSize: 15 },
-  minutes: { marginTop: 2, color: '#A39E96', fontFamily: fonts.text, fontSize: 11, letterSpacing: 0.6 },
-  minutesInput: { marginTop: 4, height: 32, borderRadius: 8, borderWidth: 1, borderColor: ui.line, color: ui.text, fontFamily: fonts.text, paddingHorizontal: 8 },
+  minutesButton: { alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center', marginTop: 2, paddingRight: 8 },
+  minutes: { color: '#A39E96', fontFamily: fonts.text, fontSize: 11, letterSpacing: 0.6 },
+  minutesEdit: { marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  minutesInput: { flex: 1, minWidth: 0, height: 36, borderRadius: 8, borderWidth: 1, borderColor: ui.line, color: ui.text, fontFamily: fonts.text, fontSize: 14, paddingHorizontal: 8 },
+  minutesSave: { minWidth: 44, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: 'rgba(232,200,142,0.45)' },
+  minutesSaveLabel: { color: ui.textChampagne, fontFamily: fonts.display, fontSize: 12, letterSpacing: 1 },
   remove: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#E15A4C', alignItems: 'center', justifyContent: 'center' },
   removeLabel: { color: '#fff', fontSize: 18, lineHeight: 20 },
   add: { minHeight: 46, margin: 12, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(232,200,142,0.45)', alignItems: 'center', justifyContent: 'center' },
