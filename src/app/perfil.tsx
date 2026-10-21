@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { createElement, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 
@@ -10,6 +10,7 @@ import { getSessionEmail, getSessionUserId, signOut } from '@/lib/accounts';
 import { getProfileSnapshot, subscribeProfile, updateProfileName, type JourneyId } from '@/lib/profile';
 
 const page = '#050505';
+const deleteRed = '#C45656';
 
 const journeyTitles: Record<JourneyId, string> = {
   metime: 'ManTime',
@@ -36,6 +37,20 @@ function stroke(extra?: Record<string, unknown>) {
     strokeLinejoin: 'round',
     ...extra,
   };
+}
+
+function TrashMark({ size = 16 }: { size?: number }) {
+  if (Platform.OS !== 'web') {
+    return <View style={styles.deleteDot} />;
+  }
+  return svg(
+    size,
+    createElement('path', { d: 'M5 7.5h14', ...stroke({ stroke: deleteRed }) }),
+    createElement('path', { d: 'M9.2 7.4V5.6h5.6v1.8', ...stroke({ stroke: deleteRed }) }),
+    createElement('path', { d: 'M7.2 7.5 8.1 19h7.8l.9-11.5', ...stroke({ stroke: deleteRed }) }),
+    createElement('path', { d: 'M10.2 10.6v5.2', ...stroke({ stroke: deleteRed }) }),
+    createElement('path', { d: 'M13.8 10.6v5.2', ...stroke({ stroke: deleteRed }) }),
+  );
 }
 
 function Mark({ name, size = 18 }: { name: 'user' | 'mail' | 'layers' | 'chevron' | 'logout' | 'pencil'; size?: number }) {
@@ -299,6 +314,15 @@ export default function ProfileScreen() {
           <Text style={styles.signOutLabel}>{leaving ? 'Saindo' : 'Sair'}</Text>
         </View>
       </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Excluir minha conta"
+        onPress={() => router.push('/excluir-conta' as Href)}
+        style={({ pressed }) => [styles.deleteAccount, pressed && styles.pressed]}>
+        <TrashMark />
+        <Text style={styles.deleteAccountLabel}>Excluir minha conta</Text>
+      </Pressable>
     </AppScreen>
   );
 }
@@ -502,5 +526,27 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: ui.champagne,
+  },
+  deleteAccount: {
+    marginTop: 22,
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  deleteAccountLabel: {
+    color: deleteRed,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  deleteDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: deleteRed,
   },
 });

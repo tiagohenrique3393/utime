@@ -1,11 +1,12 @@
 import { Image, type ImageStyle } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { createElement, useEffect, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fonts } from '@/constants/theme';
+import { consumeAccountDeletionReturn } from '@/lib/account-deletion-draft';
 import { getSessionUserId } from '@/lib/accounts';
 import { isOnboardingComplete } from '@/lib/profile';
 import { consumeRecoveryRedirect, hasPendingRecovery } from '@/lib/session';
@@ -109,6 +110,10 @@ export default function HomeScreen() {
   useEffect(() => {
     if (consumeRecoveryRedirect()) {
       router.replace('/redefinir-senha');
+      return;
+    }
+    if (getSessionUserId() && consumeAccountDeletionReturn()) {
+      router.replace('/excluir-conta?retorno=google' as Href);
       return;
     }
     if (getSessionUserId()) {

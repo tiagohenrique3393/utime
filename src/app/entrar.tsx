@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -8,6 +8,8 @@ import { signInWithEmail } from '@/lib/accounts';
 import { isOnboardingComplete } from '@/lib/profile';
 
 export default function SignInScreen() {
+  const params = useLocalSearchParams<{ retorno?: string | string[] }>();
+  const retorno = Array.isArray(params.retorno) ? params.retorno[0] : params.retorno;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -27,7 +29,7 @@ export default function SignInScreen() {
         setNotice({ message: result.message, positive: false });
         return;
       }
-      router.replace(isOnboardingComplete() ? '/inicio' : '/boas-vindas');
+      router.replace(retorno === 'excluir' ? ('/excluir-conta' as Href) : isOnboardingComplete() ? '/inicio' : '/boas-vindas');
     } catch (error) {
       const message = error instanceof Error && error.message ? error.message : 'Não foi possível concluir agora. Tente novamente.';
       setNotice({ message, positive: false });
