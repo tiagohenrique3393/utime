@@ -1,12 +1,53 @@
 -- UTime: exclusão definitiva da própria conta.
 -- Execute este arquivo uma vez no SQL Editor do Supabase.
--- Não apaga o catálogo de hábitos, o ranking global, os fechamentos do Círculo
--- nem qualquer linha de outra pessoa.
+-- Não execute este script contra uma conta real só para testar.
+--
 -- A função só enxerga auth.uid(). Não recebe identificador de conta.
+-- Cada delete abaixo usa esse mesmo uid.
+--
+-- Tabelas pessoais verificadas no projeto e na API, e apagadas só para esse uid:
+-- profiles, journey_state, journey_days, habit_routines, user_habits,
+-- habit_day_logs, hydration_days, day_celebrations, circle_memberships,
+-- circle_events, circle_friends (owner_id e friend_id) e circle_results.
+--
+-- Tabelas globais verificadas e preservadas:
+-- habit_catalog, circle_personal_habits, circle_closures e circle_setup.
+-- O ranking público é uma função de leitura. Não há tabela pessoal de ranking
+-- além de circle_results, profiles e journey_days.
+--
+-- Não há tabela de assinatura Apple, Google ou Stripe.
+-- Esta função não cancela cobrança nenhuma.
+--
+-- Fotos: este script não apaga storage.objects e não remove o arquivo físico.
+-- Apagar essa tabela direto não remove o arquivo do Storage.
+-- O aplicativo lista a pasta do usuário no bucket avatars, remove os objetos
+-- pela API oficial storage.from('avatars').remove e lista de novo.
+-- A política avatars_delete_own só permite apagar objeto cujo primeiro
+-- diretório é auth.uid(). A política avatars_public_read permanece, porque
+-- a foto de perfil é pública. Não há política de update.
+-- Se a listagem, a remoção ou a segunda listagem falhar, ou se sobrar arquivo,
+-- o aplicativo não chama esta função.
+-- Se ainda existir objeto em avatars com nome igual ao uid ou dentro da pasta
+-- do uid, esta função interrompe com 'avatar files remain' e desfaz tudo.
+--
+-- Vínculos: antes de apagar auth.users, a função conta linhas em public e
+-- storage cuja chave estrangeira para auth.users não é cascade. Se sobrar
+-- linha, interrompe com 'account delete blocked' e desfaz tudo.
+-- O schema auth não entra nessa contagem: a sessão atual apontaria para o
+-- próprio usuário e bloquearia toda exclusão. Sessions, identities e refresh
+-- tokens dependem do cascade interno do Supabase. Se algum desses vínculos
+-- impedir o delete, a transação inteira é desfeita.
+-- O arquivo delete-account-diagnose.sql é somente leitura e lista esses vínculos.
+--
+-- A função é security definer e o dono precisa ser postgres, o mesmo papel
+-- do SQL Editor. Assim ela consegue apagar auth.users e ler storage.objects
+-- acima do RLS. Ela só usa auth.uid(). Não aceita identificador de outra conta.
+--
 -- A pesquisa não guarda nome, e-mail, identificador, IP nem sessão.
--- Falha na pesquisa não impede a exclusão. Falha na exclusão desfaz a pesquisa.
--- Não há tabela de assinatura Apple, Google ou Stripe neste projeto.
--- Esta função não cancela cobrança nenhuma e não promete cancelamento.
+-- Falha ao gravar ou limpar a pesquisa é ignorada de propósito.
+-- Falha ao apagar tabela pessoal, foto restante, vínculo sem cascade ou
+-- auth.users não é ignorada: a transação inteira é desfeita.
+-- Comentários livres são reduzidos, apagados em 90 dias, e o registro some em 24 meses.
 
 create table if not exists public.account_exit_survey (
   id uuid primary key default gen_random_uuid(),
@@ -102,9 +143,13 @@ declare
   category text := nullif(btrim(coalesce(reason, '')), '');
   version text := nullif(btrim(coalesce(survey_version, '')), '');
   cleaned text;
-  personal record;
+  blocker record;
+  remaining bigint;
 begin
-  if uid is null or issued is null or to_timestamp(issued) < pg_catalog.now() - interval '10 minutes' then
+  if uid is null
+     or issued is null
+     or to_timestamp(issued) < pg_catalog.now() - interval '10 minutes'
+     or uid::text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'auth required' using errcode = '28000';
   end if;
 
@@ -149,62 +194,85 @@ begin
     end;
   end if;
 
-  for personal in
-    select ns.nspname as schema_name, cl.relname as table_name, att.attname as column_name
-    from pg_constraint con
-    join pg_class cl on cl.oid = con.conrelid
-    join pg_namespace ns on ns.oid = cl.relnamespace
-    join pg_attribute att on att.attrelid = cl.oid and att.attnum = con.conkey[1]
-    where con.contype = 'f'
-      and con.confrelid = 'auth.users'::regclass
-      and ns.nspname = 'public'
-      and cl.relkind = 'r'
-      and cl.relname <> 'account_exit_survey'
-      and cardinality(con.conkey) = 1
-    order by (
-      select count(*)
-      from pg_constraint inbound
-      where inbound.confrelid = cl.oid
-        and inbound.contype = 'f'
-    ) asc
-  loop
-    execute format(
-      'delete from %I.%I where %I = $1',
-      personal.schema_name,
-      personal.table_name,
-      personal.column_name
-    )
-    using uid;
-  end loop;
+  if to_regclass('public.habit_day_logs') is not null then
+    delete from public.habit_day_logs where user_id = uid;
+  end if;
+  if to_regclass('public.circle_events') is not null then
+    delete from public.circle_events where user_id = uid;
+  end if;
+  if to_regclass('public.hydration_days') is not null then
+    delete from public.hydration_days where user_id = uid;
+  end if;
+  if to_regclass('public.day_celebrations') is not null then
+    delete from public.day_celebrations where user_id = uid;
+  end if;
+  if to_regclass('public.user_habits') is not null then
+    delete from public.user_habits where user_id = uid;
+  end if;
+  if to_regclass('public.habit_routines') is not null then
+    delete from public.habit_routines where user_id = uid;
+  end if;
+  if to_regclass('public.circle_friends') is not null then
+    delete from public.circle_friends where owner_id = uid or friend_id = uid;
+  end if;
+  if to_regclass('public.circle_memberships') is not null then
+    delete from public.circle_memberships where user_id = uid;
+  end if;
+  if to_regclass('public.circle_results') is not null then
+    delete from public.circle_results where user_id = uid;
+  end if;
+  if to_regclass('public.journey_days') is not null then
+    delete from public.journey_days where user_id = uid;
+  end if;
+  if to_regclass('public.journey_state') is not null then
+    delete from public.journey_state where user_id = uid;
+  end if;
+  if to_regclass('public.profiles') is not null then
+    delete from public.profiles where user_id = uid;
+  end if;
 
   if to_regclass('storage.objects') is not null then
-    delete from storage.objects
-    where bucket_id = 'avatars'
-      and (
-        name = uid::text
-        or name like uid::text || '/%'
-      );
-
     if exists (
       select 1
-      from information_schema.columns
-      where table_schema = 'storage'
-        and table_name = 'objects'
-        and column_name = 'owner'
+      from storage.objects object
+      where object.bucket_id = 'avatars'
+        and (
+          object.name = uid::text
+          or object.name like uid::text || '/%'
+        )
     ) then
-      execute 'delete from storage.objects where owner = $1' using uid;
-    end if;
-
-    if exists (
-      select 1
-      from information_schema.columns
-      where table_schema = 'storage'
-        and table_name = 'objects'
-        and column_name = 'owner_id'
-    ) then
-      execute 'delete from storage.objects where owner_id = $1' using uid::text;
+      raise exception 'avatar files remain' using errcode = 'P0001';
     end if;
   end if;
+
+  for blocker in
+    select ns.nspname as schema_name,
+           cl.relname as table_name,
+           att.attname as column_name
+    from pg_catalog.pg_constraint con
+    join pg_catalog.pg_class cl on cl.oid = con.conrelid
+    join pg_catalog.pg_namespace ns on ns.oid = cl.relnamespace
+    join pg_catalog.pg_attribute att
+      on att.attrelid = cl.oid
+     and att.attnum = con.conkey[1]
+     and not att.attisdropped
+    where con.contype = 'f'
+      and con.confrelid = 'auth.users'::regclass
+      and pg_catalog.cardinality(con.conkey) = 1
+      and con.confdeltype <> 'c'
+      and ns.nspname in ('public', 'storage')
+      and cl.relkind = 'r'
+  loop
+    execute pg_catalog.format(
+      'select count(*) from %I.%I where %I::text = $1',
+      blocker.schema_name,
+      blocker.table_name,
+      blocker.column_name
+    ) into remaining using uid::text;
+    if remaining > 0 then
+      raise exception 'account delete blocked' using errcode = 'P0001';
+    end if;
+  end loop;
 
   delete from auth.users where id = uid;
 
@@ -216,6 +284,9 @@ $$;
 
 revoke all on function public.delete_own_account(text, text, text) from public, anon;
 grant execute on function public.delete_own_account(text, text, text) to authenticated;
+
+alter function public.purge_account_exit_survey() owner to postgres;
+alter function public.delete_own_account(text, text, text) owner to postgres;
 
 do $cron$
 begin

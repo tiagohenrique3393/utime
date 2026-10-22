@@ -1,3 +1,5 @@
+import { isOwnAvatarPath } from '@/lib/avatar';
+
 export const SURVEY_VERSION = '1';
 export const COMMENT_LIMIT = 2000;
 export const CONFIRM_PHRASE = 'EXCLUIR';
@@ -136,4 +138,45 @@ export function localKeysForAccount(userId: string, keys: readonly string[]) {
     }
     return false;
   }).filter((key) => accountKeyPrefixes.some((prefix) => key.startsWith(prefix)));
+}
+
+function isSafeRelativePath(name: string) {
+  if (!name || name.startsWith('/') || name.includes('\\') || name.includes('\0')) {
+    return false;
+  }
+  const parts = name.split('/');
+  return parts.every((part) => part.length > 0 && part !== '.' && part !== '..');
+}
+
+export function avatarFolderAllowed(userId: string, prefix: string, depth: number, depthLimit = 4) {
+  if (!userId || depth > depthLimit) {
+    return false;
+  }
+  return prefix === userId || prefix.startsWith(`${userId}/`);
+}
+
+export function planOwnAvatarRemoval(userId: string, names: readonly string[]) {
+  if (!userId) {
+    return { paths: [] as string[], blocked: names.length > 0 };
+  }
+  const paths: string[] = [];
+  for (const name of names) {
+    if (!isSafeRelativePath(name)) {
+      return { paths: [], blocked: true };
+    }
+    const path = `${userId}/${name}`;
+    if (!path.startsWith(`${userId}/`) || path.slice(userId.length + 1) !== name) {
+      return { paths: [], blocked: true };
+    }
+    paths.push(path);
+  }
+  return { paths, blocked: false };
+}
+
+export function ownAvatarObjectPaths(userId: string, names: readonly string[]) {
+  const plan = planOwnAvatarRemoval(userId, names);
+  if (plan.blocked) {
+    return [];
+  }
+  return plan.paths.filter((path) => isOwnAvatarPath(userId, path));
 }
