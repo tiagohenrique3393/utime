@@ -7,6 +7,7 @@ import {
   exitReasons,
   isRecentSignIn,
   localKeysForAccount,
+  ownAvatarObjectPaths,
   phraseMatches,
   reauthReturnIsFresh,
   sanitizeExitComment,
@@ -73,3 +74,12 @@ const mine = localKeysForAccount('user-1', [
 ]);
 assertEqual(mine.length, 5, 'so as chaves da propria conta');
 assertEqual(mine.includes('youtime.profile.user-2'), false, 'nao apaga outra conta');
+
+const me = '11111111-1111-4111-8111-111111111111';
+const otherUser = '22222222-2222-4222-8222-222222222222';
+const file = '33333333-3333-4333-8333-333333333333.webp';
+const ownPhotos = ownAvatarObjectPaths(me, [file, `../${otherUser}/${file}`, `${otherUser}/${file}`, '', 'nota.txt']);
+assertEqual(ownPhotos.length, 1, 'uma foto propria');
+assertEqual(ownPhotos[0], `${me}/${file}`, 'caminho da propria pasta');
+assertEqual(ownAvatarObjectPaths(otherUser, [file]).includes(`${me}/${file}`), false, 'nao monta foto de outra conta');
+assertEqual(ownAvatarObjectPaths('', [file]).length, 0, 'sem usuario nao ha arquivo');

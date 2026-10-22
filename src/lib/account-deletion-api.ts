@@ -4,6 +4,7 @@ import {
   deletionOutcome,
   isRecentSignIn,
   localKeysForAccount,
+  ownAvatarObjectPaths,
   surveyPayload,
   type ExitReason,
 } from '@/lib/account-deletion';
@@ -51,6 +52,44 @@ export function clearLocalAccountResidue(userId: string) {
   }
 }
 
+const avatarPageSize = 100;
+const avatarPageLimit = 1000;
+
+async function removeOwnAvatarFiles(userId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  const names: string[] = [];
+  for (let offset = 0; offset < avatarPageLimit; offset += avatarPageSize) {
+    const listed = await supabase.storage.from('avatars').list(userId, {
+      limit: avatarPageSize,
+      offset,
+    });
+    if (listed.error) {
+      return { ok: false, message: 'Não foi possível remover a foto de perfil. Sua conta não foi excluída.' };
+    }
+    const batch = listed.data ?? [];
+    for (const item of batch) {
+      if (item.name) {
+        names.push(item.name);
+      }
+    }
+    if (batch.length < avatarPageSize) {
+      break;
+    }
+    if (offset + avatarPageSize >= avatarPageLimit) {
+      return { ok: false, message: 'Não foi possível remover todos os arquivos da foto. Sua conta não foi excluída.' };
+    }
+  }
+
+  const paths = ownAvatarObjectPaths(userId, names);
+  if (paths.length === 0) {
+    return { ok: true };
+  }
+  const removed = await supabase.storage.from('avatars').remove(paths);
+  if (removed.error) {
+    return { ok: false, message: 'Não foi possível remover a foto de perfil. Sua conta não foi excluída.' };
+  }
+  return { ok: true };
+}
+
 async function finishDeletedSession(userId: string | null) {
   if (userId) {
     clearLocalAccountResidue(userId);
@@ -92,6 +131,13 @@ export async function deleteOwnAccount(input: {
   }
 
   const userId = getSessionUserId();
+  if (!userId) {
+    return { ok: false, message: 'Entre novamente na sua conta. Nada foi excluído.' };
+  }
+  const avatars = await removeOwnAvatarFiles(userId);
+  if (!avatars.ok) {
+    return avatars;
+  }
   const payload = surveyPayload(input.reason, input.comment);
   const { error } = await supabase.rpc('delete_own_account', payload);
   const outcome = deletionOutcome(error);

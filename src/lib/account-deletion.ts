@@ -1,3 +1,5 @@
+import { isOwnAvatarPath } from '@/lib/avatar';
+
 export const SURVEY_VERSION = '1';
 export const COMMENT_LIMIT = 2000;
 export const CONFIRM_PHRASE = 'EXCLUIR';
@@ -136,4 +138,21 @@ export function localKeysForAccount(userId: string, keys: readonly string[]) {
     }
     return false;
   }).filter((key) => accountKeyPrefixes.some((prefix) => key.startsWith(prefix)));
+}
+
+export function ownAvatarObjectPaths(userId: string, names: readonly string[]) {
+  if (!userId) {
+    return [];
+  }
+  const paths: string[] = [];
+  for (const name of names) {
+    if (!name || name.includes('/') || name.includes('\\') || name.includes('..')) {
+      continue;
+    }
+    const path = `${userId}/${name}`;
+    if (isOwnAvatarPath(userId, path)) {
+      paths.push(path);
+    }
+  }
+  return paths;
 }
