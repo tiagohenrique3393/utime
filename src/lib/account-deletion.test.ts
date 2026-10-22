@@ -1,4 +1,5 @@
 import {
+  avatarFolderAllowed,
   canContinueSurvey,
   clipComment,
   COMMENT_LIMIT,
@@ -9,6 +10,7 @@ import {
   localKeysForAccount,
   ownAvatarObjectPaths,
   phraseMatches,
+  planOwnAvatarRemoval,
   reauthReturnIsFresh,
   sanitizeExitComment,
   surveyPayload,
@@ -55,6 +57,8 @@ assertEqual(deletionOutcome({ code: 'P0002', message: 'account missing' }), 'del
 assertEqual(deletionOutcome({ code: 'PGRST202', message: 'Could not find the function public.delete_own_account' }), 'unavailable', 'funcao ausente');
 assertEqual(deletionOutcome({ code: '28000', message: 'auth required' }), 'denied', 'sem sessao');
 assertEqual(deletionOutcome({ code: 'P0001', message: 'account delete failed' }), 'failed', 'falha parcial');
+assertEqual(deletionOutcome({ code: 'P0001', message: 'avatar files remain' }), 'failed', 'foto restante');
+assertEqual(deletionOutcome({ code: 'P0001', message: 'account delete blocked' }), 'failed', 'vinculo restante');
 assertEqual(
   deletionFailureMessage('failed'),
   'Não foi possível excluir a conta. Nada foi apagado. Tente novamente.',
@@ -78,8 +82,28 @@ assertEqual(mine.includes('youtime.profile.user-2'), false, 'nao apaga outra con
 const me = '11111111-1111-4111-8111-111111111111';
 const otherUser = '22222222-2222-4222-8222-222222222222';
 const file = '33333333-3333-4333-8333-333333333333.webp';
-const ownPhotos = ownAvatarObjectPaths(me, [file, `../${otherUser}/${file}`, `${otherUser}/${file}`, '', 'nota.txt']);
-assertEqual(ownPhotos.length, 1, 'uma foto propria');
-assertEqual(ownPhotos[0], `${me}/${file}`, 'caminho da propria pasta');
-assertEqual(ownAvatarObjectPaths(otherUser, [file]).includes(`${me}/${file}`), false, 'nao monta foto de outra conta');
+const mixed = [file, `../${otherUser}/${file}`, `${otherUser}/${file}`, '', 'nota.txt'];
+const blocked = planOwnAvatarRemoval(me, mixed);
+assertEqual(blocked.blocked, true, 'caminho inseguro bloqueia o plano');
+assertEqual(blocked.paths.length, 0, 'plano inseguro nao remove parte da lista');
+assertEqual(ownAvatarObjectPaths(me, mixed).length, 0, 'lista mista nao gera caminho');
+
+const legacy = planOwnAvatarRemoval(me, [file, 'nota.txt', `antigo/${file}`]);
+assertEqual(legacy.blocked, false, 'arquivo antigo entra no plano');
+assertEqual(legacy.paths.length, 3, 'tres caminhos da propria pasta');
+assertEqual(legacy.paths[0], `${me}/${file}`, 'foto padronizada');
+assertEqual(legacy.paths[1], `${me}/nota.txt`, 'arquivo antigo');
+assertEqual(legacy.paths[2], `${me}/antigo/${file}`, 'subpasta antiga');
+const onlyImages = ownAvatarObjectPaths(me, [file, 'nota.txt']);
+assertEqual(onlyImages.length, 1, 'filtro de imagem continua');
+assertEqual(onlyImages[0], `${me}/${file}`, 'somente a imagem padronizada');
+assertEqual(planOwnAvatarRemoval(otherUser, [file]).paths.includes(`${me}/${file}`), false, 'nao monta foto de outra conta');
+assertEqual(planOwnAvatarRemoval('', [file]).blocked, true, 'sem usuario a lista fica bloqueada');
+assertEqual(planOwnAvatarRemoval('', []).blocked, false, 'sem usuario e sem arquivo');
 assertEqual(ownAvatarObjectPaths('', [file]).length, 0, 'sem usuario nao ha arquivo');
+assertEqual(avatarFolderAllowed(me, me, 0), true, 'pasta raiz da propria conta');
+assertEqual(avatarFolderAllowed(me, `${me}/antigo`, 1), true, 'subpasta da propria conta');
+assertEqual(avatarFolderAllowed(me, otherUser, 0), false, 'nao lista outra conta');
+assertEqual(avatarFolderAllowed(me, '', 0), false, 'prefixo vazio');
+assertEqual(avatarFolderAllowed('', me, 0), false, 'usuario vazio');
+assertEqual(avatarFolderAllowed(me, me, 5), false, 'profundidade acima do limite');

@@ -1,10 +1,10 @@
 import { supabase } from '../../utils/supabase';
 import {
-  deletionFailureMessage,
+  avatarFolderAllowed,
   deletionOutcome,
   isRecentSignIn,
   localKeysForAccount,
-  ownAvatarObjectPaths,
+  planOwnAvatarRemoval,
   surveyPayload,
   type ExitReason,
 } from '@/lib/account-deletion';
@@ -54,38 +54,88 @@ export function clearLocalAccountResidue(userId: string) {
 
 const avatarPageSize = 100;
 const avatarPageLimit = 1000;
+const avatarDepthLimit = 4;
+const photoError = 'Não foi possível remover a foto de perfil. Sua conta não foi excluída.';
 
-async function removeOwnAvatarFiles(userId: string): Promise<{ ok: true } | { ok: false; message: string }> {
-  const names: string[] = [];
+async function listAvatarFolder(prefix: string): Promise<{ ok: true; entries: { name: string; id: string | null }[] } | { ok: false }> {
+  const entries: { name: string; id: string | null }[] = [];
   for (let offset = 0; offset < avatarPageLimit; offset += avatarPageSize) {
-    const listed = await supabase.storage.from('avatars').list(userId, {
+    const listed = await supabase.storage.from('avatars').list(prefix, {
       limit: avatarPageSize,
       offset,
+      sortBy: { column: 'name', order: 'asc' },
     });
     if (listed.error) {
-      return { ok: false, message: 'Não foi possível remover a foto de perfil. Sua conta não foi excluída.' };
+      return { ok: false };
     }
     const batch = listed.data ?? [];
     for (const item of batch) {
-      if (item.name) {
-        names.push(item.name);
+      if (!item.name) {
+        return { ok: false };
       }
+      entries.push({ name: item.name, id: item.id });
     }
     if (batch.length < avatarPageSize) {
-      break;
-    }
-    if (offset + avatarPageSize >= avatarPageLimit) {
-      return { ok: false, message: 'Não foi possível remover todos os arquivos da foto. Sua conta não foi excluída.' };
+      return { ok: true, entries };
     }
   }
+  return { ok: false };
+}
 
-  const paths = ownAvatarObjectPaths(userId, names);
-  if (paths.length === 0) {
-    return { ok: true };
+async function collectAvatarNames(userId: string, prefix: string, depth: number): Promise<{ ok: true; names: string[] } | { ok: false }> {
+  if (!avatarFolderAllowed(userId, prefix, depth, avatarDepthLimit)) {
+    return { ok: false };
   }
-  const removed = await supabase.storage.from('avatars').remove(paths);
-  if (removed.error) {
-    return { ok: false, message: 'Não foi possível remover a foto de perfil. Sua conta não foi excluída.' };
+  const listed = await listAvatarFolder(prefix);
+  if (!listed.ok) {
+    return { ok: false };
+  }
+  const base = prefix === userId ? '' : prefix.slice(userId.length + 1);
+  const names: string[] = [];
+  for (const entry of listed.entries) {
+    const relative = base ? `${base}/${entry.name}` : entry.name;
+    if (planOwnAvatarRemoval(userId, [relative]).blocked) {
+      return { ok: false };
+    }
+    if (entry.id === null) {
+      const nested = await collectAvatarNames(userId, `${userId}/${relative}`, depth + 1);
+      if (!nested.ok) {
+        return { ok: false };
+      }
+      names.push(...nested.names);
+      continue;
+    }
+    names.push(relative);
+  }
+  return { ok: true, names };
+}
+
+async function removeOwnAvatarFiles(userId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  const listed = await collectAvatarNames(userId, userId, 0);
+  if (!listed.ok) {
+    return { ok: false, message: photoError };
+  }
+  const plan = planOwnAvatarRemoval(userId, listed.names);
+  if (plan.blocked) {
+    return { ok: false, message: photoError };
+  }
+  for (let index = 0; index < plan.paths.length; index += avatarPageSize) {
+    const batch = plan.paths.slice(index, index + avatarPageSize);
+    if (batch.some((path) => !path.startsWith(`${userId}/`))) {
+      return { ok: false, message: photoError };
+    }
+    const removed = await supabase.storage.from('avatars').remove(batch);
+    if (removed.error || !removed.data) {
+      return { ok: false, message: photoError };
+    }
+  }
+  const again = await collectAvatarNames(userId, userId, 0);
+  if (!again.ok) {
+    return { ok: false, message: photoError };
+  }
+  const remaining = planOwnAvatarRemoval(userId, again.names);
+  if (remaining.blocked || remaining.paths.length > 0) {
+    return { ok: false, message: photoError };
   }
   return { ok: true };
 }
@@ -145,7 +195,7 @@ export async function deleteOwnAccount(input: {
     await finishDeletedSession(userId);
     return { ok: true };
   }
-  return { ok: false, message: deletionFailureMessage(outcome) };
+  return { ok: false, message: 'Não foi possível concluir a exclusão. A conta não foi excluída.' };
 }
 
 export async function sessionSignInIsRecent() {

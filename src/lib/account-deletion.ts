@@ -140,19 +140,43 @@ export function localKeysForAccount(userId: string, keys: readonly string[]) {
   }).filter((key) => accountKeyPrefixes.some((prefix) => key.startsWith(prefix)));
 }
 
-export function ownAvatarObjectPaths(userId: string, names: readonly string[]) {
+function isSafeRelativePath(name: string) {
+  if (!name || name.startsWith('/') || name.includes('\\') || name.includes('\0')) {
+    return false;
+  }
+  const parts = name.split('/');
+  return parts.every((part) => part.length > 0 && part !== '.' && part !== '..');
+}
+
+export function avatarFolderAllowed(userId: string, prefix: string, depth: number, depthLimit = 4) {
+  if (!userId || depth > depthLimit) {
+    return false;
+  }
+  return prefix === userId || prefix.startsWith(`${userId}/`);
+}
+
+export function planOwnAvatarRemoval(userId: string, names: readonly string[]) {
   if (!userId) {
-    return [];
+    return { paths: [] as string[], blocked: names.length > 0 };
   }
   const paths: string[] = [];
   for (const name of names) {
-    if (!name || name.includes('/') || name.includes('\\') || name.includes('..')) {
-      continue;
+    if (!isSafeRelativePath(name)) {
+      return { paths: [], blocked: true };
     }
     const path = `${userId}/${name}`;
-    if (isOwnAvatarPath(userId, path)) {
-      paths.push(path);
+    if (!path.startsWith(`${userId}/`) || path.slice(userId.length + 1) !== name) {
+      return { paths: [], blocked: true };
     }
+    paths.push(path);
   }
-  return paths;
+  return { paths, blocked: false };
+}
+
+export function ownAvatarObjectPaths(userId: string, names: readonly string[]) {
+  const plan = planOwnAvatarRemoval(userId, names);
+  if (plan.blocked) {
+    return [];
+  }
+  return plan.paths.filter((path) => isOwnAvatarPath(userId, path));
 }

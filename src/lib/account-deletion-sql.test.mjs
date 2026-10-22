@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const sql = readFileSync(resolve('supabase/delete-account.sql'), 'utf8');
+const diagnose = readFileSync(resolve('supabase/delete-account-diagnose.sql'), 'utf8');
 
 function assert(condition, label) {
   if (!condition) {
@@ -34,7 +35,9 @@ for (const preserved of ['habit_catalog', 'circle_personal_habits', 'circle_clos
 }
 
 assert(!/delete\s+from\s+storage\.objects/i.test(sql), 'nao apaga storage.objects');
-assert(!sql.includes('execute format'), 'sem delete dinamico');
+assert(!/execute\s+(?:pg_catalog\.)?format\(\s*'delete/i.test(sql), 'sem delete dinamico');
+assert(/execute\s+pg_catalog\.format\(\s*'select count\(\*\)/i.test(sql), 'conta vinculos sem cascade');
+assert((sql.match(/execute\s+(?:pg_catalog\.)?format\(/gi) ?? []).length === 1, 'um unico execute');
 assert(sql.includes('uid uuid := auth.uid()'), 'identidade da sessao');
 assert(!sql.includes('user_id uuid'), 'pesquisa sem identificador');
 assert(/function public\.delete_own_account\(\s*reason text/s.test(sql), 'sem id de terceiro');
@@ -46,3 +49,19 @@ assert(
   sql.includes('revoke all on function public.delete_own_account(text, text, text) from public, anon;'),
   'anon bloqueado',
 );
+assert(
+  sql.includes('alter function public.delete_own_account(text, text, text) owner to postgres;'),
+  'dono postgres',
+);
+assert(sql.includes("raise exception 'avatar files remain'"), 'foto restante interrompe');
+assert(sql.includes("raise exception 'account delete blocked'"), 'vinculo sem cascade interrompe');
+
+const avatarAt = sql.indexOf("raise exception 'avatar files remain'");
+const blockedAt = sql.indexOf("raise exception 'account delete blocked'");
+const authAt = sql.indexOf('delete from auth.users where id = uid;');
+assert(avatarAt > 0 && avatarAt < authAt, 'foto restante antes do auth');
+assert(blockedAt > avatarAt && blockedAt < authAt, 'vinculo antes do auth');
+assert((sql.match(/when others then/gi) ?? []).length === 3, 'so a pesquisa e o agendamento ignoram erro');
+assert(!/\b(insert|update|delete|drop|create|alter|truncate|grant|revoke|execute)\b/i.test(diagnose), 'diagnostico somente leitura');
+assert(diagnose.includes('auth.users'), 'diagnostico lista vinculos de auth.users');
+assert(diagnose.includes('storage.objects'), 'diagnostico lista politicas do storage');
