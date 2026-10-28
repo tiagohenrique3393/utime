@@ -3,7 +3,9 @@ import {
   canContinueSurvey,
   clipComment,
   COMMENT_LIMIT,
+  accessTokenIsFresh,
   deletionFailureMessage,
+  deletionMessages,
   deletionOutcome,
   exitReasons,
   isRecentSignIn,
@@ -59,12 +61,21 @@ assertEqual(deletionOutcome({ code: '28000', message: 'auth required' }), 'denie
 assertEqual(deletionOutcome({ code: 'P0001', message: 'account delete failed' }), 'failed', 'falha parcial');
 assertEqual(deletionOutcome({ code: 'P0001', message: 'avatar files remain' }), 'failed', 'foto restante');
 assertEqual(deletionOutcome({ code: 'P0001', message: 'account delete blocked' }), 'failed', 'vinculo restante');
-assertEqual(
-  deletionFailureMessage('failed'),
-  'Não foi possível excluir a conta. Nada foi apagado. Tente novamente.',
-  'mensagem de falha',
-);
-assertEqual(deletionFailureMessage('failed').includes('@'), false, 'falha sem texto livre');
+assertEqual(deletionFailureMessage('failed'), deletionMessages.unknown, 'falha sem afirmar que nada mudou');
+assertEqual(deletionFailureMessage('failed').includes('Nada foi apagado'), false, 'falha nao afirma que nada foi apagado');
+assertEqual(deletionMessages.partialRemoval.includes('incompleta'), true, 'remocao parcial');
+assertEqual(deletionMessages.afterRemoval.includes('fotos foram removidas'), true, 'falha depois das fotos');
+assertEqual(deletionMessages.beforeRemoval.includes('Nenhum arquivo foi removido'), true, 'falha antes da remocao');
+
+function tokenWithIat(iatSeconds: number) {
+  const payload = btoa(JSON.stringify({ iat: iatSeconds })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return `aaa.${payload}.bbb`;
+}
+
+const issuedAt = 1_700_000_000;
+assertEqual(accessTokenIsFresh(tokenWithIat(issuedAt), issuedAt * 1000 + 60_000), true, 'jwt recente');
+assertEqual(accessTokenIsFresh(tokenWithIat(issuedAt), issuedAt * 1000 + 11 * 60_000), false, 'jwt acima de 10 minutos');
+assertEqual(accessTokenIsFresh('invalido', issuedAt * 1000), false, 'jwt ilegivel');
 
 const mine = localKeysForAccount('user-1', [
   'youtime.profile.user-1',

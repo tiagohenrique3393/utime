@@ -8,6 +8,7 @@ import {
   canContinueSurvey,
   clipComment,
   COMMENT_LIMIT,
+  deletionMessages,
   exitReasons,
   phraseMatches,
   type ExitReason,
@@ -26,12 +27,6 @@ const removedItems = [
   { icon: 'photo', label: 'Foto de perfil e arquivos pessoais.' },
   { icon: 'user', label: 'Dados pessoais e identificador público.' },
   { icon: 'key', label: 'Conta de acesso ao UTime.' },
-] as const;
-
-const subscriptionGuides = [
-  { source: 'Apple', text: 'Ajustes > Seu nome > Assinaturas > UTime > Cancelar assinatura.' },
-  { source: 'Google Play', text: 'Google Play > Pagamentos e assinaturas > Assinaturas > UTime > Cancelar assinatura.' },
-  { source: 'Site / Stripe', text: 'Cancele pelo gerenciamento da sua assinatura no UTime.' },
 ] as const;
 
 function svg(size: number, color: string, ...children: ReactNode[]) {
@@ -132,16 +127,11 @@ export default function DeleteAccountScreen() {
   const params = useLocalSearchParams<{ retorno?: string | string[] }>();
   const retorno = Array.isArray(params.retorno) ? params.retorno[0] : params.retorno;
   const draft = readExitDraft();
-  const [signedIn, setSignedIn] = useState(getSessionUserId() !== null);
-  const [finished, setFinished] = useState(false);
+  const signedIn = getSessionUserId() !== null;
   const [step, setStep] = useState<'survey' | 'confirm'>(retorno === 'google' ? 'confirm' : 'survey');
   const [reason, setReason] = useState<ExitReason | null>(draft.reason);
   const [comment, setComment] = useState(draft.comment);
   const [googleFresh, setGoogleFresh] = useState(retorno === 'google');
-
-  useEffect(() => {
-    setSignedIn(getSessionUserId() !== null);
-  }, [step, finished]);
 
   useEffect(() => {
     if (step !== 'confirm' || !googleFresh) {
@@ -176,10 +166,6 @@ export default function DeleteAccountScreen() {
     writeExitDraft({ reason, comment: next });
   }
 
-  if (finished) {
-    return <DoneStep />;
-  }
-
   if (!signedIn) {
     return <PublicStep />;
   }
@@ -189,7 +175,7 @@ export default function DeleteAccountScreen() {
       <ConfirmStep
         googleFresh={googleFresh}
         onCancel={leaveToProfile}
-        onFinished={() => setFinished(true)}
+        onFinished={() => router.replace('/entrar' as Href)}
         onGoogle={() => setGoogleFresh(true)}
       />
     );
@@ -366,7 +352,7 @@ function ConfirmStep({
       }
       onFinished();
     } catch {
-      setNotice('Não foi possível excluir a conta. Nada foi apagado. Tente novamente.');
+      setNotice(deletionMessages.unknown);
       busyRef.current = false;
       setBusy(false);
     }
@@ -398,16 +384,10 @@ function ConfirmStep({
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.warning}>Atenção: excluir sua conta não cancela automaticamente sua assinatura.</Text>
+        <Text style={styles.warning}>A exclusão não cancela assinatura externa.</Text>
         <Text style={styles.bodyTight}>
-          Nenhuma assinatura está vinculada a esta conta no UTime. Por isso nenhuma origem é destacada e não há link de cancelamento nesta tela. Se você assinou fora do aplicativo, cancele na loja correspondente. A exclusão não fica bloqueada por isso.
+          Se houver uma assinatura contratada fora do UTime, ela continua na loja em que foi feita. Excluir a conta não cancela essa cobrança automaticamente.
         </Text>
-        {subscriptionGuides.map((guide) => (
-          <View key={guide.source} style={styles.guide}>
-            <Text style={styles.guideSource}>{guide.source}</Text>
-            <Text style={styles.guideText}>{guide.text}</Text>
-          </View>
-        ))}
       </View>
 
       <Text style={styles.fieldLabel}>Digite EXCLUIR para confirmar</Text>
@@ -485,7 +465,7 @@ function PublicStep() {
         ))}
       </View>
       <Text style={styles.body}>
-        A exclusão apaga a conta de acesso e os dados pessoais associados. O catálogo geral do UTime permanece. Não há registro de pagamento nesta versão, então nenhuma cobrança é cancelada daqui. Uma assinatura feita na Apple ou no Google continua na loja até você cancelá-la.
+        A exclusão apaga a conta de acesso e os dados pessoais associados. O catálogo geral do UTime permanece. Se houver uma assinatura contratada fora do UTime, excluir a conta não cancela essa cobrança automaticamente.
       </Text>
       <Text style={styles.body}>
         A pesquisa de saída, se você responder, guarda somente a categoria, a data e a versão do formulário. O comentário livre é opcional, tem os contatos reduzidos e não fica ligado ao seu nome, e-mail ou identificador. O texto livre é apagado em 90 dias e o registro some em 24 meses.
@@ -495,28 +475,6 @@ function PublicStep() {
         onPress={() => router.push('/entrar?retorno=excluir' as Href)}
         style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
         <Text style={styles.primaryLabel}>Entrar para excluir</Text>
-      </Pressable>
-    </AppScreen>
-  );
-}
-
-function DoneStep() {
-  return (
-    <AppScreen width="narrow" showNav={false} backgroundColor={page}>
-      <Text accessibilityRole="header" style={styles.title}>
-        Conta excluída
-      </Text>
-      <Text style={styles.body}>
-        Sua conta e o histórico associado foram apagados. Você pode criar uma nova conta no futuro, inclusive com o mesmo e-mail, quando o provedor permitir. A nova conta começa do zero.
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.replace('/cadastro' as Href)}
-        style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
-        <Text style={styles.primaryLabel}>Criar uma conta</Text>
-      </Pressable>
-      <Pressable accessibilityRole="button" onPress={() => router.replace('/' as Href)} style={styles.quiet}>
-        <Text style={styles.quietLabel}>Ir para o início</Text>
       </Pressable>
     </AppScreen>
   );
@@ -683,24 +641,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
-  guide: {
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  guideSource: {
-    color: ui.textChampagne,
-    fontFamily: fonts.display,
-    fontSize: 12,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  guideText: {
-    marginTop: 3,
-    color: ui.text,
-    fontFamily: fonts.text,
-    fontSize: 14,
-    lineHeight: 20,
-  },
   publicItem: {
     marginBottom: 8,
     color: ui.text,
@@ -740,7 +680,7 @@ const styles = StyleSheet.create({
   },
   primaryLabel: {
     color: ui.text,
-    fontFamily: fonts.display,
+    fontFamily: fonts.textMedium,
     fontSize: 14,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
@@ -757,7 +697,7 @@ const styles = StyleSheet.create({
   },
   secondaryLabel: {
     color: ui.textChampagne,
-    fontFamily: fonts.display,
+    fontFamily: fonts.textMedium,
     fontSize: 14,
     letterSpacing: 1.3,
     textTransform: 'uppercase',
@@ -773,7 +713,7 @@ const styles = StyleSheet.create({
   },
   destroyLabel: {
     color: '#1A0C0C',
-    fontFamily: fonts.display,
+    fontFamily: fonts.textMedium,
     fontSize: 14,
     letterSpacing: 1.1,
     textAlign: 'center',
@@ -786,7 +726,7 @@ const styles = StyleSheet.create({
   },
   quietLabel: {
     color: ui.muted,
-    fontFamily: fonts.display,
+    fontFamily: fonts.textMedium,
     fontSize: 13,
     letterSpacing: 1.2,
     textTransform: 'uppercase',

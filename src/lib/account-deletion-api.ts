@@ -1,6 +1,8 @@
 import { supabase } from '../../utils/supabase';
 import {
+  accessTokenIsFresh,
   avatarFolderAllowed,
+  deletionMessages,
   deletionOutcome,
   isRecentSignIn,
   localKeysForAccount,
@@ -55,8 +57,6 @@ export function clearLocalAccountResidue(userId: string) {
 const avatarPageSize = 100;
 const avatarPageLimit = 1000;
 const avatarDepthLimit = 4;
-const photoError = 'Não foi possível remover a foto de perfil. Sua conta não foi excluída.';
-
 async function listAvatarFolder(prefix: string): Promise<{ ok: true; entries: { name: string; id: string | null }[] } | { ok: false }> {
   const entries: { name: string; id: string | null }[] = [];
   for (let offset = 0; offset < avatarPageLimit; offset += avatarPageSize) {
@@ -110,33 +110,68 @@ async function collectAvatarNames(userId: string, prefix: string, depth: number)
   return { ok: true, names };
 }
 
-async function removeOwnAvatarFiles(userId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+async function removeOwnAvatarFiles(userId: string): Promise<
+  | { ok: true; removedFiles: boolean }
+  | { ok: false; phase: 'before-removal' | 'partial-removal'; message: string }
+> {
   const listed = await collectAvatarNames(userId, userId, 0);
   if (!listed.ok) {
-    return { ok: false, message: photoError };
+    return { ok: false, phase: 'before-removal', message: deletionMessages.beforeRemoval };
   }
   const plan = planOwnAvatarRemoval(userId, listed.names);
   if (plan.blocked) {
-    return { ok: false, message: photoError };
+    return { ok: false, phase: 'before-removal', message: deletionMessages.beforeRemoval };
   }
+  if (plan.paths.length === 0) {
+    return { ok: true, removedFiles: false };
+  }
+  let removedAny = false;
   for (let index = 0; index < plan.paths.length; index += avatarPageSize) {
     const batch = plan.paths.slice(index, index + avatarPageSize);
     if (batch.some((path) => !path.startsWith(`${userId}/`))) {
-      return { ok: false, message: photoError };
+      return {
+        ok: false,
+        phase: removedAny ? 'partial-removal' : 'before-removal',
+        message: removedAny ? deletionMessages.partialRemoval : deletionMessages.beforeRemoval,
+      };
     }
     const removed = await supabase.storage.from('avatars').remove(batch);
     if (removed.error || !removed.data) {
-      return { ok: false, message: photoError };
+      return { ok: false, phase: 'partial-removal', message: deletionMessages.partialRemoval };
     }
+    removedAny = true;
   }
   const again = await collectAvatarNames(userId, userId, 0);
   if (!again.ok) {
-    return { ok: false, message: photoError };
+    return { ok: false, phase: 'partial-removal', message: deletionMessages.partialRemoval };
   }
   const remaining = planOwnAvatarRemoval(userId, again.names);
   if (remaining.blocked || remaining.paths.length > 0) {
-    return { ok: false, message: photoError };
+    return { ok: false, phase: 'partial-removal', message: deletionMessages.partialRemoval };
   }
+  return { ok: true, removedFiles: removedAny };
+}
+
+async function assertFreshOwnSession(expectedUserId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  const current = await supabase.auth.getSession();
+  const currentSession = current.data.session;
+  if (
+    currentSession?.access_token &&
+    accessTokenIsFresh(currentSession.access_token) &&
+    currentSession.user.id === expectedUserId
+  ) {
+    applySessionOwner(expectedUserId);
+    return { ok: true };
+  }
+  const refreshed = await supabase.auth.refreshSession();
+  const session = refreshed.data.session;
+  if (!session?.access_token || !accessTokenIsFresh(session.access_token) || session.user.id !== expectedUserId) {
+    return {
+      ok: false,
+      message: 'Confirme sua identidade novamente. Nenhum arquivo foi removido e sua conta permanece.',
+    };
+  }
+  applySessionOwner(session.user.id);
   return { ok: true };
 }
 
@@ -157,32 +192,42 @@ export async function deleteOwnAccount(input: {
   comment: string;
   password: string;
   googleFresh: boolean;
-}): Promise<{ ok: true } | { ok: false; message: string }> {
+}): Promise<{ ok: true } | { ok: false; phase: 'before-removal' | 'partial-removal' | 'after-removal' | 'unknown'; message: string }> {
+  const identified = await supabase.auth.getUser();
+  const expectedUserId = identified.data.user?.id ?? '';
   const access = await getAccountAccess();
-  if (!access.email) {
-    return { ok: false, message: 'Entre novamente na sua conta. Nada foi excluído.' };
+  if (identified.error || !expectedUserId || !access.email || identified.data.user?.email !== access.email) {
+    return { ok: false, phase: 'before-removal', message: deletionMessages.beforeRemoval };
   }
 
   if (access.password) {
     const auth = await signInWithEmail(access.email, input.password);
     if (!auth.ok) {
-      return { ok: false, message: auth.message };
+      return { ok: false, phase: 'before-removal', message: auth.message };
     }
   } else if (access.google) {
     const { data } = await supabase.auth.getSession();
-    if (!input.googleFresh || !isRecentSignIn(data.session?.user.last_sign_in_at)) {
-      return { ok: false, message: 'Confirme com o Google nesta etapa. Sua conta não foi excluída.' };
+    if (!input.googleFresh || !isRecentSignIn(data.session?.user.last_sign_in_at) || data.session?.user.id !== expectedUserId) {
+      return {
+        ok: false,
+        phase: 'before-removal',
+        message: 'Confirme com o Google nesta etapa. Nenhum arquivo foi removido e sua conta permanece.',
+      };
     }
   } else {
     const auth = await signInWithEmail(access.email, input.password);
     if (!auth.ok) {
-      return { ok: false, message: auth.message };
+      return { ok: false, phase: 'before-removal', message: auth.message };
     }
   }
 
+  const fresh = await assertFreshOwnSession(expectedUserId);
+  if (!fresh.ok) {
+    return { ok: false, phase: 'before-removal', message: fresh.message };
+  }
   const userId = getSessionUserId();
-  if (!userId) {
-    return { ok: false, message: 'Entre novamente na sua conta. Nada foi excluído.' };
+  if (userId !== expectedUserId) {
+    return { ok: false, phase: 'before-removal', message: deletionMessages.beforeRemoval };
   }
   const avatars = await removeOwnAvatarFiles(userId);
   if (!avatars.ok) {
@@ -195,7 +240,10 @@ export async function deleteOwnAccount(input: {
     await finishDeletedSession(userId);
     return { ok: true };
   }
-  return { ok: false, message: 'Não foi possível concluir a exclusão. A conta não foi excluída.' };
+  if (avatars.removedFiles) {
+    return { ok: false, phase: 'after-removal', message: deletionMessages.afterRemoval };
+  }
+  return { ok: false, phase: 'before-removal', message: deletionMessages.beforeRemoval };
 }
 
 export async function sessionSignInIsRecent() {

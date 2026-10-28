@@ -5,6 +5,14 @@ export const COMMENT_LIMIT = 2000;
 export const CONFIRM_PHRASE = 'EXCLUIR';
 export const REAUTH_WINDOW_MS = 5 * 60 * 1000;
 export const REAUTH_RETURN_MS = 10 * 60 * 1000;
+export const JWT_WINDOW_MS = 10 * 60 * 1000;
+
+export const deletionMessages = {
+  beforeRemoval: 'A exclusão foi interrompida. Nenhum arquivo foi removido e sua conta permanece.',
+  partialRemoval: 'A remoção das fotos ficou incompleta. Sua conta não foi excluída. Tente novamente.',
+  afterRemoval: 'As fotos foram removidas, mas a conta não foi excluída. Entre novamente e tente outra vez.',
+  unknown: 'Não foi possível confirmar a exclusão. Sua conta pode continuar existindo. Entre novamente antes de tentar outra vez.',
+} as const;
 
 export const exitReasons = [
   { id: 'prefer_not', label: 'Prefiro não informar.' },
@@ -109,9 +117,40 @@ export function deletionFailureMessage(outcome: Exclude<DeletionOutcome, 'delete
     return 'A exclusão ainda não foi ativada no servidor. Sua conta permanece intacta.';
   }
   if (outcome === 'denied') {
-    return 'Confirme sua identidade novamente. Sua conta não foi excluída.';
+    return 'Confirme sua identidade novamente. Nenhum arquivo foi removido e sua conta permanece.';
   }
-  return 'Não foi possível excluir a conta. Nada foi apagado. Tente novamente.';
+  return deletionMessages.unknown;
+}
+
+export function accessTokenIssuedAt(token: string | null | undefined) {
+  if (!token) {
+    return null;
+  }
+  const part = token.split('.')[1];
+  if (!part || token.split('.').length < 2) {
+    return null;
+  }
+  try {
+    const padded = part.replace(/-/g, '+').replace(/_/g, '/');
+    const base64 = padded + '='.repeat((4 - (padded.length % 4)) % 4);
+    const decoded = globalThis.atob(base64);
+    const payload = JSON.parse(decoded) as { iat?: unknown };
+    if (typeof payload.iat !== 'number' || !Number.isFinite(payload.iat)) {
+      return null;
+    }
+    return payload.iat * 1000;
+  } catch {
+    return null;
+  }
+}
+
+export function accessTokenIsFresh(token: string | null | undefined, now = Date.now()) {
+  const issued = accessTokenIssuedAt(token);
+  if (issued === null) {
+    return false;
+  }
+  const elapsed = now - issued;
+  return elapsed >= 0 && elapsed <= JWT_WINDOW_MS;
 }
 
 const accountKeyPrefixes = [
