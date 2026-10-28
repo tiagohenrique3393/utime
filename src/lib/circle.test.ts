@@ -8,6 +8,8 @@ import {
   competitionRank,
   completionCreatesEvent,
   completionRemovesEvent,
+  BONUS_CAP,
+  DAY_CAP,
   dayScore,
   formatCirclePoints,
   honorLabel,
@@ -64,6 +66,11 @@ assertEqual(dayScore({ alta: 3, media: 4, baixa: 4 }), 105);
 assertEqual(dayScore({ alta: 2, media: 5, baixa: 4 }), 102.5);
 assertEqual(dayScore({ alta: 2, media: 4, baixa: 5 }), 101);
 assertEqual(dayScore({ alta: 4, media: 6, baixa: 8 }), 110);
+assertEqual(dayScore({ alta: 40, media: 40, baixa: 40 }), DAY_CAP);
+assertEqual(DAY_CAP, 110);
+assertEqual(BONUS_CAP, 10);
+assertEqual(todayKey(new Date('2026-10-28T02:30:00.000Z')), '2026-10-27');
+assertEqual(todayKey(new Date('2026-10-28T03:00:00.000Z')), '2026-10-28');
 assertEqual(dayScore({ alta: 10, media: 0, baixa: 0 }), 50);
 assertEqual(dayScore({ alta: 1, media: 4, baixa: 4 }), 80);
 assertEqual(dayScore({ alta: 0, media: 0, baixa: 0 }), 0);

@@ -74,8 +74,14 @@ function tokenWithIat(iatSeconds: number) {
 
 const issuedAt = 1_700_000_000;
 assertEqual(accessTokenIsFresh(tokenWithIat(issuedAt), issuedAt * 1000 + 60_000), true, 'jwt recente');
+assertEqual(accessTokenIsFresh(tokenWithIat(issuedAt), issuedAt * 1000 + 10 * 60 * 1000), true, 'jwt no limite de 10 minutos');
+assertEqual(accessTokenIsFresh(tokenWithIat(issuedAt), issuedAt * 1000 + 10 * 60 * 1000 + 1), false, 'jwt um milissegundo depois');
 assertEqual(accessTokenIsFresh(tokenWithIat(issuedAt), issuedAt * 1000 + 11 * 60_000), false, 'jwt acima de 10 minutos');
 assertEqual(accessTokenIsFresh('invalido', issuedAt * 1000), false, 'jwt ilegivel');
+assertEqual(phraseMatches('EXCLUIR'), true, 'confirmacao exata');
+assertEqual(phraseMatches(''), false, 'confirmacao vazia');
+assertEqual(deletionMessages.afterRemoval.includes('Stripe'), false, 'falha sem stripe');
+assertEqual(deletionMessages.beforeRemoval.includes('Nada foi apagado'), false, 'interrupcao sem sucesso falso');
 
 const mine = localKeysForAccount('user-1', [
   'youtime.profile.user-1',
