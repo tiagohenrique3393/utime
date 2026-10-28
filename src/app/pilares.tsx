@@ -138,30 +138,54 @@ export default function PillarsScreen() {
             todayHabits: captured.todayHabits,
           })
         : null,
+    // habitKey e todayKeySignature representam o conteúdo de captured.habits e captured.todayHabits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [snapshot, period, habitKey, todayKeySignature],
   );
-  const facts: InsightFacts | null = reading
-    ? {
-        period,
-        current: reading.current,
-        previous: reading.previous,
-        partial: reading.partial,
-        recordedDays: reading.recordedDays,
-        habits: habitCounts(captured.habits),
-      }
-    : null;
   const slotKey = `${period}:${periodAnchor(period, today)}`;
-  const selection = useMemo(() => (facts ? selectInsight(facts, memory.slots[slotKey] ?? null) : null), [facts, memory, slotKey]);
+  const readingNow = reading?.current;
+  const readingBefore = reading?.previous ?? null;
+  const readingPartial = reading?.partial ?? false;
+  const readingDays = reading?.recordedDays ?? 0;
+  const habitCensus = habitCounts(captured.habits);
+  const habitCensusKey = `${habitCensus.corpo}|${habitCensus.mente}|${habitCensus.espirito}`;
+  const selection = useMemo(() => {
+    if (!readingNow) {
+      return null;
+    }
+    const [corpo, mente, espirito] = habitCensusKey.split('|').map(Number);
+    const facts: InsightFacts = {
+      period,
+      current: readingNow,
+      previous: readingBefore,
+      partial: readingPartial,
+      recordedDays: readingDays,
+      habits: { corpo, mente, espirito },
+    };
+    return selectInsight(facts, memory.slots[slotKey] ?? null);
+  }, [readingNow, readingBefore, readingPartial, readingDays, period, habitCensusKey, memory, slotKey]);
 
   useEffect(() => {
     if (!memoryReady || !userId || !selection?.changed) {
       return;
     }
-    setMemory((current) => {
-      const next = { slots: { ...current.slots, [slotKey]: selection.slot } };
-      void writeInsightMemory(userId, next);
-      return next;
+    const owner = userId;
+    const slot = selection.slot;
+    const key = slotKey;
+    let cancel = false;
+    queueMicrotask(() => {
+      if (cancel) {
+        return;
+      }
+      setMemory((current) => {
+        const next = { slots: { ...current.slots, [key]: slot } };
+        void writeInsightMemory(owner, next);
+        return next;
+      });
     });
+    return () => {
+      cancel = true;
+    };
   }, [memoryReady, userId, selection, slotKey]);
 
   if (!signedIn) {

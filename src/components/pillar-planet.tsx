@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { createElement, type ReactNode } from 'react';
+import { createElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 const source = require('@/assets/hoje-planet.png');

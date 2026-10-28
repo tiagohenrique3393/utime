@@ -1,4 +1,4 @@
-import { createElement, useEffect, useRef } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
 import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -66,7 +66,7 @@ function ExcellenceStar() {
 export function DayCelebration({ kind, onClose }: { kind: CelebrationKind | null; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
-  const rise = useRef(new Animated.Value(0)).current;
+  const [rise] = useState(() => new Animated.Value(0));
   const continueRef = useRef<View>(null);
 
   useEffect(() => {

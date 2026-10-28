@@ -84,6 +84,12 @@ export function CircleBoard({
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [limit, setLimit] = useState(20);
+  const pageKey = `${scope}|${kind}|${start}|${entries.map((entry) => entry.userId).join(',')}`;
+  const [pageKeySeen, setPageKeySeen] = useState(pageKey);
+  if (pageKeySeen !== pageKey) {
+    setPageKeySeen(pageKey);
+    setLimit(20);
+  }
   const [ownPath, setOwnPath] = useState(getOwnAvatarPath());
   const [ownReady, setOwnReady] = useState(isOwnAvatarReady());
   useEffect(
@@ -102,9 +108,6 @@ export function CircleBoard({
   const { first, second, third } = podiumSlots(entries);
   const rows = visibleRanking(entries, limit, userId);
   const shownPodium = [second, first, third].filter(Boolean).length;
-  useEffect(() => {
-    setLimit(20);
-  }, [entries, scope, kind, start]);
   useEffect(() => {
     onBindLoadMore?.(() => {
       setLimit((current) => (current < entries.length ? current + 20 : current));

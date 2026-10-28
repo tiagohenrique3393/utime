@@ -1,4 +1,4 @@
-import { createElement, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createElement, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Image } from 'expo-image';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -27,6 +27,7 @@ function CameraMark() {
 
 export function ProfilePhoto({ initial, size = 156 }: { initial: string; size?: number }) {
   const input = useRef<HTMLInputElement | null>(null);
+  const inputId = useId();
   const [path, setPath] = useState(getOwnAvatarPath());
   const [ready, setReady] = useState(isOwnAvatarReady());
   const [menu, setMenu] = useState(false);
@@ -35,6 +36,16 @@ export function ProfilePhoto({ initial, size = 156 }: { initial: string; size?: 
   const [failedNotice, setFailedNotice] = useState(false);
   const [failed, setFailed] = useState(false);
   const uri = path ? ownAvatarUrl() : null;
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      return;
+    }
+    input.current = document.getElementById(inputId) as HTMLInputElement | null;
+    return () => {
+      input.current = null;
+    };
+  }, [inputId]);
 
   useEffect(() => subscribeOwnAvatar(() => {
     setPath(getOwnAvatarPath());
@@ -75,7 +86,7 @@ export function ProfilePhoto({ initial, size = 156 }: { initial: string; size?: 
   const fileInput: ReactNode =
     Platform.OS === 'web'
       ? createElement('input', {
-          ref: input,
+          id: inputId,
           type: 'file',
           accept: 'image/jpeg,image/png,image/webp',
           'aria-hidden': true,

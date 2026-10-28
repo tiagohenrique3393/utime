@@ -9,16 +9,17 @@ export function useReducedMotion() {
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
       const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-      setReduced(query.matches);
-      const onChange = () => {
+      const publish = () => {
         if (active) {
           setReduced(query.matches);
         }
       };
-      query.addEventListener('change', onChange);
+      const frame = requestAnimationFrame(publish);
+      query.addEventListener('change', publish);
       return () => {
         active = false;
-        query.removeEventListener('change', onChange);
+        cancelAnimationFrame(frame);
+        query.removeEventListener('change', publish);
       };
     }
 
@@ -49,8 +50,10 @@ export function useSettledNumbers(values: readonly number[], reduced: boolean) {
   const shownRef = useRef(shown);
   const targetRef = useRef(values);
   const ready = useRef(false);
-  targetRef.current = values;
   const key = values.join(',');
+  useEffect(() => {
+    targetRef.current = values;
+  }, [key, values]);
 
   useEffect(() => {
     const target = [...targetRef.current];

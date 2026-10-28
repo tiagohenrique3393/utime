@@ -2,7 +2,7 @@ import { Image, type ImageStyle } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { createElement, useEffect, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type DimensionValue, type TextStyle, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fonts } from '@/constants/theme';
@@ -142,7 +142,7 @@ export default function HomeScreen() {
               <Image
                 accessibilityLabel="YouTime"
                 source={require('@/assets/youtime-logo.png')}
-                style={[logoStyle, styles.logo]}
+                style={[logoStyle, styles.logo] as ImageStyle}
                 contentFit="contain"
               />
               <View style={styles.inscription}>
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     ...webBefore,
   },
   planetSlot: {
-    width: '120vw',
+    width: '120vw' as DimensionValue,
     position: 'relative',
     left: '50%',
     marginTop: -1,

@@ -134,8 +134,13 @@ export default function MyDayScreen() {
   const celebrationRef = useRef(celebration);
   const celebrationsReady = useRef(false);
   const pendingCompletion = useRef<(CompletionSnapshot & { day: string }) | null>(null);
-  celebrationRef.current = celebration;
   const today = board.dateKey !== '' && board.dateKey === todayKey() ? board.dateKey : '';
+  const celebrationScope = `${signedIn ? '1' : '0'}|${userId ?? ''}|${today}`;
+  const [celebrationScopeSeen, setCelebrationScopeSeen] = useState(celebrationScope);
+  if (celebrationScopeSeen !== celebrationScope) {
+    setCelebrationScopeSeen(celebrationScope);
+    setCelebration(initialCelebrationView());
+  }
 
   const closeCelebration = useCallback(() => {
     const next = dismissCelebration(celebrationRef.current);
@@ -144,9 +149,10 @@ export default function MyDayScreen() {
   }, []);
 
   useEffect(() => {
-    const cleared = initialCelebrationView();
-    celebrationRef.current = cleared;
-    setCelebration(cleared);
+    celebrationRef.current = celebration;
+  }, [celebration]);
+
+  useEffect(() => {
     celebrationsReady.current = false;
     pendingCompletion.current = null;
     if (!signedIn || !userId || !today) {

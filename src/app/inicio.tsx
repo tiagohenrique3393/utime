@@ -1,6 +1,5 @@
 import { router, type Href } from 'expo-router';
-import { createElement, useEffect, useState } from 'react';
-import { useSyncExternalStore } from 'react';
+import { createElement, useEffect, useState, useSyncExternalStore } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -94,7 +93,8 @@ export default function TodayScreen() {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
-    setNow(new Date());
+    const frame = requestAnimationFrame(() => setNow(new Date()));
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const counts = dailyCounts(board.habits, board.completed);

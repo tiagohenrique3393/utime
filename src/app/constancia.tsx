@@ -1,5 +1,5 @@
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useState, type ReactNode } from 'react';
+import { createElement, useCallback, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -23,7 +23,6 @@ function glyph(type: string, props: Record<string, unknown> | null, ...children:
 }
 
 function createWeb(type: string, props: Record<string, unknown> | null, ...children: ReactNode[]) {
-  const { createElement } = require('react') as typeof import('react');
   return createElement(type, props, ...children);
 }
 
