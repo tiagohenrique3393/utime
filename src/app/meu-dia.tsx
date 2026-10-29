@@ -9,7 +9,7 @@ import { DayPlanet } from '@/components/day-planet';
 import { HabitGlyph } from '@/components/habit-glyph';
 import { HydrationMeter } from '@/components/hydration-meter';
 import { fonts, ui } from '@/constants/theme';
-import { dailyCounts, getDailyBoard, isDailyHabitDone, refreshDailyBoard, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
+import { dailyCounts, getDailyBoard, habitsForScore, isDailyHabitDone, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
 import { dismissCelebration, initialCelebrationView, noteCelebrationsLoaded, openCelebration, type CompletionSnapshot } from '@/lib/day-celebration';
 import { loadDayCelebrations, rememberDayCelebration } from '@/lib/day-celebration-store';
 import { useDailyBoard } from '@/lib/use-daily-board';
@@ -124,7 +124,8 @@ export default function MyDayScreen() {
   const params = useLocalSearchParams<{ data?: string | string[] }>();
   const selectedDate = parseDateKey(params.data);
   const board = useDailyBoard(selectedDate);
-  const counts = dailyCounts(board.habits, board.completed);
+  const scoredHabits = habitsForScore(board.habits);
+  const counts = dailyCounts(scoredHabits, board.completed);
   const locked = board.dateKey !== '' && board.dateKey !== todayKey();
   const userId = getSessionUserId();
   const tone = bandColor[getProgressColor(counts.percent)];
@@ -181,13 +182,13 @@ export default function MyDayScreen() {
 
   function finishHabit(habit: DailyHabit) {
     const day = board.dateKey;
-    const before = dailyCounts(board.habits, board.completed);
+      const before = dailyCounts(habitsForScore(board.habits), board.completed);
     void toggleDailyHabit(habit).then(() => {
       const next = getDailyBoard();
       if (!day || day !== todayKey() || next.dateKey !== day) {
         return;
       }
-      const after = dailyCounts(next.habits, next.completed);
+      const after = dailyCounts(habitsForScore(next.habits), next.completed);
       const snapshot = {
         day,
         beforeDone: before.done,
@@ -298,13 +299,7 @@ export default function MyDayScreen() {
 
       {board.ready && userId && board.dateKey ? (
         <View style={styles.hydration}>
-          <HydrationMeter
-            userId={userId}
-            dateKey={board.dateKey}
-            onSaved={() => {
-              void refreshDailyBoard(userId, selectedDate ?? undefined);
-            }}
-          />
+          <HydrationMeter userId={userId} dateKey={board.dateKey} />
         </View>
       ) : null}
 

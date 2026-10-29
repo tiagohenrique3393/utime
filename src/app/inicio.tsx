@@ -9,7 +9,7 @@ import { HojePlanet } from '@/components/hoje-planet';
 import { HomeHydration } from '@/components/home-hydration';
 import { PillarCard } from '@/components/pillar-card';
 import { fonts, ui } from '@/constants/theme';
-import { dailyCounts, isDailyHabitDone, pillarDailyPercent } from '@/lib/daily-board';
+import { dailyCounts, habitsForScore, isDailyHabitDone, pillarDailyPercent } from '@/lib/daily-board';
 import { useDailyBoard } from '@/lib/use-daily-board';
 import { formatDailyPercent, todayKey } from '@/lib/habit-day';
 import { greetingParts, homeDateParts } from '@/lib/home-copy';
@@ -37,19 +37,20 @@ export default function TodayScreen() {
     }, []),
   );
 
-  const counts = dailyCounts(board.habits, board.completed);
+  const scored = habitsForScore(board.habits);
+  const counts = dailyCounts(scored, board.completed);
   const percent = counts.percent;
   const pillars = (['corpo', 'mente', 'espirito'] as const).map((id) => ({
     id,
     label: pillarLabels[id],
-    percent: pillarDailyPercent(board.habits, board.completed, id),
+    percent: pillarDailyPercent(scored, board.completed, id),
   }));
   const hello = now ? greetingParts(now, profile.firstName) : { hello: '', name: '' };
   const phraseKey = board.dateKey || (now ? todayKey(now) : '');
   const dateParts = phraseKey ? homeDateParts(phraseKey) : { dayMonth: '', weekday: '' };
   const phrase = phraseKey ? weeklyPhrase(phraseKey) : '';
   const feminine = profile.journey === 'womantime';
-  const scheduled = board.habits.map((habit) => ({
+  const scheduled = scored.map((habit) => ({
     id: habit.id,
     label: habit.label,
     period: habit.period,

@@ -4,7 +4,7 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import { fonts, ui } from '@/constants/theme';
 import {
   hydrationDaySnapshot,
-  hydrationProgress,
+  hydrationFill,
   loadHydration,
   subscribeHydrationDay,
   type HydrationDay,
@@ -59,7 +59,7 @@ export function HydrationSummary({ day }: { day: HydrationDay | null }) {
 
   const consumed = day.consumedMl;
   const goal = day.goalMl;
-  const progress = hydrationProgress(consumed, goal);
+  const progress = hydrationFill(consumed, goal);
   const goalLabel = goal == null ? 'Defina sua meta' : formatHydrationAmount(goal);
 
   return (

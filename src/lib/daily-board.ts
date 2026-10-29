@@ -21,7 +21,7 @@ import {
   todayKey,
 } from '@/lib/habit-day';
 import { dailyPillarStats, type PillarDayHabit } from '@/lib/pillar-daily';
-import { suggestedHabits } from '@/lib/suggested-habits';
+import { HYDRATION_HABIT_ID, suggestedHabits } from '@/lib/suggested-habits';
 import { suggestedMinutes } from '@/lib/habit-visual';
 
 export type DailyHabit = {
@@ -172,6 +172,10 @@ export function completedCount(habits: readonly DailyHabit[], completed: Readonl
   return habits.filter((habit) => isDailyHabitDone(habit, completed)).length;
 }
 
+export function habitsForScore(habits: readonly DailyHabit[]) {
+  return habits.filter((habit) => habit.catalogHabitId !== HYDRATION_HABIT_ID);
+}
+
 export function dailyCounts(habits: readonly DailyHabit[], completed: ReadonlySet<string>) {
   const total = habits.length;
   const done = completedCount(habits, completed);
@@ -252,7 +256,7 @@ export async function refreshDailyBoard(userId: string, requestedDate?: string) 
     return;
   }
   if (dateKey === todayKey()) {
-    const planned = resolveDailyHabits()
+    const planned = habitsForScore(resolveDailyHabits())
       .map((habit) => habit.userHabitId)
       .filter((id): id is string => id !== null);
     await ensureDayPlan(userId, dateKey, planned);

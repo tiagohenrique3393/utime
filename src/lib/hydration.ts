@@ -1,7 +1,5 @@
 import { supabase } from '../../utils/supabase';
-import { ensureCatalogHabit } from '@/lib/habit-catalog';
-import { isWritableDay, setHabitCompleted } from '@/lib/habit-day';
-import { HYDRATION_HABIT_ID, suggestedHabitById } from '@/lib/suggested-habits';
+import { isWritableDay } from '@/lib/habit-day';
 
 export type HydrationDay = {
   goalMl: number | null;
@@ -65,11 +63,54 @@ export function hydrationReached(consumedMl: number, goalMl: number | null) {
   return goalMl != null && goalMl > 0 && consumedMl >= goalMl;
 }
 
+export const hydrationGoalsMl = [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000] as const;
+
+export function isHydrationGoal(ml: number) {
+  return (hydrationGoalsMl as readonly number[]).includes(ml);
+}
+
 export function hydrationProgress(consumedMl: number, goalMl: number | null) {
   if (goalMl == null || goalMl <= 0) {
     return 0;
   }
   return Math.max(0, Math.min(100, Math.round((consumedMl / goalMl) * 100)));
+}
+
+export function hydrationPercent(consumedMl: number, goalMl: number | null) {
+  if (goalMl == null || !Number.isFinite(goalMl) || goalMl <= 0) {
+    return 0;
+  }
+  const consumed = Number.isFinite(consumedMl) ? Math.max(0, consumedMl) : 0;
+  return Math.round((consumed / goalMl) * 1000) / 10;
+}
+
+export function hydrationFill(consumedMl: number, goalMl: number | null) {
+  return Math.min(100, hydrationPercent(consumedMl, goalMl));
+}
+
+export function formatHydrationPercent(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  const text = new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: Number.isInteger(rounded) ? 0 : 1,
+    maximumFractionDigits: 1,
+  }).format(rounded);
+  return `${text}%`;
+}
+
+export function addHydrationIntake(consumedMl: number, amount: number) {
+  const base = Number.isFinite(consumedMl) ? Math.max(0, consumedMl) : 0;
+  const extra = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+  return Math.round(base + extra);
+}
+
+export function clearedHydration(day: HydrationDay): HydrationDay {
+  return { goalMl: day.goalMl, consumedMl: 0 };
+}
+
+export function hydrationDayView(today: HydrationDay | null, previousGoalMl: number | null): HydrationDay {
+  const consumedMl = today?.consumedMl ?? 0;
+  const goalMl = today?.goalMl != null && today.goalMl > 0 ? today.goalMl : previousGoalMl;
+  return { goalMl, consumedMl };
 }
 
 export function formatWater(ml: number) {
@@ -114,6 +155,26 @@ function fromRow(row: HydrationRow | null, userId: string, day: string): Hydrati
   };
 }
 
+async function latestGoalBefore(userId: string, day: string) {
+  const { data, error } = await supabase
+    .from('hydration_days')
+    .select('user_id,occurred_on,goal_ml,consumed_ml')
+    .eq('user_id', userId)
+    .lt('occurred_on', day)
+    .not('goal_ml', 'is', null)
+    .order('occurred_on', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    return { ok: false as const, goalMl: null as number | null, message: failureMessage(error, 'load') };
+  }
+  const row = data as HydrationRow | null;
+  const dateKey = occurredOnKey(row?.occurred_on);
+  const goal = row?.goal_ml == null ? null : Number(row.goal_ml);
+  const goalMl = dateKey && dateKey < day && Number.isFinite(goal) && (goal as number) > 0 ? Math.round(goal as number) : null;
+  return { ok: true as const, goalMl, message: '' };
+}
+
 export async function loadHydration(userId: string, day: string) {
   const { data, error } = await supabase
     .from('hydration_days')
@@ -124,7 +185,16 @@ export async function loadHydration(userId: string, day: string) {
   if (error) {
     return { ok: false as const, day: emptyDay, message: failureMessage(error, 'load') };
   }
-  const dayValue = fromRow(data as HydrationRow | null, userId, day) ?? emptyDay;
+  const today = fromRow(data as HydrationRow | null, userId, day);
+  let previousGoal: number | null = null;
+  if (today?.goalMl == null) {
+    const previous = await latestGoalBefore(userId, day);
+    if (!previous.ok) {
+      return { ok: false as const, day: today ?? emptyDay, message: previous.message };
+    }
+    previousGoal = previous.goalMl;
+  }
+  const dayValue = hydrationDayView(today, previousGoal);
   publishHydration(userId, day, dayValue);
   return { ok: true as const, day: dayValue, message: '' };
 }
@@ -153,31 +223,6 @@ export async function saveHydration(userId: string, day: string, next: Hydration
     return { ok: false as const, day: emptyDay, message: failureMessage(error, 'save') };
   }
   publishHydration(userId, day, saved);
-  const suggestion = suggestedHabitById(HYDRATION_HABIT_ID);
-  if (suggestion) {
-    const ensured = await ensureCatalogHabit({
-      id: suggestion.id,
-      period: suggestion.period,
-      pillar: suggestion.pillar,
-      relevance: suggestion.relevance,
-    });
-    if (!ensured.ok || !ensured.habitId) {
-      return {
-        ok: true as const,
-        day: saved,
-        message: 'A água foi salva. A conclusão do hábito ainda não pôde ser gravada.',
-      };
-    }
-    const logged = await setHabitCompleted(
-      userId,
-      ensured.habitId,
-      day,
-      hydrationReached(saved.consumedMl, saved.goalMl),
-    );
-    if (!logged.ok) {
-      return { ok: true as const, day: saved, message: logged.message };
-    }
-  }
   return { ok: true as const, day: saved, message: '' };
 }
 

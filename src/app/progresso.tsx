@@ -12,7 +12,7 @@ import { getSessionCreatedAt, getSessionUserId } from '@/lib/accounts';
 import { dailyCounts, getDailyBoard, isDailyHabitDone, refreshDailyBoard } from '@/lib/daily-board';
 import { getCatalogHabits, getUserHabits, habitTitle } from '@/lib/habit-catalog';
 import { formatDailyPercent, loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
-import { hydrationProgress, loadHydrationUntil } from '@/lib/hydration';
+import { formatHydrationPercent, hydrationFill, hydrationPercent, loadHydrationUntil } from '@/lib/hydration';
 import {
   activationDateKey,
   hydrationLoadThrough,
@@ -535,7 +535,8 @@ function HydrationCard({
 }) {
   const consumed = report.water.consumedMl;
   const goal = report.periodGoalMl;
-  const percent = consumed != null && goal != null && goal > 0 ? hydrationProgress(consumed, goal) : null;
+  const percent = consumed != null && goal != null && goal > 0 ? hydrationPercent(consumed, goal) : null;
+  const fill = percent == null ? 0 : hydrationFill(consumed ?? 0, goal);
   return (
     <View style={[styles.waterCard, styles.waterCardTight]}>
       <View style={styles.waterHead}>
@@ -553,8 +554,8 @@ function HydrationCard({
       {!notice && consumed != null ? (
         <>
           {percent != null ? (
-            <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: percent }} style={[styles.waterRail, styles.waterRailTight]}>
-              {percent > 0 ? <View style={[styles.waterFill, styles.waterFillGlow, { width: `${percent}%` }]} /> : null}
+            <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(fill) }} style={[styles.waterRail, styles.waterRailTight]}>
+              {fill > 0 ? <View style={[styles.waterFill, styles.waterFillGlow, { width: `${fill}%` }]} /> : null}
             </View>
           ) : (
             <Text style={styles.waterNote}>Meta diária ainda não definida neste período.</Text>
@@ -563,7 +564,7 @@ function HydrationCard({
             <Text style={[styles.waterAmount, styles.waterAmountTight]}>
               {goal != null ? `${formatLiters(consumed)} de ${formatLiters(goal)}` : formatLiters(consumed)}
             </Text>
-            {percent != null ? <Text style={[styles.waterPercent, styles.waterPercentTight]}>{percent}%</Text> : null}
+            {percent != null ? <Text style={[styles.waterPercent, styles.waterPercentTight]}>{formatHydrationPercent(percent)}</Text> : null}
           </View>
         </>
       ) : null}
