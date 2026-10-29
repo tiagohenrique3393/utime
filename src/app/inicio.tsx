@@ -1,6 +1,6 @@
 import { router, useFocusEffect, type Href } from 'expo-router';
 import { useCallback, useState, useSyncExternalStore } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { DayProgress } from '@/components/day-progress';
@@ -20,6 +20,8 @@ import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
 import { getSessionUserId } from '@/lib/accounts';
 import { weeklyPhrase } from '@/lib/weekly-phrase';
+
+const nowrap = { whiteSpace: 'nowrap' } as unknown as TextStyle;
 
 export default function TodayScreen() {
   const signedIn = useRequireSession();
@@ -95,9 +97,11 @@ export default function TodayScreen() {
       <View style={[styles.progressRow, stacked && styles.progressStacked]}>
         <View style={styles.hero}>
           <Text
-            style={[styles.figure, compact && styles.figureCompact]}
+            numberOfLines={1}
+            style={[styles.figure, compact && styles.figureCompact, nowrap]}
             accessibilityLabel={`${formatDailyPercent(percent)} do seu dia`}>
-            {formatDailyPercent(percent)}
+            {formatDailyPercent(percent).replace(/%$/, '')}
+            <Text style={[styles.figureMark, compact && styles.figureMarkCompact]}>%</Text>
           </Text>
           <Text style={styles.figureLabel}>Seu dia</Text>
         </View>
@@ -218,7 +222,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
   },
   hero: {
-    width: 132,
+    flexShrink: 0,
   },
   figure: {
     color: ui.text,
@@ -228,8 +232,18 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   figureCompact: {
-    fontSize: 44,
-    lineHeight: 46,
+    fontSize: 40,
+    lineHeight: 42,
+  },
+  figureMark: {
+    fontFamily: fonts.textLight,
+    fontSize: 30,
+    lineHeight: 30,
+    letterSpacing: 0,
+  },
+  figureMarkCompact: {
+    fontSize: 24,
+    lineHeight: 24,
   },
   figureLabel: {
     color: ui.textChampagne,
@@ -254,8 +268,9 @@ const styles = StyleSheet.create({
     minHeight: 84,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(232, 201, 155, 0.38)',
-    backgroundColor: 'rgba(12, 11, 10, 0.82)',
+    borderColor: 'rgba(225, 180, 95, 0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+    boxShadow: '0 0 14px rgba(225, 180, 95, 0.10)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: 16,
@@ -328,8 +343,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 13,
     lineHeight: 18,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    letterSpacing: 0.2,
     paddingTop: 8,
   },
   button: {

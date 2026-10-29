@@ -37,10 +37,9 @@ const menteFigure = require('@/assets/pillars/mente.png');
 const espiritoFigure = require('@/assets/pillars/espirito.png');
 
 const pillarBands: Record<ProgressBand, { line: string; glow: string }> = {
-  red: { line: '#E24B4B', glow: 'rgba(226, 75, 75, 0.9)' },
-  yellow: { line: '#F5C518', glow: 'rgba(245, 197, 24, 0.9)' },
-  green: { line: '#3DDC6A', glow: 'rgba(61, 220, 106, 0.9)' },
-  gold: { line: '#F6C453', glow: 'rgba(246, 196, 83, 0.95)' },
+  red: { line: '#FF3B4D', glow: 'rgba(255, 59, 77, 0.9)' },
+  green: { line: '#39FF73', glow: 'rgba(57, 255, 115, 0.9)' },
+  gold: { line: '#FFC94A', glow: 'rgba(255, 201, 74, 0.95)' },
 };
 
 const periods: { id: ProgressPeriod; label: string; premium: boolean }[] = [

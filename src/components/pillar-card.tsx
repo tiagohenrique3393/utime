@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions } from 'react-native';
 
+import { PillarRing } from '@/components/pillar-ring';
 import { fonts } from '@/constants/theme';
 import { formatDailyPercent } from '@/lib/habit-day';
 import { getProgressColor, progressBandColor } from '@/lib/progress-color';
@@ -35,23 +36,26 @@ export function PillarCard({
 }) {
   const { width } = useWindowDimensions();
   const tablet = width >= 760;
-  const safe = Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
-  const dial = tablet ? 92 : 74;
+  const finite = Number.isFinite(percent) ? percent : 0;
+  const gutter = width >= 840 ? 64 : 44;
+  const content = Math.min(Math.max(width - gutter, 240), 1120);
+  const slot = (content - 20) / 3;
+  const dial = Math.max(48, Math.min(tablet ? 96 : 78, Math.floor(slot - 24)));
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${label}, ${formatDailyPercent(safe)}. Ver hábitos`}
+      accessibilityLabel={`${label}, ${formatDailyPercent(finite)}. Ver hábitos`}
       onPress={() => router.push(`/pilar/${id}` as Href)}
       style={({ pressed }) => [styles.card, tablet ? styles.cardTablet : styles.cardPhone, pressed && styles.pressed]}>
-      <View style={[styles.portrait, { width: dial, height: dial, borderRadius: dial / 2 }]}>
+      <PillarRing size={dial} percent={finite} marker={id}>
         <Image source={figureFor(id, feminine)} contentFit="cover" style={styles.portraitImage} />
-      </View>
+      </PillarRing>
       <Text style={[styles.name, tablet && styles.nameTablet]} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={[styles.value, tablet && styles.valueTablet, { color: progressBandColor[getProgressColor(safe)] }]}>
-        {formatDailyPercent(safe)}
+      <Text style={[styles.value, tablet && styles.valueTablet, { color: progressBandColor[getProgressColor(finite)] }]}>
+        {formatDailyPercent(finite)}
       </Text>
     </Pressable>
   );
@@ -72,22 +76,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardPhone: {
-    height: 148,
-    paddingTop: 12,
+    minHeight: 168,
+    paddingTop: 8,
     paddingBottom: 10,
     paddingHorizontal: 4,
-    gap: 6,
+    gap: 4,
   },
   cardTablet: {
-    height: 176,
-    paddingTop: 14,
+    minHeight: 198,
+    paddingTop: 10,
     paddingBottom: 12,
     paddingHorizontal: 8,
-    gap: 8,
-  },
-  portrait: {
-    overflow: 'hidden',
-    backgroundColor: '#05070b',
+    gap: 6,
   },
   portraitImage: {
     width: '100%',

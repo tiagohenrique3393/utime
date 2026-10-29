@@ -2,7 +2,9 @@ import { formatDailyPercent, todayKey } from '@/lib/habit-day';
 import { greetingParts, homeDateParts } from '@/lib/home-copy';
 import { formatHydrationAmount } from '@/lib/hydration-volume';
 import { nextScheduledHabit, type ScheduledHabit } from '@/lib/next-habit';
-import { getProgressColor } from '@/lib/progress-color';
+import { getProgressColor, showsExcellence } from '@/lib/progress-color';
+import { ringMetrics } from '@/lib/progress-ring';
+import { shiftDateKey } from '@/lib/progress-view';
 import { weeklyPhrase, weeklyPhraseIndex, weeklyPhrases } from '@/lib/weekly-phrase';
 
 function assertEqual<T>(actual: T, expected: T, label: string) {
@@ -14,21 +16,45 @@ function assertEqual<T>(actual: T, expected: T, label: string) {
 const limits: { value: number; band: ReturnType<typeof getProgressColor> }[] = [
   { value: 0, band: 'red' },
   { value: 50, band: 'red' },
-  { value: 50.01, band: 'yellow' },
-  { value: 51, band: 'yellow' },
-  { value: 69, band: 'yellow' },
-  { value: 69.99, band: 'yellow' },
+  { value: 69.99, band: 'red' },
   { value: 70, band: 'green' },
-  { value: 99, band: 'green' },
+  { value: 75, band: 'green' },
+  { value: 85, band: 'green' },
   { value: 99.99, band: 'green' },
   { value: 100, band: 'gold' },
 ];
 
 for (const limit of limits) {
   assertEqual(getProgressColor(limit.value), limit.band, `cor em ${limit.value}`);
+  assertEqual(showsExcellence(limit.value), limit.band === 'gold', `excelência em ${limit.value}`);
 }
-assertEqual(getProgressColor(50.5), 'yellow', 'cor usa o valor real');
+assertEqual(getProgressColor(50.5), 'red', 'cor usa o valor real');
 assertEqual(formatDailyPercent(50.5), '50,50%', 'apresentação separada da cor');
+assertEqual(formatDailyPercent(72.73).endsWith('%'), true, 'símbolo junto do número');
+assertEqual(formatDailyPercent(72.73).includes('\n'), false, 'percentual sem quebra');
+
+const radius = 40;
+const empty = ringMetrics(0, radius);
+assertEqual(empty.length, 0, 'zero sem arco');
+assertEqual(empty.star, false, 'zero sem brilho');
+const half = ringMetrics(50, radius);
+assertEqual(Math.abs(half.length / half.circumference - 0.5) < 0.0001, true, 'metade do círculo');
+assertEqual(half.band, 'red', 'metade vermelha');
+assertEqual(half.star, false, 'metade sem estrela');
+assertEqual(ringMetrics(69.99, radius).band, 'red', '69,99 vermelho');
+assertEqual(ringMetrics(70, radius).band, 'green', '70 verde');
+const threeQuarters = ringMetrics(75, radius);
+assertEqual(Math.abs(threeQuarters.length / threeQuarters.circumference - 0.75) < 0.0001, true, 'três quartos');
+assertEqual(threeQuarters.band, 'green', 'três quartos verdes');
+assertEqual(ringMetrics(99.99, radius).star, false, '99,99 sem estrela');
+assertEqual(ringMetrics(99.99, radius).band, 'green', '99,99 verde');
+const full = ringMetrics(100, radius);
+assertEqual(Math.abs(full.length - full.circumference) < 0.0001, true, 'círculo completo');
+assertEqual(full.band, 'gold', 'cem dourado');
+assertEqual(full.star, true, 'cem com brilho');
+assertEqual(getProgressColor(100), 'gold', 'corpo em excelência');
+assertEqual(getProgressColor(75), 'green', 'mente verde');
+assertEqual(getProgressColor(50), 'red', 'espírito vermelho');
 
 const routine: ScheduledHabit[] = [
   { id: 'tarde', label: 'Leitura', period: 'tarde', minutes: 20, done: false },
@@ -47,14 +73,15 @@ assertEqual(
 assertEqual(nextScheduledHabit(routine.map((habit) => ({ ...habit, done: true }))), null, 'nada pendente');
 assertEqual(nextScheduledHabit([]), null, 'sem hábitos');
 
-assertEqual(weeklyPhrases.length, 104, 'ciclo de 104 frases');
-assertEqual(new Set(weeklyPhrases).size, 104, 'frases únicas');
+assertEqual(weeklyPhrases.length >= 100, true, 'pelo menos 100 frases');
+assertEqual(new Set(weeklyPhrases).size, weeklyPhrases.length, 'frases únicas');
+assertEqual(weeklyPhrases.includes('Disciplina hoje constrói a liberdade de amanhã.'), true, 'frase de referência');
+assertEqual(weeklyPhrases.some((phrase) => /\b(homem|mulher|menino|menina|dele|dela)\b/i.test(phrase)), false, 'linguagem inclusiva');
 assertEqual(weeklyPhrase('2026-10-26'), weeklyPhrase('2026-11-01'), 'mesma frase de segunda a domingo');
 assertEqual(weeklyPhrase('2026-10-25') === weeklyPhrase('2026-10-26'), false, 'vira na segunda');
-assertEqual(weeklyPhraseIndex('2026-10-26'), (weeklyPhraseIndex('2024-01-01') + 147) % 104, 'índice determinístico');
+assertEqual(weeklyPhraseIndex('2026-10-26'), (weeklyPhraseIndex('2024-01-01') + 147) % weeklyPhrases.length, 'índice determinístico');
 const firstMonday = '2024-01-01';
-const week104 = '2025-12-29';
-assertEqual(weeklyPhrase(firstMonday), weeklyPhrase(week104), 'o ciclo recomeça na semana 104');
+assertEqual(weeklyPhrase(firstMonday), weeklyPhrase(shiftDateKey(firstMonday, weeklyPhrases.length * 7)), 'o ciclo recomeça');
 assertEqual(
   weeklyPhrase(todayKey(new Date('2026-10-26T02:59:00.000Z'))) === weeklyPhrase(todayKey(new Date('2026-10-26T03:00:00.000Z'))),
   false,

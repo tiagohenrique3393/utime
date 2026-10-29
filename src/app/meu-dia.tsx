@@ -23,7 +23,7 @@ import { getSessionUserId } from '@/lib/accounts';
 
 const page = '#050505';
 const rowPress = { cursor: 'pointer', userSelect: 'none' } as ViewStyle;
-const bandColor = { red: '#E24B4B', yellow: '#F5C518', green: '#3DDC6A', gold: '#F6C453' } as const;
+const bandColor = { red: '#FF3B4D', green: '#39FF73', gold: '#FFC94A' } as const;
 const periodImage: Record<HabitPeriod, number> = {
   manha: require('@/assets/period-manha.jpg'),
   tarde: require('@/assets/period-tarde.jpg'),

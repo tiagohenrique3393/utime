@@ -1,14 +1,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { ExcellenceSpark } from '@/components/excellence-spark';
 import { useReducedMotion, useSettledNumbers } from '@/components/motion';
 import { fonts, ui } from '@/constants/theme';
-import { getProgressColor, progressBandColor, type ProgressBand } from '@/lib/progress-color';
+import { getProgressColor, progressBandColor, progressBandGlow, showsExcellence, type ProgressBand } from '@/lib/progress-color';
 
 const glow: Record<ProgressBand, string> = {
-  red: 'rgba(226, 75, 75, 0.55)',
-  yellow: 'rgba(245, 197, 24, 0.5)',
-  green: 'rgba(61, 220, 106, 0.55)',
-  gold: 'rgba(246, 196, 83, 0.9)',
+  red: progressBandGlow.red,
+  green: progressBandGlow.green,
+  gold: progressBandGlow.gold,
 };
 
 export function progressTone(percent: number) {
@@ -25,7 +25,8 @@ export function DayProgress({ percent, marked = false }: { percent: number; mark
   const [value = 0] = useSettledNumbers([safe], reduced);
   const band = getProgressColor(safe);
   const lit = value >= 0.5;
-  const goldGlow = band === 'gold' && !reduced ? '0 0 8px rgba(246, 196, 83, 0.85)' : undefined;
+  const excellent = showsExcellence(safe);
+  const fillGlow = excellent ? (reduced ? undefined : `0 0 10px ${glow.gold}`) : `0 0 8px ${glow[band]}`;
 
   return (
     <View>
@@ -50,7 +51,7 @@ export function DayProgress({ percent, marked = false }: { percent: number; mark
           <View
             style={[
               styles.fill,
-              { width: `${value}%`, backgroundColor: progressBandColor[band], boxShadow: goldGlow },
+              { width: `${value}%`, backgroundColor: progressBandColor[band], boxShadow: fillGlow },
             ]}
           />
         ) : null}
@@ -58,7 +59,13 @@ export function DayProgress({ percent, marked = false }: { percent: number; mark
           <>
             <View style={[styles.dot, styles.dotStart]} />
             <View style={[styles.dot, styles.dotMeta]} />
-            <View style={[styles.dot, styles.dotEnd]} />
+            {excellent ? (
+              <View style={styles.spark} pointerEvents="none">
+                <ExcellenceSpark size={14} />
+              </View>
+            ) : (
+              <View style={[styles.dot, styles.dotEnd]} />
+            )}
           </>
         ) : null}
       </View>
@@ -123,7 +130,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: ui.champagne,
+    backgroundColor: '#F3EFE8',
   },
   dotStart: {
     left: 0,
@@ -134,5 +141,10 @@ const styles = StyleSheet.create({
   },
   dotEnd: {
     right: 0,
+  },
+  spark: {
+    position: 'absolute',
+    right: -6,
+    top: -4,
   },
 });
