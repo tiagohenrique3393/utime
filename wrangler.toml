@@ -1,0 +1,7 @@
+# O preview da branch exige este bloco. Ele fica vazio porque o Worker não tem binding.
+name = "utime"
+compatibility_date = "2026-10-28"
+previews = { }
+
+[assets]
+directory = "./dist"
