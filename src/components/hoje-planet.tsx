@@ -33,7 +33,7 @@ const css = `
   user-select: none;
   mask-image: linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%);
-  filter: brightness(0.9);
+  filter: brightness(0.78) contrast(1.05);
 }
 @media (max-width: 759px) {
   .hoje-planet-layer {

@@ -10,6 +10,33 @@ export type HydrationDay = {
 
 const emptyDay: HydrationDay = { goalMl: null, consumedMl: 0 };
 
+type HydrationCache = { userId: string; day: string; value: HydrationDay };
+let hydrationCache: HydrationCache | null = null;
+const hydrationListeners = new Set<() => void>();
+
+export function subscribeHydrationDay(listener: () => void) {
+  hydrationListeners.add(listener);
+  return () => {
+    hydrationListeners.delete(listener);
+  };
+}
+
+export function hydrationDaySnapshot(userId: string, day: string) {
+  if (!hydrationCache || hydrationCache.userId !== userId || hydrationCache.day !== day) {
+    return null;
+  }
+  return hydrationCache.value;
+}
+
+function publishHydration(userId: string, day: string, value: HydrationDay) {
+  hydrationCache = {
+    userId,
+    day,
+    value: { goalMl: value.goalMl, consumedMl: value.consumedMl },
+  };
+  hydrationListeners.forEach((listener) => listener());
+}
+
 function missingTable(error: { message?: string; code?: string } | null) {
   const text = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
   return (
@@ -97,7 +124,9 @@ export async function loadHydration(userId: string, day: string) {
   if (error) {
     return { ok: false as const, day: emptyDay, message: failureMessage(error, 'load') };
   }
-  return { ok: true as const, day: fromRow(data as HydrationRow | null, userId, day) ?? emptyDay, message: '' };
+  const dayValue = fromRow(data as HydrationRow | null, userId, day) ?? emptyDay;
+  publishHydration(userId, day, dayValue);
+  return { ok: true as const, day: dayValue, message: '' };
 }
 
 export async function saveHydration(userId: string, day: string, next: HydrationDay) {
@@ -123,6 +152,7 @@ export async function saveHydration(userId: string, day: string, next: Hydration
   if (error || !saved || saved.goalMl !== goalMl || saved.consumedMl !== consumedMl) {
     return { ok: false as const, day: emptyDay, message: failureMessage(error, 'save') };
   }
+  publishHydration(userId, day, saved);
   const suggestion = suggestedHabitById(HYDRATION_HABIT_ID);
   if (suggestion) {
     const ensured = await ensureCatalogHabit({

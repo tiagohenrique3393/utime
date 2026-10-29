@@ -1,137 +1,108 @@
-import { router, type Href } from 'expo-router';
-import { createElement, useEffect, useState, useSyncExternalStore } from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle } from 'react-native';
+import { router, useFocusEffect, type Href } from 'expo-router';
+import { useCallback, useState, useSyncExternalStore } from 'react';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { DayProgress } from '@/components/day-progress';
+import { HabitGlyph } from '@/components/habit-glyph';
 import { HojePlanet } from '@/components/hoje-planet';
+import { HomeHydration } from '@/components/home-hydration';
 import { PillarCard } from '@/components/pillar-card';
 import { fonts, ui } from '@/constants/theme';
-import { dailyCounts, pillarDailyPercent } from '@/lib/daily-board';
+import { dailyCounts, isDailyHabitDone, pillarDailyPercent } from '@/lib/daily-board';
 import { useDailyBoard } from '@/lib/use-daily-board';
-import { formatDailyPercent, formatLongDate, zonedHour } from '@/lib/habit-day';
+import { formatDailyPercent, todayKey } from '@/lib/habit-day';
+import { greetingParts, homeDateParts } from '@/lib/home-copy';
+import { habitIconFor, periodCopy } from '@/lib/habit-visual';
 import { pillarLabels } from '@/lib/habit-catalog';
+import { nextScheduledHabit } from '@/lib/next-habit';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
-
-function greeting(date: Date, name: string) {
-  const hour = zonedHour(date);
-  const hello = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
-  const first = name.trim().split(/\s+/)[0];
-  return first ? `${hello}, ${first}` : hello;
-}
-
-function dayMessage(percent: number) {
-  if (percent >= 100) {
-    return 'Dia concluído.';
-  }
-  if (percent >= 70) {
-    return 'Bom rendimento. Você está quase lá.';
-  }
-  if (percent >= 40) {
-    return 'Você está avançando. Continue.';
-  }
-  return 'Seu dia ainda está começando';
-}
-
-function remainingLine(count: number) {
-  if (count === 1) {
-    return '1 hábito ainda te espera hoje';
-  }
-  return `${count} hábitos ainda te esperam hoje`;
-}
-
-function Trophy() {
-  if (Platform.OS !== 'web') {
-    return <View style={styles.trophyFallback} />;
-  }
-  return createElement(
-    'svg',
-    { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
-    createElement('path', {
-      d: 'M5.2 2.4h5.6v2.2c0 1.7-1.1 2.9-2.4 3.2v1.5h1.7v1.2H5.9v-1.2h1.7V7.8C6.3 7.5 5.2 6.3 5.2 4.6V2.4z',
-      stroke: ui.champagne,
-      strokeWidth: 1.15,
-      strokeLinejoin: 'round',
-    }),
-    createElement('path', {
-      d: 'M5.2 3.2H3.3c.2 1.5.9 2.3 2.1 2.6M10.8 3.2h1.9c-.2 1.5-.9 2.3-2.1 2.6',
-      stroke: ui.champagne,
-      strokeWidth: 1.15,
-      strokeLinecap: 'round',
-    }),
-  );
-}
-
-const lineStyle: TextStyle | undefined =
-  Platform.OS === 'web' ? ({ whiteSpace: 'nowrap' } as TextStyle) : undefined;
-
-function Chevron() {
-  if (Platform.OS !== 'web') {
-    return <Text style={styles.chevronFallback}>›</Text>;
-  }
-  return createElement(
-    'svg',
-    { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', 'aria-hidden': true },
-    createElement('path', {
-      d: 'M5 2.5 L9.5 7 L5 11.5',
-      stroke: ui.ink,
-      strokeWidth: 1.4,
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round',
-    }),
-  );
-}
+import { getSessionUserId } from '@/lib/accounts';
+import { weeklyPhrase } from '@/lib/weekly-phrase';
 
 export default function TodayScreen() {
   const signedIn = useRequireSession();
   const { height, width } = useWindowDimensions();
-  const compact = height < 740;
-  const statusSize = width < 360 ? 7.5 : width < 420 ? 8 : width < 760 ? 10 : 12;
+  const compact = height < 740 || width < 360;
+  const stacked = width < 340;
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const board = useDailyBoard();
   const [now, setNow] = useState<Date | null>(null);
+  const userId = getSessionUserId();
 
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setNow(new Date()));
-    return () => cancelAnimationFrame(frame);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setNow(new Date());
+    }, []),
+  );
 
   const counts = dailyCounts(board.habits, board.completed);
-  const done = counts.done;
   const percent = counts.percent;
-  const remaining = Math.max(0, counts.total - done);
   const pillars = (['corpo', 'mente', 'espirito'] as const).map((id) => ({
     id,
     label: pillarLabels[id],
     percent: pillarDailyPercent(board.habits, board.completed, id),
   }));
-  const hello = now ? greeting(now, profile.firstName) : '';
-  const dateLine = board.dateKey ? formatLongDate(board.dateKey) : '';
-  const closed = percent >= 100;
+  const hello = now ? greetingParts(now, profile.firstName) : { hello: '', name: '' };
+  const phraseKey = board.dateKey || (now ? todayKey(now) : '');
+  const dateParts = phraseKey ? homeDateParts(phraseKey) : { dayMonth: '', weekday: '' };
+  const phrase = phraseKey ? weeklyPhrase(phraseKey) : '';
   const feminine = profile.journey === 'womantime';
+  const scheduled = board.habits.map((habit) => ({
+    id: habit.id,
+    label: habit.label,
+    period: habit.period,
+    minutes: habit.minutes,
+    done: isDailyHabitDone(habit, board.completed),
+  }));
+  const nextHabit = board.ready ? nextScheduledHabit(scheduled) : null;
+  const allDone = board.ready && scheduled.length > 0 && nextHabit === null;
+  const noneScheduled = board.ready && scheduled.length === 0;
 
   if (!signedIn) {
     return <View style={styles.blocked} />;
   }
 
+  const habitTitle = allDone
+    ? 'Todos os hábitos concluídos'
+    : noneScheduled
+      ? 'Nenhum hábito programado hoje'
+      : nextHabit?.label ?? '';
+  const habitDetail = nextHabit
+    ? [periodCopy[nextHabit.period].title, nextHabit.minutes ? `${nextHabit.minutes} min` : '']
+        .filter(Boolean)
+        .join(' · ')
+    : '';
+  const habitIcon = nextHabit
+    ? habitIconFor(nextHabit.label, board.habits.find((habit) => habit.id === nextHabit.id)?.catalogHabitId)
+    : 'spark';
+
   return (
     <AppScreen width="stage" backdrop={<HojePlanet />} navVariant="hoje">
-      <Text accessibilityRole="header" style={styles.hello}>
-        {hello}
+      <Text accessibilityRole="header" style={[styles.helloLine, compact && styles.helloCompact]}>
+        <Text style={styles.hello}>{hello.name ? `${hello.hello}, ` : hello.hello}</Text>
+        {hello.name ? <Text style={styles.helloName}>{hello.name}</Text> : null}
       </Text>
 
       <View style={styles.dateBlock}>
         <Text style={styles.kicker}>Hoje</Text>
-        {dateLine ? <Text style={styles.date}>{dateLine}</Text> : null}
+        {dateParts.dayMonth ? <Text style={styles.date}>{dateParts.dayMonth}</Text> : null}
+        {dateParts.weekday ? <Text style={styles.weekday}>{dateParts.weekday}</Text> : null}
       </View>
 
-      <Text style={[styles.figure, compact && styles.figureCompact]} accessibilityLabel={`${formatDailyPercent(percent)} do seu dia`}>
-        {formatDailyPercent(percent)}
-      </Text>
-      <Text style={styles.figureLabel}>Seu dia</Text>
-      <View style={styles.track}>
-        <DayProgress percent={percent} />
+      <View style={[styles.progressRow, stacked && styles.progressStacked]}>
+        <View style={styles.hero}>
+          <Text
+            style={[styles.figure, compact && styles.figureCompact]}
+            accessibilityLabel={`${formatDailyPercent(percent)} do seu dia`}>
+            {formatDailyPercent(percent)}
+          </Text>
+          <Text style={styles.figureLabel}>Seu dia</Text>
+        </View>
+        <View style={styles.meter}>
+          <DayProgress percent={percent} marked />
+        </View>
       </View>
 
       <View style={styles.pillars}>
@@ -146,30 +117,37 @@ export default function TodayScreen() {
         ))}
       </View>
 
-      <View style={styles.status}>
-        <View style={styles.statusRule} />
-        <Trophy />
-        <Text style={[styles.message, lineStyle, { fontSize: statusSize, lineHeight: statusSize + 3 }]}>
-          {dayMessage(percent)}
-        </Text>
-        {closed || remaining > 0 ? <View style={styles.statusSplit} /> : null}
-        {closed ? (
-          <Text style={[styles.counter, lineStyle, { fontSize: statusSize, lineHeight: statusSize + 3 }]}>
-            Você cumpriu tudo o que planejou para hoje.
-          </Text>
-        ) : remaining > 0 ? (
-          <Text style={[styles.counter, lineStyle, { fontSize: statusSize, lineHeight: statusSize + 3 }]}>
-            {remainingLine(remaining)}
-          </Text>
-        ) : null}
+      <View style={styles.habit} accessibilityRole="text">
+        <View style={styles.habitCopy}>
+          <Text style={styles.habitKicker}>Próximo hábito</Text>
+          {habitTitle ? (
+            <Text style={styles.habitTitle} numberOfLines={2}>
+              {habitTitle}
+            </Text>
+          ) : null}
+          {habitDetail ? <Text style={styles.habitDetail}>{habitDetail}</Text> : null}
+        </View>
+        <View style={styles.habitIcon}>
+          <HabitGlyph name={habitIcon} color={ui.champagne} size={22} />
+        </View>
       </View>
+
+      <HomeHydration userId={userId} dateKey={phraseKey} />
+
+      {phrase ? (
+        <View style={styles.quote}>
+          <Text style={styles.quoteMark}>“</Text>
+          <View style={styles.quoteRule} />
+          <Text style={styles.quoteText}>{phrase}</Text>
+        </View>
+      ) : null}
 
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel="Ver meu dia"
         onPress={() => router.push('/meu-dia' as Href)}
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
         <Text style={styles.buttonLabel}>Ver meu dia</Text>
-        <Chevron />
       </Pressable>
     </AppScreen>
   );
@@ -180,141 +158,196 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: ui.background,
   },
+  helloLine: {
+    marginTop: 4,
+  },
+  helloCompact: {
+    marginTop: 0,
+  },
   hello: {
     color: ui.text,
-    fontFamily: fonts.displayLight,
-    fontSize: 20,
-    lineHeight: 24,
-    letterSpacing: 4.2,
+    fontFamily: fonts.display,
+    fontSize: 28,
+    lineHeight: 32,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  helloName: {
+    color: ui.champagne,
+    fontFamily: fonts.display,
+    fontSize: 28,
+    lineHeight: 32,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   dateBlock: {
-    marginTop: 26,
-    gap: 4,
+    marginTop: 16,
+    gap: 2,
   },
   kicker: {
-    color: ui.textChampagne,
-    fontFamily: fonts.displayLight,
+    color: ui.champagne,
+    fontFamily: fonts.display,
     fontSize: 11,
     lineHeight: 14,
-    letterSpacing: 2.6,
+    letterSpacing: 1.6,
     textTransform: 'uppercase',
   },
   date: {
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 1.8,
-    textTransform: 'uppercase',
-    paddingRight: 2,
+    fontSize: 16,
+    lineHeight: 20,
+    letterSpacing: 0.6,
+  },
+  weekday: {
+    color: ui.text,
+    fontFamily: fonts.displayLight,
+    fontSize: 13,
+    lineHeight: 16,
+    letterSpacing: 1.2,
+  },
+  progressRow: {
+    marginTop: 28,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  progressStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  hero: {
+    width: 132,
   },
   figure: {
-    marginTop: 26,
     color: ui.text,
     fontFamily: fonts.textLight,
-    fontSize: 62,
-    lineHeight: 64,
-    letterSpacing: -0.6,
-  },
-  figureCompact: {
-    marginTop: 18,
     fontSize: 48,
     lineHeight: 50,
+    letterSpacing: -1,
+  },
+  figureCompact: {
+    fontSize: 44,
+    lineHeight: 46,
   },
   figureLabel: {
-    marginTop: 2,
     color: ui.textChampagne,
-    fontFamily: fonts.displayLight,
-    fontSize: 12,
-    letterSpacing: 2.8,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
-  track: {
-    marginTop: 14,
-    width: '100%',
-    maxWidth: 360,
+  meter: {
+    flex: 1,
+    minWidth: 0,
+    paddingBottom: 6,
   },
   pillars: {
-    marginTop: 28,
+    marginTop: 22,
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: 10,
   },
-  status: {
-    marginTop: 18,
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 42,
-    paddingVertical: 9,
-    paddingRight: 8,
-    paddingLeft: 8,
+  habit: {
+    marginTop: 14,
+    minHeight: 84,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(243, 239, 232, 0.08)',
-    backgroundColor: 'rgba(16, 14, 13, 0.78)',
-  },
-  statusRule: {
-    width: 2,
-    height: 18,
-    borderRadius: 1,
-    backgroundColor: ui.champagne,
-    opacity: 0.9,
-  },
-  trophyFallback: {
-    width: 12,
-    height: 12,
-    borderRadius: 2,
-    borderWidth: 1,
-    borderColor: ui.champagne,
-  },
-  statusSplit: {
-    width: 1,
-    height: 14,
-    backgroundColor: 'rgba(243, 239, 232, 0.28)',
-  },
-  message: {
-    flexGrow: 0,
-    flexShrink: 0,
-    color: ui.text,
-    fontFamily: fonts.text,
-    letterSpacing: 0.15,
-    textTransform: 'uppercase',
-  },
-  counter: {
-    flexGrow: 0,
-    flexShrink: 0,
-    color: ui.muted,
-    fontFamily: fonts.text,
-    letterSpacing: 0.1,
-    textTransform: 'uppercase',
-  },
-  button: {
-    marginTop: 16,
-    minHeight: 52,
-    borderRadius: 999,
-    backgroundColor: ui.champagne,
+    borderColor: 'rgba(232, 201, 155, 0.38)',
+    backgroundColor: 'rgba(12, 11, 10, 0.82)',
     flexDirection: 'row',
     alignItems: 'center',
+    paddingLeft: 16,
+    paddingRight: 12,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  habitCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  habitKicker: {
+    color: ui.champagne,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+  },
+  habitTitle: {
+    color: ui.text,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    lineHeight: 22,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  habitDetail: {
+    color: ui.muted,
+    fontFamily: fonts.text,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  habitIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(232, 201, 155, 0.55)',
+    alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(232, 201, 155, 0.06)',
+  },
+  quote: {
+    marginTop: 18,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 10,
+    paddingRight: 8,
+  },
+  quoteMark: {
+    color: ui.champagne,
+    fontFamily: fonts.display,
+    fontSize: 34,
+    lineHeight: 34,
+  },
+  quoteRule: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(232, 201, 155, 0.45)',
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  quoteText: {
+    flex: 1,
+    color: ui.text,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    paddingTop: 8,
+  },
+  button: {
+    marginTop: 18,
+    minHeight: 52,
+    borderRadius: 999,
+    backgroundColor: '#E7C99A',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 22,
   },
   buttonLabel: {
-    color: ui.ink,
+    color: '#1A140E',
     fontFamily: fonts.textMedium,
-    fontSize: 13,
-    letterSpacing: 1.8,
+    fontSize: 14,
+    letterSpacing: 1.6,
     textTransform: 'uppercase',
   },
-  chevronFallback: {
-    color: ui.ink,
-    fontSize: 18,
-    lineHeight: 18,
-  },
   pressed: {
-    opacity: 0.84,
+    opacity: 0.86,
   },
 });
