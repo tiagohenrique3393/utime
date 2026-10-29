@@ -3,5 +3,9 @@ name = "utime"
 compatibility_date = "2026-10-28"
 previews = { }
 
+# wrangler deploy e wrangler preview executam este comando antes de ler ./dist.
+[build]
+command = "npx expo export --platform web"
+
 [assets]
 directory = "./dist"
