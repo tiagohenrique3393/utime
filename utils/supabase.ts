@@ -45,28 +45,73 @@ const storage = {
 const PROJECT_URL = 'https://svsxqpejzqejcvlshost.supabase.co'
 const STALE_HOST = 'crqxzqilnhghhctwnvta.supabase.co'
 
-function supabaseUrl() {
-  const configured = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim()
-  if (!configured) {
-    return PROJECT_URL
+const PUBLIC_KEY = 'sb_publishable_vv5aJD1ZdOpZdk3t4M2jfA_e_7i7T2b'
+
+function jwtRole(token: string) {
+  const part = token.split('.')[1]
+  if (!part) {
+    return null
   }
   try {
-    if (new URL(configured).hostname === STALE_HOST) {
-      return PROJECT_URL
+    const padded = part.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (part.length % 4)) % 4)
+    const payload = globalThis.atob(padded)
+    const role = payload.match(/"role"\s*:\s*"([^"]+)"/)
+    return role?.[1] ?? null
+  } catch {
+    return null
+  }
+}
+
+function assertPublicKey(value: string) {
+  if (value.startsWith('sb_secret_') || jwtRole(value) === 'service_role') {
+    throw new Error('A configuração do Supabase usa uma chave secreta. O cliente só aceita a publishable key.')
+  }
+  if (value.startsWith('sb_publishable_') || jwtRole(value) === 'anon') {
+    return
+  }
+  throw new Error('A chave pública do Supabase não está disponível. Defina EXPO_PUBLIC_SUPABASE_ANON_KEY com a publishable key.')
+}
+
+export function resolveSupabaseUrl(configured: string | undefined, projectUrl = PROJECT_URL, staleHost = STALE_HOST) {
+  const value = configured?.trim() ?? ''
+  if (!value || !/^https?:\/\//i.test(value)) {
+    return projectUrl
+  }
+  try {
+    if (new URL(value).hostname === staleHost) {
+      return projectUrl
     }
   } catch {
-    return PROJECT_URL
+    return projectUrl
   }
-  return configured.replace(/\/$/, '')
+  return value.replace(/\/$/, '')
+}
+
+export function resolveSupabaseKey(candidates: Array<string | undefined>, fallback = PUBLIC_KEY) {
+  for (const candidate of candidates) {
+    const value = candidate?.trim() ?? ''
+    if (!value || /^https?:\/\//i.test(value)) {
+      continue
+    }
+    assertPublicKey(value)
+    return value
+  }
+  assertPublicKey(fallback)
+  return fallback
+}
+
+function supabaseUrl() {
+  return resolveSupabaseUrl(process.env.EXPO_PUBLIC_SUPABASE_URL)
 }
 
 function supabaseKey() {
-  return (
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.EXPO_PUBLIC_SUPABASE_KEY ||
-    ''
-  )
+  return resolveSupabaseKey([
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.EXPO_PUBLIC_SUPABASE_KEY,
+    process.env.EXPO_PUBLIC_SUPABASE_URL,
+  ])
 }
+
 
 export const supabase = createClient(
   supabaseUrl(),
