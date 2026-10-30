@@ -9,12 +9,11 @@ import { HojePlanet } from '@/components/hoje-planet';
 import { HomeHydration } from '@/components/home-hydration';
 import { PillarCard } from '@/components/pillar-card';
 import { fonts, ui } from '@/constants/theme';
-import { dailyCounts, habitsForScore, isDailyHabitDone, pillarDailyPercent } from '@/lib/daily-board';
+import { habitsForScore, isDailyHabitDone, scoreDailyHabits } from '@/lib/daily-board';
 import { useDailyBoard } from '@/lib/use-daily-board';
 import { formatDailyPercent, todayKey } from '@/lib/habit-day';
 import { greetingParts, homeDateParts } from '@/lib/home-copy';
 import { habitIconFor, periodCopy } from '@/lib/habit-visual';
-import { pillarLabels } from '@/lib/habit-catalog';
 import { nextScheduledHabit } from '@/lib/next-habit';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
@@ -40,12 +39,12 @@ export default function TodayScreen() {
   );
 
   const scored = habitsForScore(board.habits);
-  const counts = dailyCounts(scored, board.completed);
-  const percent = counts.percent;
-  const pillars = (['corpo', 'mente', 'espirito'] as const).map((id) => ({
-    id,
-    label: pillarLabels[id],
-    percent: pillarDailyPercent(scored, board.completed, id),
+  const score = scoreDailyHabits(board.habits, board.completed);
+  const percent = score.percent;
+  const pillars = score.pillars.map((pillar) => ({
+    id: pillar.id,
+    label: pillar.label,
+    percent: pillar.percent,
   }));
   const hello = now ? greetingParts(now, profile.firstName) : { hello: '', name: '' };
   const phraseKey = board.dateKey || (now ? todayKey(now) : '');

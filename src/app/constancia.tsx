@@ -9,7 +9,9 @@ import { GoldStar } from '@/components/gold-star';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import { applyTodayRoutine, bestStreak, currentStreak, marksFromLogs, monthScore, recentWeekScores, yearExcellence, type DayMark } from '@/lib/constancy';
-import { dailyCounts, getDailyBoard, refreshDailyBoard } from '@/lib/daily-board';
+import { getDailyBoard, refreshDailyBoard, scoreDailyHabits } from '@/lib/daily-board';
+import { officialHydrationIds } from '@/lib/daily-score';
+import { getUserHabits } from '@/lib/habit-catalog';
 import { loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
 import { useRequireSession } from '@/lib/require-session';
 
@@ -337,9 +339,10 @@ export default function ConstancyScreen() {
           return;
         }
         const board = getDailyBoard();
-        const routine = board.ready && board.dateKey === closed ? dailyCounts(board.habits, board.completed) : null;
+        const routine = board.ready && board.dateKey === closed ? scoreDailyHabits(board.habits, board.completed) : null;
+        const excluded = officialHydrationIds(getUserHabits().map((habit) => ({ id: habit.id, catalogHabitId: habit.catalogHabitId })));
         setToday(closed);
-        setMarks(applyTodayRoutine(marksFromLogs(logs.rows), closed, routine));
+        setMarks(applyTodayRoutine(marksFromLogs(logs.rows, excluded), closed, routine));
         setCursor((current) => current ?? monthOf(closed));
         setNotice('');
         setPhase('ready');

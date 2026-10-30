@@ -6,6 +6,7 @@ import { AppScreen, TextButton } from '@/components/app-screen';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import { dayOutcome, dayStatusLabel, type DayMark } from '@/lib/constancy';
+import { officialHydrationIds } from '@/lib/daily-score';
 import { getCatalogHabits, getUserHabits, habitTitle, hydrateHabitRoutine } from '@/lib/habit-catalog';
 import { dailyPercent, formatCalendarDate, formatDailyPercent, formatLongDate, loadHabitDayLogs, parseDateKey, todayKey } from '@/lib/habit-day';
 import { useRequireSession } from '@/lib/require-session';
@@ -60,10 +61,15 @@ export default function DayConsultationScreen() {
           setNotice(logs.message);
           return;
         }
-        const titles = new Map(getUserHabits().map((habit) => [habit.id, habitTitle(habit, getCatalogHabits())]));
-        const order = new Map(getUserHabits().map((habit) => [habit.id, habit.sortOrder]));
+        const known = getUserHabits();
+        const excluded = officialHydrationIds(known.map((habit) => ({ id: habit.id, catalogHabitId: habit.catalogHabitId })));
+        const titles = new Map(known.map((habit) => [habit.id, habitTitle(habit, getCatalogHabits())]));
+        const order = new Map(known.map((habit) => [habit.id, habit.sortOrder]));
         const byHabit = new Map<string, boolean>();
         for (const row of logs.rows) {
+          if (excluded.has(row.habitId)) {
+            continue;
+          }
           byHabit.set(row.habitId, row.completed);
         }
         let done = 0;

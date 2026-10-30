@@ -1,3 +1,4 @@
+import { isOfficialHydration, logsWithoutOfficialHydration } from '@/lib/daily-score';
 import { dailyPercent, todayKey } from '@/lib/habit-day';
 import { hydrationReached } from '@/lib/hydration';
 
@@ -88,7 +89,6 @@ export type ProgressReport = {
 const weekdayLabels = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const pillarOrder: readonly ProgressPillar[] = ['corpo', 'mente', 'espirito'];
-const hydrationCatalogId = 'corpo-hidratacao';
 
 export function shiftDateKey(key: string, days: number) {
   const [year, month, day] = key.split('-').map(Number);
@@ -199,11 +199,9 @@ export function habitPercentOn(
     return null;
   }
   if (dateKeyValue === today && todayRoutine) {
-    if (todayRoutine.total <= 0) {
-      return null;
-    }
-    const done = Math.max(0, Math.min(todayRoutine.total, todayRoutine.completed));
-    return dailyPercent(todayRoutine.total, done);
+    const planned = Math.max(0, todayRoutine.total);
+    const done = Math.max(0, Math.min(planned, todayRoutine.completed));
+    return dailyPercent(planned, done);
   }
   const rows = logsOn(logs, dateKeyValue);
   if (rows.length === 0) {
@@ -392,7 +390,7 @@ function habitIndex(habits: readonly ProgressHabit[]) {
 }
 
 function isHydrationHabit(habit: ProgressHabit) {
-  return habit.catalogHabitId === hydrationCatalogId;
+  return isOfficialHydration(habit.catalogHabitId);
 }
 
 function pillarOnDay(
@@ -406,10 +404,11 @@ function pillarOnDay(
   if (dateKeyValue > today) {
     return empty;
   }
-  if (dateKeyValue === today && todayHabits && todayHabits.length > 0) {
+  if (dateKeyValue === today && todayHabits) {
     const next = { ...empty };
+    const scored = todayHabits.filter((habit) => !isHydrationHabit(habit));
     for (const pillar of pillarOrder) {
-      const group = todayHabits.filter((habit) => habit.pillar === pillar);
+      const group = scored.filter((habit) => habit.pillar === pillar);
       next[pillar] = group.length === 0 ? null : dailyPercent(group.length, group.filter((habit) => habit.done).length);
     }
     return next;
@@ -420,7 +419,10 @@ function pillarOnDay(
   }
   const next = { ...empty };
   for (const pillar of pillarOrder) {
-    const group = rows.filter((row) => habits.get(row.habitId)?.pillar === pillar);
+    const group = rows.filter((row) => {
+      const habit = habits.get(row.habitId);
+      return habit !== undefined && habit.pillar === pillar && !isHydrationHabit(habit);
+    });
     next[pillar] = group.length === 0 ? null : dailyPercent(group.length, group.filter((row) => row.completed).length);
   }
   return next;
@@ -558,36 +560,45 @@ export function progressReport(input: {
   todayHabits?: readonly TodayProgressHabit[] | null;
   activatedOn?: string | null;
 }): ProgressReport {
+  const habits = input.habits ?? [];
+  const todayHabits = input.todayHabits
+    ? input.todayHabits.filter((habit) => !isHydrationHabit(habit))
+    : null;
+  const logs = logsWithoutOfficialHydration(input.logs, habits);
+  const todayRoutine = todayHabits
+    ? { total: todayHabits.length, completed: todayHabits.filter((habit) => habit.done).length }
+    : input.todayRoutine;
   const week = weekDateKeys(input.today);
   const month = monthDateKeys(input.today);
   const year = yearDateKeys(input.today);
   const hydrationWeek = hydrationWeekDateKeys(input.today);
   const hydrationYear = hydrationYearDateKeys(input.today);
-  const percent = (key: string) => habitPercentOn(key, input.today, input.logs, input.todayRoutine);
+  const percent = (key: string) => habitPercentOn(key, input.today, logs, todayRoutine);
   let habitPoints: PercentPoint[] = [];
   let waterPoints: WaterPoint[] = [];
   let waterDates: readonly string[] = [input.today];
   if (input.period === 'dia') {
-    habitPoints = habitPointsFor([input.today], dayLabel, input.today, input.logs, input.todayRoutine);
+    habitPoints = habitPointsFor([input.today], dayLabel, input.today, logs, todayRoutine);
     waterPoints = waterPointsFor([input.today], dayLabel, input.today, input.hydration);
     waterDates = [input.today];
   } else if (input.period === 'semana') {
-    habitPoints = habitPointsFor(week, (key) => weekdayLabels[weekdayIndex(key)], input.today, input.logs, input.todayRoutine);
+    habitPoints = habitPointsFor(week, (key) => weekdayLabels[weekdayIndex(key)], input.today, logs, todayRoutine);
     waterPoints = waterPointsFor(hydrationWeek, (key) => weekdayLabels[weekdayIndex(key)], input.today, input.hydration);
     waterDates = hydrationWeek;
   } else if (input.period === 'mes') {
-    habitPoints = habitPointsFor(month, dayLabel, input.today, input.logs, input.todayRoutine);
+    habitPoints = habitPointsFor(month, dayLabel, input.today, logs, todayRoutine);
     waterPoints = waterPointsFor(month, dayLabel, input.today, input.hydration);
     waterDates = month;
   } else {
-    const series = monthSeries(input.today, input.logs, input.hydration, input.todayRoutine);
+    const series = monthSeries(input.today, logs, input.hydration, todayRoutine);
     habitPoints = series.habitPoints;
     waterPoints = series.waterPoints;
     waterDates = hydrationYear;
   }
   const scope = datesForPeriod(input.period, input.today, week, month, year);
-  const habits = input.habits ?? [];
-  const todayHabits = input.todayHabits ?? null;
+  const pillars = pillarProgress(scope, input.today, logs, habits, todayHabits).map((pillar) =>
+    input.period === 'dia' && todayHabits ? { ...pillar, percent: pillar.percent ?? 0 } : pillar,
+  );
   return {
     dia: percent(input.today),
     semana: averagePercent(week.map(percent)),
@@ -596,8 +607,8 @@ export function progressReport(input: {
     habitPoints,
     waterPoints,
     water: summarizeWater(waterDates, input.hydration),
-    pillars: pillarProgress(scope, input.today, input.logs, habits, todayHabits),
-    practiced: practicedHabits(scope, input.today, input.logs, habits, todayHabits),
+    pillars,
+    practiced: practicedHabits(scope, input.today, logs, habits, todayHabits),
     periodGoalMl: periodGoalMl(waterDates, input.hydration, input.activatedOn),
     waterCoverage: waterCoverage(waterDates, input.hydration, input.today),
   };

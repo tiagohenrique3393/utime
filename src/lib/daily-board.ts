@@ -20,8 +20,9 @@ import {
   setHabitCompleted,
   todayKey,
 } from '@/lib/habit-day';
+import { isOfficialHydration, scoreHabits, type DailyScore } from '@/lib/daily-score';
 import { dailyPillarStats, type PillarDayHabit } from '@/lib/pillar-daily';
-import { HYDRATION_HABIT_ID, suggestedHabits } from '@/lib/suggested-habits';
+import { suggestedHabits } from '@/lib/suggested-habits';
 import { suggestedMinutes } from '@/lib/habit-visual';
 
 export type DailyHabit = {
@@ -173,7 +174,19 @@ export function completedCount(habits: readonly DailyHabit[], completed: Readonl
 }
 
 export function habitsForScore(habits: readonly DailyHabit[]) {
-  return habits.filter((habit) => habit.catalogHabitId !== HYDRATION_HABIT_ID);
+  return habits.filter((habit) => !isOfficialHydration(habit.catalogHabitId));
+}
+
+// Uma conta só, para Hoje, Meu Dia, Progresso e a sobreposição de hoje na Constância.
+export function scoreDailyHabits(habits: readonly DailyHabit[], completed: ReadonlySet<string>): DailyScore {
+  return scoreHabits(
+    habits.map((habit) => ({
+      id: habit.userHabitId ?? habit.id,
+      pillar: habit.pillar,
+      catalogHabitId: habit.catalogHabitId,
+      done: isDailyHabitDone(habit, completed),
+    })),
+  );
 }
 
 export function dailyCounts(habits: readonly DailyHabit[], completed: ReadonlySet<string>) {

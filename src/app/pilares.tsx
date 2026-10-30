@@ -10,6 +10,7 @@ import { PillarPlanet } from '@/components/pillar-planet';
 import { fonts } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import { getDailyBoard, isDailyHabitDone } from '@/lib/daily-board';
+import { isOfficialHydration } from '@/lib/daily-score';
 import { getCatalogHabits, getUserHabits, habitTitle } from '@/lib/habit-catalog';
 import { loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
 import {
@@ -51,18 +52,20 @@ function captureToday(today: string) {
   if (!board.ready || board.dateKey !== today) {
     return { habits, todayHabits: null as TodayProgressHabit[] | null };
   }
-  const todayHabits = board.habits.map((habit) => ({
-    id: habit.userHabitId ?? habit.id,
-    label: habit.label,
-    pillar: habit.pillar,
-    catalogHabitId: habit.catalogHabitId,
-    done: isDailyHabitDone(habit, board.completed),
-  }));
+  const todayHabits = board.habits
+    .filter((habit) => !isOfficialHydration(habit.catalogHabitId))
+    .map((habit) => ({
+      id: habit.userHabitId ?? habit.id,
+      label: habit.label,
+      pillar: habit.pillar,
+      catalogHabitId: habit.catalogHabitId,
+      done: isDailyHabitDone(habit, board.completed),
+    }));
   return { habits, todayHabits };
 }
 
 function cuesFor(habits: { pillar: PillarId; label: string; catalogHabitId: string | null }[], todayHabits: TodayProgressHabit[] | null): HabitCue[] {
-  if (todayHabits && todayHabits.length > 0) {
+  if (todayHabits) {
     return todayHabits.map((habit) => ({
       pillar: habit.pillar,
       label: habit.label,
@@ -70,12 +73,14 @@ function cuesFor(habits: { pillar: PillarId; label: string; catalogHabitId: stri
       doneToday: habit.done,
     }));
   }
-  return habits.map((habit) => ({
-    pillar: habit.pillar,
-    label: habit.label,
-    catalogHabitId: habit.catalogHabitId,
-    doneToday: null,
-  }));
+  return habits
+    .filter((habit) => !isOfficialHydration(habit.catalogHabitId))
+    .map((habit) => ({
+      pillar: habit.pillar,
+      label: habit.label,
+      catalogHabitId: habit.catalogHabitId,
+      doneToday: null,
+    }));
 }
 
 export default function PillarsScreen() {
@@ -147,7 +152,7 @@ export default function PillarsScreen() {
   const readingBefore = reading?.previous ?? null;
   const readingPartial = reading?.partial ?? false;
   const readingDays = reading?.recordedDays ?? 0;
-  const habitCensus = habitCounts(captured.habits);
+  const habitCensus = habitCounts(captured.habits.filter((habit) => !isOfficialHydration(habit.catalogHabitId)));
   const habitCensusKey = `${habitCensus.corpo}|${habitCensus.mente}|${habitCensus.espirito}`;
   const selection = useMemo(() => {
     if (!readingNow) {

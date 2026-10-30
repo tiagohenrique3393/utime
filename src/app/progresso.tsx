@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
-import { createElement, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { createElement, useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -9,7 +10,8 @@ import { fonts, ui } from '@/constants/theme';
 import { getProgressColor, type ProgressBand } from '@/lib/progress-color';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { getSessionCreatedAt, getSessionUserId } from '@/lib/accounts';
-import { dailyCounts, getDailyBoard, isDailyHabitDone, refreshDailyBoard } from '@/lib/daily-board';
+import { getDailyBoard, isDailyHabitDone, refreshDailyBoard, scoreDailyHabits, subscribeDailyBoard } from '@/lib/daily-board';
+import { isOfficialHydration } from '@/lib/daily-score';
 import { getCatalogHabits, getUserHabits, habitTitle } from '@/lib/habit-catalog';
 import { formatDailyPercent, loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
 import { formatHydrationPercent, hydrationFill, hydrationPercent, loadHydrationUntil } from '@/lib/hydration';
@@ -118,15 +120,17 @@ function captureHabits(today: string) {
   if (!board.ready || board.dateKey !== today) {
     return { habits, routine: null as TodayRoutine | null, todayHabits: null as TodayProgressHabit[] | null };
   }
-  const counts = dailyCounts(board.habits, board.completed);
-  const todayHabits = board.habits.map((habit) => ({
-    id: habit.userHabitId ?? habit.id,
-    label: habit.label,
-    pillar: habit.pillar,
-    catalogHabitId: habit.catalogHabitId,
-    done: isDailyHabitDone(habit, board.completed),
-  }));
-  return { habits, routine: { total: counts.total, completed: counts.done }, todayHabits };
+  const score = scoreDailyHabits(board.habits, board.completed);
+  const todayHabits = board.habits
+    .filter((habit) => !isOfficialHydration(habit.catalogHabitId))
+    .map((habit) => ({
+      id: habit.userHabitId ?? habit.id,
+      label: habit.label,
+      pillar: habit.pillar,
+      catalogHabitId: habit.catalogHabitId,
+      done: isDailyHabitDone(habit, board.completed),
+    }));
+  return { habits, routine: { total: score.total, completed: score.done }, todayHabits };
 }
 
 function glyph(type: string, props: Record<string, unknown> | null, ...children: ReactNode[]) {
@@ -366,53 +370,57 @@ export default function ProgressScreen() {
   const ringSize = Math.round(Math.min(dense ? 124 : 142, Math.max(112, width * 0.34)));
   const compact = width < 380;
   const feminine = profile.journey === 'womantime';
+  const board = useSyncExternalStore(subscribeDailyBoard, getDailyBoard, getDailyBoard);
 
-  useEffect(() => {
-    const userId = getSessionUserId();
-    if (!userId) {
-      return;
-    }
-    let active = true;
-    const today = todayKey();
-    const horizon = hydrationLoadThrough(today);
-    void (async () => {
-      const [, logs, water, createdAt] = await Promise.all([
-        refreshDailyBoard(userId, today),
-        loadHabitLogsUntil(userId, today),
-        loadHydrationUntil(userId, horizon),
-        getSessionCreatedAt(),
-      ]);
-      if (!active) {
+  useFocusEffect(
+    useCallback(() => {
+      const userId = getSessionUserId();
+      if (!userId) {
         return;
       }
-      const captured = captureHabits(today);
-      setNotice(logs.ok ? '' : logs.message);
-      setWaterNotice(water.ok ? '' : water.message);
-      setSnapshot({
-        today,
-        logs: logs.ok ? logs.rows : [],
-        hydration: water.ok ? water.rows : [],
-        routine: captured.routine,
-        habits: captured.habits,
-        todayHabits: captured.todayHabits,
-        activatedOn: activationDateKey(createdAt),
-      });
-      setPhase(logs.ok || water.ok ? 'ready' : 'error');
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
+      let active = true;
+      const today = todayKey();
+      const horizon = hydrationLoadThrough(today);
+      void (async () => {
+        const [, logs, water, createdAt] = await Promise.all([
+          refreshDailyBoard(userId, today),
+          loadHabitLogsUntil(userId, today),
+          loadHydrationUntil(userId, horizon),
+          getSessionCreatedAt(),
+        ]);
+        if (!active) {
+          return;
+        }
+        const captured = captureHabits(today);
+        setNotice(logs.ok ? '' : logs.message);
+        setWaterNotice(water.ok ? '' : water.message);
+        setSnapshot({
+          today,
+          logs: logs.ok ? logs.rows : [],
+          hydration: water.ok ? water.rows : [],
+          routine: captured.routine,
+          habits: captured.habits,
+          todayHabits: captured.todayHabits,
+          activatedOn: activationDateKey(createdAt),
+        });
+        setPhase(logs.ok || water.ok ? 'ready' : 'error');
+      })();
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
+  const liveToday = board.ready && board.dateKey === todayKey() ? captureHabits(board.dateKey) : null;
   const report = snapshot
     ? progressReport({
-        today: snapshot.today,
+        today: liveToday ? board.dateKey : snapshot.today,
         period,
         logs: snapshot.logs,
         hydration: snapshot.hydration,
-        todayRoutine: snapshot.routine,
-        habits: snapshot.habits,
-        todayHabits: snapshot.todayHabits,
+        todayRoutine: liveToday?.routine ?? snapshot.routine,
+        habits: liveToday?.habits ?? snapshot.habits,
+        todayHabits: liveToday?.todayHabits ?? snapshot.todayHabits,
         activatedOn: snapshot.activatedOn,
       })
     : null;

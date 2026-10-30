@@ -61,10 +61,10 @@ export function applyTodayRoutine(
   return next;
 }
 
-export function marksFromLogs(rows: readonly DayLog[]) {
+export function marksFromLogs(rows: readonly DayLog[], excludedHabitIds?: ReadonlySet<string>) {
   const byDay = new Map<string, Map<string, boolean>>();
   for (const row of rows) {
-    if (!realDate(row.dateKey) || !row.habitId) {
+    if (!realDate(row.dateKey) || !row.habitId || excludedHabitIds?.has(row.habitId)) {
       continue;
     }
     const habits = byDay.get(row.dateKey) ?? new Map<string, boolean>();
