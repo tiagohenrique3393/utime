@@ -1,10 +1,12 @@
--- UTime Circle 2.0. Execute este arquivo uma vez no SQL Editor do Supabase.
--- Não execute supabase/circle.sql de novo: aquele arquivo também refaz a carga inicial.
--- Este script não apaga hábitos, conclusões, hidratação, constância, perfis nem conquistas já gravadas.
--- Não desliga RLS e não recria o gatilho de check-in.
--- Amizade antiga de um lado só vira solicitação. Amizade dos dois lados permanece.
--- A exclusão da conta remove os pedidos pela chave estrangeira. O arquivo delete-account.sql
--- também apaga essas linhas no corpo da função, se for executado outra vez.
+-- UTime Circle 2.0. Cole este arquivo inteiro no SQL Editor e execute uma vez.
+-- Não execute supabase/circle.sql de novo: ele também tenta a carga inicial dos eventos.
+-- Não apaga circle_events, circle_results, circle_memberships, circle_closures,
+-- hábitos, conclusões, hidratação, constância nem perfis.
+-- Amizade dos dois lados permanece. Ligação de um lado só vira solicitação
+-- e sai da tabela de amizades confirmadas, sem apagar a pessoa nem os pontos.
+-- Conquistas já gravadas não são recalculadas.
+-- O gatilho de check-in é só recriado, com a mesma regra, para relevância nula não cancelar a marcação.
+-- A exclusão da conta remove pedidos pela chave ON DELETE CASCADE.
 -- Os agendamentos circle-close-brasilia continuam chamando circle_close_elapsed.
 
 create table if not exists public.circle_friend_requests (
@@ -708,3 +710,98 @@ grant execute on function public.circle_add_friend(uuid) to authenticated;
 grant execute on function public.circle_remove_friend(uuid) to authenticated;
 grant execute on function public.circle_friend_faces() to authenticated;
 grant execute on function public.circle_history(text) to authenticated;
+
+create or replace function public.circle_ranking_habit(catalog_habit_id text, active boolean, relevance text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  -- Relevância nula precisa virar false. TRUE AND NULL é NULL, e o gatilho
+  -- não pode tratar isso como hábito pontuável.
+  select coalesce(
+    active is true
+      and relevance in ('alta', 'media', 'baixa')
+      and (
+        catalog_habit_id is null
+        or not exists (
+          select 1
+          from public.circle_personal_habits personal
+          where personal.catalog_habit_id = circle_ranking_habit.catalog_habit_id
+        )
+      ),
+    false
+  );
+$$;
+
+create or replace function public.circle_sync_habit_log()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  catalog text;
+  rel text;
+  is_active boolean;
+begin
+  if tg_op = 'DELETE' then
+    if not public.circle_date_frozen(old.occurred_on) then
+      delete from public.circle_events event
+      where event.user_id = old.user_id
+        and event.occurred_on = old.occurred_on
+        and event.user_habit_id = old.user_habit_id;
+    end if;
+    return null;
+  end if;
+
+  if tg_op = 'UPDATE' and (
+    old.occurred_on is distinct from new.occurred_on
+    or old.user_habit_id is distinct from new.user_habit_id
+    or (old.completed = true and new.completed = false)
+  ) then
+    if not public.circle_date_frozen(old.occurred_on) then
+      delete from public.circle_events event
+      where event.user_id = old.user_id
+        and event.occurred_on = old.occurred_on
+        and event.user_habit_id = old.user_habit_id;
+    end if;
+  end if;
+
+  if new.completed is not true then
+    return null;
+  end if;
+
+  select habit.catalog_habit_id, habit.relevance, habit.active
+  into catalog, rel, is_active
+  from public.user_habits habit
+  where habit.id = new.user_habit_id
+    and habit.user_id = new.user_id;
+
+  -- IS NOT TRUE também cobre NULL. IF NOT NULL não entra no PL/pgSQL
+  -- e a inserção com relevância vazia cancelava o check-in inteiro.
+  if public.circle_ranking_habit(catalog, is_active, rel) is not true then
+    return null;
+  end if;
+
+  if new.occurred_on = public.circle_today()
+     and (tg_op = 'INSERT' or old.occurred_on = public.circle_today()) then
+    insert into public.circle_events (user_id, user_habit_id, occurred_on, relevance)
+    values (new.user_id, new.user_habit_id, new.occurred_on, rel)
+    on conflict (user_id, user_habit_id, occurred_on) do nothing;
+  end if;
+
+  return null;
+end;
+$$;
+
+drop trigger if exists circle_sync_habit_log on public.habit_day_logs;
+create trigger circle_sync_habit_log
+after insert or update of completed, occurred_on, user_habit_id or delete
+on public.habit_day_logs
+for each row execute function public.circle_sync_habit_log();
+
+revoke all on function public.circle_ranking_habit(text, boolean, text) from public, anon;
+revoke all on function public.circle_sync_habit_log() from public, anon;
+grant execute on function public.circle_ranking_habit(text, boolean, text) to authenticated;

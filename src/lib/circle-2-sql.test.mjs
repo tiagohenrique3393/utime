@@ -35,6 +35,9 @@ assert(circle.includes('result.user_id = uid'), 'histórico não recebe id de te
 assert(incremental.includes('result.user_id = uid'), 'incremental não recebe id de terceiro');
 assert(incremental.includes('limit 200'), 'o placar não devolve a lista inteira');
 assert(!incremental.includes('relevance-log-backfill'), 'o incremental não recarrega check-ins antigos');
+assert(incremental.includes('is not true'), 'o incremental trata relevância nula no check-in');
+assert(!/delete\s+from\s+public\.circle_results\b/i.test(incremental), 'o incremental não apaga conquistas');
+assert(!/delete\s+from\s+public\.circle_memberships\b/i.test(incremental), 'o incremental não apaga participações');
 assert(removal.includes('delete from public.circle_friend_requests where from_id = uid or to_id = uid;'), 'exclusão apaga os pedidos da própria conta');
 assert(circle.includes('on delete cascade'), 'pedido some com a conta');
 assert(incremental.includes('on delete cascade'), 'o incremental também remove o pedido com a conta');
