@@ -261,16 +261,21 @@ stable
 security definer
 set search_path = ''
 as $$
-  select active is true
-    and relevance in ('alta', 'media', 'baixa')
-    and (
-      catalog_habit_id is null
-      or not exists (
-        select 1
-        from public.circle_personal_habits personal
-        where personal.catalog_habit_id = circle_ranking_habit.catalog_habit_id
-      )
-    );
+  -- Relevância nula precisa virar false. TRUE AND NULL é NULL, e o gatilho
+  -- não pode tratar isso como hábito pontuável.
+  select coalesce(
+    active is true
+      and relevance in ('alta', 'media', 'baixa')
+      and (
+        catalog_habit_id is null
+        or not exists (
+          select 1
+          from public.circle_personal_habits personal
+          where personal.catalog_habit_id = circle_ranking_habit.catalog_habit_id
+        )
+      ),
+    false
+  );
 $$;
 
 create or replace function public.circle_habit_counts(uid uuid)
@@ -437,7 +442,9 @@ begin
   where habit.id = new.user_habit_id
     and habit.user_id = new.user_id;
 
-  if not public.circle_ranking_habit(catalog, is_active, rel) then
+  -- IS NOT TRUE também cobre NULL. IF NOT NULL não entra no PL/pgSQL
+  -- e a inserção com relevância vazia cancelava o check-in inteiro.
+  if public.circle_ranking_habit(catalog, is_active, rel) is not true then
     return null;
   end if;
 
