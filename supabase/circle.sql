@@ -93,6 +93,17 @@ create table if not exists public.circle_friends (
   constraint circle_friends_not_self check (owner_id <> friend_id)
 );
 
+create table if not exists public.circle_friend_requests (
+  from_id uuid not null references auth.users (id) on delete cascade,
+  to_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (from_id, to_id),
+  constraint circle_friend_requests_not_self check (from_id <> to_id)
+);
+
+create index if not exists circle_friend_requests_to_idx
+  on public.circle_friend_requests (to_id, from_id);
+
 create table if not exists public.circle_results (
   period_kind text not null,
   period_start date not null,
@@ -103,6 +114,9 @@ create table if not exists public.circle_results (
   constraint circle_results_kind_valid check (period_kind in ('semana', 'mes', 'ano')),
   constraint circle_results_score_valid check (score >= 0)
 );
+
+create index if not exists circle_results_owner_idx
+  on public.circle_results (user_id, period_kind, period_start desc);
 
 create table if not exists public.circle_closures (
   period_kind text not null,
@@ -145,6 +159,7 @@ alter table public.circle_personal_habits enable row level security;
 alter table public.circle_memberships enable row level security;
 alter table public.circle_events enable row level security;
 alter table public.circle_friends enable row level security;
+alter table public.circle_friend_requests enable row level security;
 alter table public.circle_results enable row level security;
 alter table public.circle_closures enable row level security;
 alter table public.circle_setup enable row level security;
@@ -153,6 +168,7 @@ revoke all on table public.circle_personal_habits from public, anon;
 revoke all on table public.circle_memberships from public, anon;
 revoke all on table public.circle_events from public, anon;
 revoke all on table public.circle_friends from public, anon;
+revoke all on table public.circle_friend_requests from public, anon;
 revoke all on table public.circle_results from public, anon;
 revoke all on table public.circle_closures from public, anon;
 revoke all on table public.circle_setup from public, anon;
@@ -174,6 +190,34 @@ on public.circle_friends
 for delete
 to authenticated
 using (owner_id = auth.uid());
+
+grant select on table public.circle_friend_requests to authenticated;
+
+drop policy if exists circle_friend_requests_select_own on public.circle_friend_requests;
+create policy circle_friend_requests_select_own
+on public.circle_friend_requests
+for select
+to authenticated
+using (from_id = auth.uid() or to_id = auth.uid());
+
+insert into public.circle_friend_requests (from_id, to_id, created_at)
+select friend.owner_id, friend.friend_id, friend.created_at
+from public.circle_friends friend
+where not exists (
+  select 1
+  from public.circle_friends back
+  where back.owner_id = friend.friend_id
+    and back.friend_id = friend.owner_id
+)
+on conflict (from_id, to_id) do nothing;
+
+delete from public.circle_friends friend
+where not exists (
+  select 1
+  from public.circle_friends back
+  where back.owner_id = friend.friend_id
+    and back.friend_id = friend.owner_id
+);
 
 drop function if exists public.circle_record_official_habit(text);
 drop function if exists public.circle_state();
@@ -473,7 +517,8 @@ returns table (
   alta_count integer,
   media_count integer,
   baixa_count integer,
-  ready boolean
+  ready boolean,
+  returning boolean
 )
 language plpgsql
 security definer
@@ -505,7 +550,13 @@ begin
     counts.alta_count,
     counts.media_count,
     counts.baixa_count,
-    counts.ready;
+    counts.ready,
+    exists (
+      select 1
+      from public.circle_memberships past
+      where past.user_id = uid
+        and past.left_at is not null
+    );
 end;
 $$;
 
@@ -630,7 +681,7 @@ begin
             select distinct membership.user_id
             from public.circle_memberships membership
             where membership.joined_at < finish_at
-              and (membership.left_at is null or membership.left_at > start_at)
+              and (membership.left_at is null or membership.left_at >= finish_at)
           ) member
           left join (
             select scored.user_id, sum(scored.day_points)::numeric(12, 1) as score
@@ -645,6 +696,13 @@ begin
               from public.circle_events event
               where event.occurred_on >= cursor_start
                 and event.occurred_on < period_finish
+                and exists (
+                  select 1
+                  from public.circle_memberships cycle
+                  where cycle.user_id = event.user_id
+                    and cycle.joined_at <= event.recorded_at
+                    and (cycle.left_at is null or event.recorded_at < cycle.left_at)
+                )
               group by event.user_id, event.occurred_on
             ) scored
             group by scored.user_id
@@ -737,6 +795,13 @@ begin
       where requested = current_start
         and event.occurred_on >= requested
         and event.occurred_on < period_finish
+        and exists (
+          select 1
+          from public.circle_memberships cycle
+          where cycle.user_id = event.user_id
+            and cycle.joined_at <= event.recorded_at
+            and (cycle.left_at is null or event.recorded_at < cycle.left_at)
+        )
       group by event.user_id, event.occurred_on
     ) scored
     group by scored.user_id
@@ -749,11 +814,19 @@ begin
     left join points on points.user_id = members.user_id
     where scope = 'todos'
       or members.user_id = uid
-      or exists (
-        select 1
-        from public.circle_friends friend
-        where friend.owner_id = uid
-          and friend.friend_id = members.user_id
+      or (
+        exists (
+          select 1
+          from public.circle_friends friend
+          where friend.owner_id = uid
+            and friend.friend_id = members.user_id
+        )
+        and exists (
+          select 1
+          from public.circle_friends back
+          where back.owner_id = members.user_id
+            and back.friend_id = uid
+        )
       )
   ),
   ranked as (
@@ -762,6 +835,17 @@ begin
       visible.score,
       rank() over (order by visible.score desc)::integer as rank_position
     from visible
+  ),
+  kept as (
+    select ranked.user_id
+    from ranked
+    where ranked.user_id = uid
+       or ranked.user_id in (
+         select top.user_id
+         from ranked top
+         order by top.rank_position, top.user_id
+         limit 200
+       )
   )
   select
     ranked.user_id,
@@ -772,6 +856,7 @@ begin
     coalesce(honors.podium_count, 0)::integer as podium_count,
     coalesce(honors.first_count, 0)::integer as first_count
   from ranked
+  join kept on kept.user_id = ranked.user_id
   left join public.profiles profile on profile.user_id = ranked.user_id
   left join (
     select
@@ -786,12 +871,14 @@ begin
 end;
 $$;
 
+drop function if exists public.circle_search(text);
 create or replace function public.circle_search(query text)
 returns table (
   user_id uuid,
   display_name text,
   handle text,
-  added boolean
+  added boolean,
+  relation text
 )
 language plpgsql
 security definer
@@ -823,12 +910,46 @@ begin
     profile.user_id,
     coalesce(nullif(btrim(profile.first_name), ''), 'Sem nome') as display_name,
     coalesce(profile.public_handle, '') as handle,
-    exists (
-      select 1
-      from public.circle_friends friend
-      where friend.owner_id = uid
-        and friend.friend_id = profile.user_id
-    ) as added
+    (
+      exists (
+        select 1
+        from public.circle_friends friend
+        where friend.owner_id = uid
+          and friend.friend_id = profile.user_id
+      )
+      and exists (
+        select 1
+        from public.circle_friends back
+        where back.owner_id = profile.user_id
+          and back.friend_id = uid
+      )
+    ) as added,
+    case
+      when exists (
+        select 1
+        from public.circle_friends friend
+        where friend.owner_id = uid
+          and friend.friend_id = profile.user_id
+      ) and exists (
+        select 1
+        from public.circle_friends back
+        where back.owner_id = profile.user_id
+          and back.friend_id = uid
+      ) then 'friend'
+      when exists (
+        select 1
+        from public.circle_friend_requests request
+        where request.from_id = uid
+          and request.to_id = profile.user_id
+      ) then 'sent'
+      when exists (
+        select 1
+        from public.circle_friend_requests request
+        where request.from_id = profile.user_id
+          and request.to_id = uid
+      ) then 'received'
+      else 'none'
+    end as relation
   from public.profiles profile
   where profile.user_id <> uid
     and exists (
@@ -846,6 +967,69 @@ begin
 end;
 $$;
 
+create or replace function public.circle_accept_friend(friend_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  uid uuid := auth.uid();
+  sender uuid := circle_accept_friend.friend_id;
+begin
+  if uid is null then
+    raise exception 'auth required';
+  end if;
+  if sender is null or sender = uid then
+    raise exception 'invalid friend';
+  end if;
+  if not exists (
+    select 1
+    from public.circle_friend_requests request
+    where request.from_id = sender
+      and request.to_id = uid
+  ) then
+    raise exception 'friend request missing';
+  end if;
+  insert into public.circle_friends (owner_id, friend_id)
+  values (uid, sender), (sender, uid)
+  on conflict (owner_id, friend_id) do nothing;
+  delete from public.circle_friend_requests request
+  where (request.from_id = sender and request.to_id = uid)
+     or (request.from_id = uid and request.to_id = sender);
+end;
+$$;
+
+create or replace function public.circle_decline_friend(friend_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  uid uuid := auth.uid();
+  sender uuid := circle_decline_friend.friend_id;
+begin
+  if uid is null then
+    raise exception 'auth required';
+  end if;
+  if sender is null or sender = uid then
+    raise exception 'invalid friend';
+  end if;
+  if not exists (
+    select 1
+    from public.circle_friend_requests request
+    where request.from_id = sender
+      and request.to_id = uid
+  ) then
+    raise exception 'friend request missing';
+  end if;
+  delete from public.circle_friend_requests request
+  where request.from_id = sender
+    and request.to_id = uid;
+end;
+$$;
+
 create or replace function public.circle_add_friend(friend_id uuid)
 returns void
 language plpgsql
@@ -854,6 +1038,7 @@ set search_path = ''
 as $$
 declare
   uid uuid := auth.uid();
+  target uuid := circle_add_friend.friend_id;
 begin
   if uid is null then
     raise exception 'auth required';
@@ -866,20 +1051,36 @@ begin
   ) then
     raise exception 'circle enrollment required';
   end if;
-  if circle_add_friend.friend_id is null or circle_add_friend.friend_id = uid then
+  if target is null or target = uid then
     raise exception 'invalid friend';
   end if;
   if not exists (
     select 1
     from public.circle_memberships membership
-    where membership.user_id = circle_add_friend.friend_id
+    where membership.user_id = target
       and membership.left_at is null
   ) then
     raise exception 'friend unavailable';
   end if;
-  insert into public.circle_friends (owner_id, friend_id)
-  values (uid, circle_add_friend.friend_id)
-  on conflict on constraint circle_friends_pkey do nothing;
+  if exists (
+    select 1 from public.circle_friends friend
+    where friend.owner_id = uid and friend.friend_id = target
+  ) and exists (
+    select 1 from public.circle_friends friend
+    where friend.owner_id = target and friend.friend_id = uid
+  ) then
+    return;
+  end if;
+  if exists (
+    select 1 from public.circle_friend_requests request
+    where request.from_id = target and request.to_id = uid
+  ) then
+    perform public.circle_accept_friend(target);
+    return;
+  end if;
+  insert into public.circle_friend_requests (from_id, to_id)
+  values (uid, target)
+  on conflict (from_id, to_id) do nothing;
 end;
 $$;
 
@@ -896,16 +1097,21 @@ begin
     raise exception 'auth required';
   end if;
   delete from public.circle_friends friend
-  where friend.owner_id = uid
-    and friend.friend_id = circle_remove_friend.friend_id;
+  where (friend.owner_id = uid and friend.friend_id = circle_remove_friend.friend_id)
+     or (friend.owner_id = circle_remove_friend.friend_id and friend.friend_id = uid);
+  delete from public.circle_friend_requests request
+  where (request.from_id = uid and request.to_id = circle_remove_friend.friend_id)
+     or (request.from_id = circle_remove_friend.friend_id and request.to_id = uid);
 end;
 $$;
 
+drop function if exists public.circle_friend_faces();
 create or replace function public.circle_friend_faces()
 returns table (
   user_id uuid,
   display_name text,
-  handle text
+  handle text,
+  relation text
 )
 language plpgsql
 security definer
@@ -918,15 +1124,72 @@ begin
     raise exception 'auth required';
   end if;
   return query
+  with relations as (
+    select friend.friend_id as person_id, 'friend'::text as relation, 2 as sort_order
+    from public.circle_friends friend
+    where friend.owner_id = uid
+      and exists (
+        select 1
+        from public.circle_friends back
+        where back.owner_id = friend.friend_id
+          and back.friend_id = uid
+      )
+    union all
+    select request.to_id, 'sent'::text, 1
+    from public.circle_friend_requests request
+    where request.from_id = uid
+    union all
+    select request.from_id, 'received'::text, 0
+    from public.circle_friend_requests request
+    where request.to_id = uid
+  )
   select
     profile.user_id,
     coalesce(nullif(btrim(profile.first_name), ''), 'Sem nome') as display_name,
-    coalesce(profile.public_handle, '') as handle
-  from public.circle_friends friend
-  join public.profiles profile on profile.user_id = friend.friend_id
-  where friend.owner_id = uid
-  order by display_name, profile.user_id
-  limit 12;
+    coalesce(profile.public_handle, '') as handle,
+    relations.relation
+  from relations
+  join public.profiles profile on profile.user_id = relations.person_id
+  order by relations.sort_order, coalesce(nullif(btrim(profile.first_name), ''), 'Sem nome'), profile.user_id
+  limit 80;
+end;
+$$;
+
+create or replace function public.circle_history(kind text)
+returns table (
+  period_kind text,
+  period_start date,
+  score numeric,
+  rank_position integer,
+  closed_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then
+    raise exception 'auth required';
+  end if;
+  if kind not in ('semana', 'mes', 'ano') then
+    raise exception 'invalid circle query';
+  end if;
+  return query
+  select
+    result.period_kind,
+    result.period_start,
+    result.score,
+    result.rank_position,
+    closure.closed_at
+  from public.circle_results result
+  join public.circle_closures closure
+    on closure.period_kind = result.period_kind
+   and closure.period_start = result.period_start
+  where result.user_id = uid
+    and result.period_kind = kind
+  order by result.period_start desc;
 end;
 $$;
 
@@ -968,6 +1231,9 @@ revoke all on function public.circle_search(text) from public, anon;
 revoke all on function public.circle_add_friend(uuid) from public, anon;
 revoke all on function public.circle_remove_friend(uuid) from public, anon;
 revoke all on function public.circle_friend_faces() from public, anon;
+revoke all on function public.circle_accept_friend(uuid) from public, anon;
+revoke all on function public.circle_decline_friend(uuid) from public, anon;
+revoke all on function public.circle_history(text) from public, anon;
 
 grant execute on function public.circle_today() to authenticated;
 grant execute on function public.circle_period_start(text, date) to authenticated;
@@ -986,6 +1252,9 @@ grant execute on function public.circle_search(text) to authenticated;
 grant execute on function public.circle_add_friend(uuid) to authenticated;
 grant execute on function public.circle_remove_friend(uuid) to authenticated;
 grant execute on function public.circle_friend_faces() to authenticated;
+grant execute on function public.circle_accept_friend(uuid) to authenticated;
+grant execute on function public.circle_decline_friend(uuid) to authenticated;
+grant execute on function public.circle_history(text) to authenticated;
 
 do $circle_cron$
 declare

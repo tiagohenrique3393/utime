@@ -299,6 +299,75 @@ export function completionRemovesEvent(completed: boolean, frozen: boolean) {
   return !completed && !frozen;
 }
 
+export function eventInMembership(recordedAt: string, joinedAt: string, leftAt: string | null) {
+  if (recordedAt < joinedAt) {
+    return false;
+  }
+  return leftAt === null || recordedAt < leftAt;
+}
+
+export function competedUntilEnd(leftAt: string | null, finishAt: string) {
+  return leftAt === null || leftAt >= finishAt;
+}
+
+export type FriendRelation = 'none' | 'sent' | 'received' | 'friend';
+
+export function nextFriendRelation(current: FriendRelation, action: 'add' | 'accept' | 'decline' | 'remove'): FriendRelation {
+  if (action === 'remove' || action === 'decline') {
+    return 'none';
+  }
+  if (action === 'accept' || (action === 'add' && current === 'received')) {
+    return current === 'received' ? 'friend' : current;
+  }
+  if (current === 'none') {
+    return 'sent';
+  }
+  return current;
+}
+
+export function friendNotice(action: 'add' | 'accept' | 'decline' | 'remove', before: FriendRelation) {
+  if (action === 'accept' || (action === 'add' && before === 'received')) {
+    return 'Amizade confirmada!';
+  }
+  if (action === 'add' && before === 'none') {
+    return 'Solicitação de amizade enviada.';
+  }
+  if (action === 'remove' && before === 'friend') {
+    return 'Amizade desfeita.';
+  }
+  if (action === 'remove' && before === 'sent') {
+    return 'Solicitação cancelada.';
+  }
+  if (action === 'decline') {
+    return 'Solicitação recusada.';
+  }
+  return '';
+}
+
+export function scoreInCycles(
+  rows: readonly (RankCompletion & { recordedAt: string })[],
+  cycles: readonly { joinedAt: string; leftAt: string | null }[],
+  start: string,
+  end: string,
+) {
+  return scoreCompletions(
+    rows.filter((row) => cycles.some((cycle) => eventInMembership(row.recordedAt, cycle.joinedAt, cycle.leftAt))),
+    start,
+    end,
+  );
+}
+
+export function preferOfficialBoard<T extends { at: string }>(current: T | null, incoming: T) {
+  if (current && incoming.at <= current.at) {
+    return current;
+  }
+  return incoming;
+}
+
+export function achievementKey(kind: string, start: string, userId: string) {
+  return `${kind}|${start}|${userId}`;
+}
+
 export function achievementTotals(results: readonly { rank: number; score: number }[]) {
   return {
     podiums: results.filter((result) => result.rank <= 3 && result.score > 0).length,

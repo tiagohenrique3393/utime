@@ -1,6 +1,6 @@
 import { supabase } from '../../utils/supabase';
 import { isAvatarPath, withAvatars } from '@/lib/avatar';
-import type { CirclePeriod } from '@/lib/circle';
+import type { CirclePeriod, FriendRelation } from '@/lib/circle';
 
 export type CircleState = {
   enrolled: boolean;
@@ -10,6 +10,7 @@ export type CircleState = {
   media: number;
   baixa: number;
   ready: boolean;
+  returning: boolean;
 };
 
 export type CircleEntry = {
@@ -28,7 +29,16 @@ export type CirclePerson = {
   name: string;
   handle: string;
   added?: boolean;
+  relation: FriendRelation;
   avatarPath?: string | null;
+};
+
+export type CircleHonor = {
+  kind: CirclePeriod;
+  start: string;
+  score: number;
+  position: number;
+  closedAt: string;
 };
 
 type StateRow = {
@@ -39,6 +49,7 @@ type StateRow = {
   media_count: number;
   baixa_count: number;
   ready: boolean;
+  returning?: boolean;
 };
 
 type BoardRow = {
@@ -56,7 +67,28 @@ type PersonRow = {
   display_name: string;
   handle: string | null;
   added?: boolean;
+  relation?: string;
 };
+
+type HonorRow = {
+  period_kind: CirclePeriod;
+  period_start: string;
+  score: number;
+  rank_position: number;
+  closed_at: string;
+};
+
+const emptyState = { enrolled: false, handle: '', joinedAt: null, alta: 0, media: 0, baixa: 0, ready: false, returning: false } satisfies CircleState;
+
+function friendRelation(row: PersonRow): FriendRelation {
+  if (row.relation === 'friend' || row.relation === 'sent' || row.relation === 'received' || row.relation === 'none') {
+    return row.relation;
+  }
+  if (row.added === false) {
+    return 'none';
+  }
+  return 'friend';
+}
 
 function missingCircle(error: { code?: string; message?: string } | null) {
   const text = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
@@ -75,6 +107,9 @@ export function circleErrorMessage(error: { code?: string; message?: string } | 
   if (text.includes('friend unavailable')) {
     return 'Essa pessoa não está participando do ranking.';
   }
+  if (text.includes('friend request missing')) {
+    return 'Essa solicitação não está mais disponível.';
+  }
   if (missingCircle(error)) {
     return 'O Círculo ainda não está disponível.';
   }
@@ -82,11 +117,13 @@ export function circleErrorMessage(error: { code?: string; message?: string } | 
 }
 
 function person(row: PersonRow): CirclePerson {
+  const relation = friendRelation(row);
   return {
     userId: row.user_id,
     name: row.display_name,
     handle: row.handle ?? '',
-    added: row.added === true,
+    added: relation === 'friend',
+    relation,
   };
 }
 
@@ -97,7 +134,7 @@ export async function fetchCircleState() {
   }
   const row = (Array.isArray(data) ? data[0] : data) as StateRow | null;
   if (!row) {
-    return { enrolled: false, handle: '', joinedAt: null, alta: 0, media: 0, baixa: 0, ready: false } satisfies CircleState;
+    return emptyState;
   }
   return {
     enrolled: row.enrolled === true,
@@ -107,6 +144,7 @@ export async function fetchCircleState() {
     media: Number(row.media_count) || 0,
     baixa: Number(row.baixa_count) || 0,
     ready: row.ready === true,
+    returning: row.returning === true,
   } satisfies CircleState;
 }
 
@@ -164,6 +202,34 @@ export async function removeCircleFriend(friendId: string) {
   if (error) {
     throw error;
   }
+}
+
+export async function acceptCircleFriend(friendId: string) {
+  const { error } = await supabase.rpc('circle_accept_friend', { friend_id: friendId });
+  if (error) {
+    throw error;
+  }
+}
+
+export async function declineCircleFriend(friendId: string) {
+  const { error } = await supabase.rpc('circle_decline_friend', { friend_id: friendId });
+  if (error) {
+    throw error;
+  }
+}
+
+export async function fetchCircleHistory(kind: CirclePeriod) {
+  const { data, error } = await supabase.rpc('circle_history', { kind });
+  if (error) {
+    throw error;
+  }
+  return ((data ?? []) as HonorRow[]).map((row) => ({
+    kind: row.period_kind,
+    start: row.period_start,
+    score: Number(row.score) || 0,
+    position: row.rank_position,
+    closedAt: row.closed_at,
+  })) satisfies CircleHonor[];
 }
 
 export async function fetchCircleFaces() {

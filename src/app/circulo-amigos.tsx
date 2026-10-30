@@ -11,10 +11,13 @@ import { fonts } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import { getOwnAvatarPath, isOwnAvatarReady, subscribeOwnAvatar } from '@/lib/avatar';
 import { publicAvatarUrl } from '@/lib/avatar-store';
+import { friendNotice, nextFriendRelation } from '@/lib/circle';
 import {
+  acceptCircleFriend,
   addCircleFriend,
   applyAvatars,
   circleErrorMessage,
+  declineCircleFriend,
   fetchAvatarMap,
   fetchCircleFaces,
   removeCircleFriend,
@@ -24,6 +27,42 @@ import {
 import { useRequireSession } from '@/lib/require-session';
 
 const page = '#050505';
+
+function FriendActions({
+  person,
+  pending,
+  onAct,
+}: {
+  person: CirclePerson;
+  pending: boolean;
+  onAct: (action: 'add' | 'accept' | 'decline' | 'remove') => void;
+}) {
+  if (person.relation === 'received') {
+    return (
+      <View style={styles.actionRow}>
+        <Pressable accessibilityRole="button" disabled={pending} onPress={() => onAct('decline')} style={[styles.action, styles.actionOn, pending && styles.actionPending]}>
+          <Text style={styles.actionLabel}>Recusar</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" disabled={pending} onPress={() => onAct('accept')} style={[styles.action, pending && styles.actionPending]}>
+          <Text style={styles.actionLabel}>{pending ? '…' : 'Aceitar'}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  const action = person.relation === 'friend' || person.relation === 'sent' ? 'remove' : 'add';
+  const label = person.relation === 'friend' ? 'Desfazer' : person.relation === 'sent' ? 'Aguardando' : 'Adicionar';
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: pending, selected: person.relation === 'friend' }}
+      disabled={pending}
+      onPress={() => onAct(action)}
+      style={[styles.action, person.relation === 'friend' && styles.actionOn, pending && styles.actionPending]}>
+      {pending || person.relation === 'sent' ? null : <CircleMark name={person.relation === 'friend' ? 'check' : 'plus'} size={13} color={person.relation === 'friend' ? palette.text : palette.champagne} />}
+      <Text style={[styles.actionLabel, person.relation === 'friend' && styles.actionLabelOn]}>{pending ? '…' : label}</Text>
+    </Pressable>
+  );
+}
 
 export default function AddFriendsScreen() {
   const signedIn = useRequireSession();
@@ -54,7 +93,7 @@ export default function AddFriendsScreen() {
       const faces = await fetchCircleFaces();
       const generation = paintGeneration.current + 1;
       paintGeneration.current = generation;
-      setResults(faces.map((face) => ({ ...face, added: true })));
+      setResults(faces);
       const paths = await fetchAvatarMap(faces.map((face) => face.userId));
       if (!paths || paintGeneration.current !== generation) {
         return;
@@ -97,16 +136,27 @@ export default function AddFriendsScreen() {
     }
   }
 
-  async function toggle(person: CirclePerson) {
+  async function act(person: CirclePerson, action: 'add' | 'accept' | 'decline' | 'remove') {
     setPendingId(person.userId);
     try {
-      if (person.added) {
+      if (action === 'accept') {
+        await acceptCircleFriend(person.userId);
+      } else if (action === 'decline') {
+        await declineCircleFriend(person.userId);
+      } else if (action === 'remove') {
         await removeCircleFriend(person.userId);
       } else {
         await addCircleFriend(person.userId);
       }
-      setResults((current) => current.map((item) => (item.userId === person.userId ? { ...item, added: !item.added } : item)));
-      setNotice('');
+      const relation = nextFriendRelation(person.relation, action);
+      setResults((current) => {
+        const next = current.map((item) => (item.userId === person.userId ? { ...item, relation, added: relation === 'friend' } : item));
+        if (query.trim().length < 2 && relation === 'none') {
+          return next.filter((item) => item.userId !== person.userId);
+        }
+        return next;
+      });
+      setNotice(friendNotice(action, person.relation));
     } catch (error) {
       setNotice(circleErrorMessage(error as { code?: string; message?: string }));
     } finally {
@@ -144,10 +194,11 @@ export default function AddFriendsScreen() {
           style={styles.input}
         />
       </View>
+      {results.some((person) => person.relation === 'received') ? <Text style={styles.notice}>Você recebeu uma solicitação de amizade.</Text> : null}
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       <Text style={styles.section}>{query.trim().length >= 2 ? 'RESULTADOS' : 'MEUS AMIGOS'}</Text>
       {loading ? <Text style={styles.notice}>Buscando…</Text> : null}
-      {!loading && !notice && results.length === 0 ? <Text style={styles.notice}>Nenhuma pessoa encontrada.</Text> : null}
+      {!loading && results.length === 0 ? <Text style={styles.notice}>{query.trim().length >= 2 ? 'Nenhuma pessoa encontrada.' : 'Você ainda não tem amigos confirmados. Busque alguém para enviar uma solicitação.'}</Text> : null}
       {results.map((person) => {
         const pending = pendingId === person.userId;
         return (
@@ -162,15 +213,7 @@ export default function AddFriendsScreen() {
             </Text>
             {person.handle ? <Text style={styles.handle}>{`@${person.handle}`}</Text> : null}
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: pending, selected: person.added === true }}
-            disabled={pending}
-            onPress={() => void toggle(person)}
-            style={[styles.action, person.added && styles.actionOn, pending && styles.actionPending]}>
-            {pending ? null : <CircleMark name={person.added ? 'check' : 'plus'} size={13} color={person.added ? palette.text : palette.champagne} />}
-            <Text style={[styles.actionLabel, person.added && styles.actionLabelOn]}>{pending ? '…' : person.added ? 'Adicionado' : 'Adicionar'}</Text>
-          </Pressable>
+          <FriendActions person={person} pending={pending} onAct={(action) => void act(person, action)} />
         </View>
         );
       })}
@@ -299,5 +342,9 @@ const styles = StyleSheet.create({
   },
   actionLabelOn: {
     color: palette.text,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 6,
   },
 });

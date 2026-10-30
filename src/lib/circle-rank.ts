@@ -5,10 +5,11 @@ export function ordinalPlace(position: number) {
 }
 
 export function podiumSlots(entries: CircleEntry[]) {
+  const ordered = [...entries].sort((left, right) => left.position - right.position || left.name.localeCompare(right.name) || left.userId.localeCompare(right.userId));
   return {
-    first: entries.find((entry) => entry.position === 1) ?? null,
-    second: entries.find((entry) => entry.position === 2) ?? null,
-    third: entries.find((entry) => entry.position === 3) ?? null,
+    first: ordered[0] ?? null,
+    second: ordered[1] ?? null,
+    third: ordered[2] ?? null,
   };
 }
 

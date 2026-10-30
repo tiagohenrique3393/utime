@@ -18,6 +18,7 @@ const ownDeletes = [
   'delete from public.user_habits where user_id = uid;',
   'delete from public.habit_routines where user_id = uid;',
   'delete from public.circle_friends where owner_id = uid or friend_id = uid;',
+  'delete from public.circle_friend_requests where from_id = uid or to_id = uid;',
   'delete from public.circle_memberships where user_id = uid;',
   'delete from public.circle_results where user_id = uid;',
   'delete from public.journey_days where user_id = uid;',

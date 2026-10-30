@@ -8,7 +8,8 @@
 -- Tabelas pessoais verificadas no projeto e na API, e apagadas só para esse uid:
 -- profiles, journey_state, journey_days, habit_routines, user_habits,
 -- habit_day_logs, hydration_days, day_celebrations, circle_memberships,
--- circle_events, circle_friends (owner_id e friend_id) e circle_results.
+-- circle_events, circle_friends (owner_id e friend_id),
+-- circle_friend_requests (from_id e to_id) e circle_results.
 --
 -- Tabelas globais verificadas e preservadas:
 -- habit_catalog, circle_personal_habits, circle_closures e circle_setup.
@@ -214,6 +215,9 @@ begin
   end if;
   if to_regclass('public.circle_friends') is not null then
     delete from public.circle_friends where owner_id = uid or friend_id = uid;
+  end if;
+  if to_regclass('public.circle_friend_requests') is not null then
+    delete from public.circle_friend_requests where from_id = uid or to_id = uid;
   end if;
   if to_regclass('public.circle_memberships') is not null then
     delete from public.circle_memberships where user_id = uid;

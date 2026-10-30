@@ -18,19 +18,19 @@ const kinds: { id: CirclePeriod; label: string }[] = [
   { id: 'ano', label: 'ANO' },
 ];
 
-function PodiumCard({ entry, place, kind, uri }: { entry: CircleEntry; place: 1 | 2 | 3; kind: CirclePeriod; uri: string | null }) {
-  const first = place === 1;
+function PodiumCard({ entry, featured, kind, uri }: { entry: CircleEntry; featured: boolean; kind: CirclePeriod; uri: string | null }) {
+  const tone = entry.position === 1 ? 'gold' : entry.position === 2 ? 'silver' : 'bronze';
   return (
-    <View style={[styles.podium, first && styles.podiumFirst]}>
-      <Text style={[styles.podiumPlace, first && styles.podiumPlaceFirst]}>{place}º</Text>
+    <View style={[styles.podium, featured && styles.podiumFirst, tone === 'silver' && styles.podiumSilver, tone === 'bronze' && styles.podiumBronze]}>
+      <Text style={[styles.podiumPlace, featured && styles.podiumPlaceFirst, tone === 'silver' && styles.podiumPlaceSilver, tone === 'bronze' && styles.podiumPlaceBronze]}>{ordinalPlace(entry.position)}</Text>
       <View style={styles.podiumAvatar}>
-        {first ? <CircleMark name="crown" size={26} /> : null}
-        <CircleAvatar size={first ? 62 : 46} glow={first} uri={uri} />
+        {entry.position === 1 ? <CircleMark name="crown" size={featured ? 26 : 18} /> : null}
+        <CircleAvatar size={featured ? 62 : 46} glow={entry.position === 1} uri={uri} />
       </View>
       <Text numberOfLines={2} style={styles.podiumName}>
         {entry.name}
       </Text>
-      <Text style={[styles.podiumScore, first && styles.podiumScoreFirst]}>
+      <Text style={[styles.podiumScore, featured && styles.podiumScoreFirst, tone === 'silver' && styles.podiumScoreSilver, tone === 'bronze' && styles.podiumScoreBronze]}>
         {formatCirclePoints(entry.score)}
         <Text style={styles.podiumPts}> PTS</Text>
       </Text>
@@ -57,12 +57,12 @@ export function CircleBoard({
   entries,
   faces,
   notice,
-  confirmingLeave,
   onKind,
   onShift,
   onScope,
   onEnroll,
   onLeave,
+  onRetry,
   onBindLoadMore,
 }: {
   userId: string;
@@ -74,12 +74,12 @@ export function CircleBoard({
   entries: CircleEntry[];
   faces: CirclePerson[];
   notice: string;
-  confirmingLeave: boolean;
   onKind: (kind: CirclePeriod) => void;
   onShift: (delta: number) => void;
   onScope: (scope: 'todos' | 'amigos') => void;
   onEnroll: () => void;
   onLeave: () => void;
+  onRetry?: () => void;
   onBindLoadMore?: (loadMore: () => void) => void;
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
@@ -108,6 +108,7 @@ export function CircleBoard({
   const { first, second, third } = podiumSlots(entries);
   const rows = visibleRanking(entries, limit, userId);
   const shownPodium = [second, first, third].filter(Boolean).length;
+  const confirmedFriends = faces.filter((face) => face.relation === 'friend').length;
   useEffect(() => {
     onBindLoadMore?.(() => {
       setLimit((current) => (current < entries.length ? current + 20 : current));
@@ -151,12 +152,20 @@ export function CircleBoard({
             </Pressable>
           ) : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+          {onRetry && notice ? (
+            <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retry}>
+              <Text style={styles.retryLabel}>Tentar de novo</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             disabled={!state.ready}
             onPress={onEnroll}
             style={({ pressed }) => [styles.joinButton, !state.ready && styles.joinButtonOff, pressed && state.ready && styles.pressed]}>
             <Text style={styles.joinButtonLabel}>PARTICIPAR DO RANKING</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/circulo-conquistas' as Href)} style={styles.historyLink}>
+            <Text style={styles.historyLabel}>HISTÓRICO DE CONQUISTAS</Text>
           </Pressable>
         </View>
       ) : (
@@ -202,17 +211,22 @@ export function CircleBoard({
             </Pressable>
           </View>
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+          {onRetry && notice ? (
+            <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retry}>
+              <Text style={styles.retryLabel}>Tentar de novo</Text>
+            </Pressable>
+          ) : null}
 
-          {scope === 'todos' && shownPodium > 0 ? (
+          {shownPodium > 0 ? (
             <View style={[styles.podiumRow, shownPodium < 3 && styles.podiumSparse]}>
-              {second ? <PodiumCard entry={second} place={2} kind={kind} uri={photoFor(second.userId, second.avatarPath)} /> : null}
-              {first ? <PodiumCard entry={first} place={1} kind={kind} uri={photoFor(first.userId, first.avatarPath)} /> : null}
-              {third ? <PodiumCard entry={third} place={3} kind={kind} uri={photoFor(third.userId, third.avatarPath)} /> : null}
+              {second ? <PodiumCard entry={second} featured={false} kind={kind} uri={photoFor(second.userId, second.avatarPath)} /> : null}
+              {first ? <PodiumCard entry={first} featured kind={kind} uri={photoFor(first.userId, first.avatarPath)} /> : null}
+              {third ? <PodiumCard entry={third} featured={false} kind={kind} uri={photoFor(third.userId, third.avatarPath)} /> : null}
             </View>
           ) : null}
 
           {entries.length === 0 && !notice && scope === 'todos' ? <Text style={styles.empty}>Nenhum participante neste período.</Text> : null}
-          {entries.length === 0 && !notice && scope === 'amigos' && faces.length > 0 ? <Text style={styles.empty}>Nenhum amigo neste período.</Text> : null}
+          {entries.length === 0 && !notice && scope === 'amigos' ? <Text style={styles.empty}>{confirmedFriends === 0 ? 'Nenhum amigo confirmado neste período.' : 'Nenhum amigo neste período.'}</Text> : null}
 
           {rows.length > 0 ? (
             <View style={styles.table}>
@@ -226,6 +240,7 @@ export function CircleBoard({
                 const self = entry.userId === userId;
                 return (
                   <View key={entry.userId} style={[styles.tableRow, self && styles.tableSelf]}>
+                    {self ? <Text style={styles.mineLabel}>MINHA POSIÇÃO</Text> : null}
                     <View style={[styles.placeCell, styles.colPlace]}>
                       {entry.position === 1 ? <CircleMark name="crown" size={13} /> : null}
                       <Text style={[styles.place, self && styles.placeSelf]}>{ordinalPlace(entry.position)}</Text>
@@ -256,7 +271,7 @@ export function CircleBoard({
               <Pressable accessibilityRole="button" accessibilityLabel="Adicionar amigos" onPress={() => router.push('/circulo-amigos' as Href)} style={styles.friendsHead}>
                 <Text style={styles.cardTitle}>MEUS AMIGOS NO RANKING</Text>
                 <View style={styles.friendsCountWrap}>
-                  <Text style={styles.friendsCount}>{faces.length}</Text>
+                  <Text style={styles.friendsCount}>{confirmedFriends}</Text>
                   <CircleMark name="chevron" size={16} />
                 </View>
               </Pressable>
@@ -275,8 +290,11 @@ export function CircleBoard({
               </View>
             </View>
           ) : null}
+          <Pressable accessibilityRole="button" onPress={() => router.push('/circulo-conquistas' as Href)} style={styles.historyLink}>
+            <Text style={styles.historyLabel}>HISTÓRICO DE CONQUISTAS</Text>
+          </Pressable>
           <Pressable accessibilityRole="button" onPress={onLeave} style={styles.leave}>
-            <Text style={styles.leaveLabel}>{confirmingLeave ? 'Confirmar saída' : 'Sair do ranking'}</Text>
+            <Text style={styles.leaveLabel}>Sair do ranking</Text>
           </Pressable>
         </>
       )}
@@ -359,6 +377,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   notice: { marginTop: 12, color: palette.muted, fontFamily: fonts.text, fontSize: 13, lineHeight: 18 },
+  retry: { alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center' },
+  retryLabel: { color: palette.textChampagne, fontFamily: fonts.text, fontSize: 13 },
+  historyLink: { marginTop: 14, minHeight: 36, justifyContent: 'center' },
+  historyLabel: { color: palette.textChampagne, fontFamily: fonts.display, fontSize: 12, letterSpacing: 1 },
+  mineLabel: { position: 'absolute', top: 2, left: 8, color: palette.champagne, fontFamily: fonts.display, fontSize: 8, letterSpacing: 0.6 },
   podiumRow: { marginTop: 16, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center' },
   podiumSparse: { gap: 10 },
   podium: {
@@ -373,6 +396,8 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 16,
   },
+  podiumSilver: { borderColor: '#C5C8CE' },
+  podiumBronze: { borderColor: '#C48A5A' },
   podiumFirst: {
     width: '40%',
     maxWidth: 176,
@@ -386,6 +411,8 @@ const styles = StyleSheet.create({
   },
   podiumPlace: { color: palette.textChampagne, fontFamily: fonts.display, fontSize: 18, lineHeight: 20 },
   podiumPlaceFirst: { fontSize: 22 },
+  podiumPlaceSilver: { color: '#C5C8CE' },
+  podiumPlaceBronze: { color: '#C48A5A' },
   podiumAvatar: { alignItems: 'center', marginTop: 4, marginBottom: 6, gap: 2 },
   podiumName: {
     color: palette.text,
@@ -397,6 +424,8 @@ const styles = StyleSheet.create({
   },
   podiumScore: { marginTop: 2, color: palette.textChampagne, fontFamily: fonts.textMedium, fontSize: 16 },
   podiumScoreFirst: { fontSize: 20 },
+  podiumScoreSilver: { color: '#C5C8CE' },
+  podiumScoreBronze: { color: '#C48A5A' },
   podiumPts: { fontSize: 11, letterSpacing: 0.4 },
   honorStack: { marginTop: 8, alignItems: 'center', gap: 2 },
   honorLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -406,7 +435,7 @@ const styles = StyleSheet.create({
   table: { marginTop: 16 },
   tableHead: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8 },
   headText: { color: palette.faint, fontFamily: fonts.display, fontSize: 10, letterSpacing: 0.6 },
-  tableRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: 'rgba(214, 181, 122, 0.12)' },
+  tableRow: { minHeight: 52, position: 'relative', flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: 'rgba(214, 181, 122, 0.12)' },
   tableSelf: {
     borderWidth: 1,
     borderColor: palette.lineStrong,
@@ -414,6 +443,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(232, 200, 142, 0.05)',
     marginVertical: 4,
     paddingHorizontal: 8,
+    paddingTop: 12,
     boxShadow: '0 0 14px rgba(232, 200, 142, 0.16)',
   },
   colPlace: { width: 54 },
