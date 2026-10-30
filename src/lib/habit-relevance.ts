@@ -2,6 +2,12 @@ import { normalizeHabitText } from '@/lib/habit-classify';
 
 export type HabitRelevance = 'alta' | 'media' | 'baixa';
 
+export const relevanceLabels: Record<HabitRelevance, string> = {
+  alta: 'ALTA RELEVÂNCIA',
+  media: 'MÉDIA RELEVÂNCIA',
+  baixa: 'BAIXA RELEVÂNCIA',
+};
+
 const relevances = new Set<HabitRelevance>(['alta', 'media', 'baixa']);
 
 export function requireHabitRelevance(

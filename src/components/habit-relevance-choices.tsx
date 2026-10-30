@@ -1,7 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fonts, ui } from '@/constants/theme';
-import { habitRelevances, relevanceLabels, type HabitRelevance } from '@/lib/habit-catalog';
+import { habitRelevances, type HabitRelevance } from '@/lib/habit-catalog';
+import { relevanceLabels } from '@/lib/habit-relevance';
 
 export function HabitRelevanceChoices({
   value,
@@ -23,7 +24,7 @@ export function HabitRelevanceChoices({
       <View accessibilityRole="radiogroup" style={styles.filters}>
         {habitRelevances.map((item) => {
           const selected = value === item;
-          const name = habitLabel ? `${habitLabel}, relevância ${relevanceLabels[item]}` : `Relevância ${relevanceLabels[item]}`;
+          const name = habitLabel ? `${habitLabel}, ${relevanceLabels[item]}` : relevanceLabels[item];
           return (
             <Pressable
               key={item}
@@ -59,13 +60,11 @@ const styles = StyleSheet.create({
   },
   filters: {
     marginTop: 8,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
   },
   filter: {
-    minHeight: 36,
-    paddingHorizontal: 12,
+    minHeight: 44,
+    paddingHorizontal: 14,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: 'rgba(232,200,142,0.28)',
@@ -80,8 +79,7 @@ const styles = StyleSheet.create({
     color: ui.text,
     fontFamily: fonts.display,
     fontSize: 12,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   filterLabelOn: {
     color: '#141210',

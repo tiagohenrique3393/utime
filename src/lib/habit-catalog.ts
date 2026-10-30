@@ -1,8 +1,8 @@
 import { supabase } from '../../utils/supabase';
 import { normalizeHabitText } from '@/lib/habit-classify';
-import { matchingCustomHabit, requireHabitRelevance, type HabitRelevance } from '@/lib/habit-relevance';
+import { matchingCustomHabit, relevanceLabels, requireHabitRelevance, type HabitRelevance } from '@/lib/habit-relevance';
 
-export { matchingCustomHabit, requireHabitRelevance };
+export { matchingCustomHabit, relevanceLabels, requireHabitRelevance };
 
 export type HabitPeriod = 'manha' | 'tarde' | 'noite';
 export type HabitPillar = 'corpo' | 'mente' | 'espirito';
@@ -47,12 +47,6 @@ export const periodLabels: Record<HabitPeriod, string> = {
   manha: 'Manhã',
   tarde: 'Tarde',
   noite: 'Noite',
-};
-
-export const relevanceLabels: Record<HabitRelevance, string> = {
-  alta: 'Alta',
-  media: 'Média',
-  baixa: 'Baixa',
 };
 
 type CatalogRow = {

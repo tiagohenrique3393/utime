@@ -1,6 +1,6 @@
 import { scoreHabits } from '@/lib/daily-score';
 import { dailyPercent } from '@/lib/habit-day';
-import { matchingCustomHabit, requireHabitRelevance } from '@/lib/habit-relevance';
+import { matchingCustomHabit, relevanceLabels, requireHabitRelevance } from '@/lib/habit-relevance';
 import { showsExcellence } from '@/lib/progress-color';
 import { completionCreatesEvent, isPersonalCatalogHabit, rankingHabitCounts } from '@/lib/circle';
 import { HYDRATION_HABIT_ID } from '@/lib/suggested-habits';
@@ -20,6 +20,9 @@ assertEqual(baixa.ok, true);
 if (!alta.ok || !media.ok || !baixa.ok) {
   throw new Error('relevância válida recusada');
 }
+assertEqual(relevanceLabels.alta, 'ALTA RELEVÂNCIA');
+assertEqual(relevanceLabels.media, 'MÉDIA RELEVÂNCIA');
+assertEqual(relevanceLabels.baixa, 'BAIXA RELEVÂNCIA');
 assertEqual(alta.relevance, 'alta');
 assertEqual(media.relevance, 'media');
 assertEqual(baixa.relevance, 'baixa');
