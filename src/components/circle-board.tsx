@@ -1,6 +1,6 @@
 import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { CircleAvatar } from '@/components/circle-avatar';
 import { getOwnAvatarPath, isOwnAvatarReady, subscribeOwnAvatar } from '@/lib/avatar';
@@ -10,7 +10,7 @@ import { circlePalette as palette } from '@/components/circle-palette';
 import { fonts } from '@/constants/theme';
 import { BONUS_CAP, DAY_CAP, essentialPoints, essentialSlots, formatCirclePoints, honorLabel, periodLabel, requirementMessage, type CirclePeriod } from '@/lib/circle';
 import type { CircleEntry, CirclePerson, CircleState } from '@/lib/circle-api';
-import { ordinalPlace, podiumSlots, showsPodiumTrophy, visibleRanking } from '@/lib/circle-rank';
+import { ordinalPlace, podiumCardWidths, podiumSlots, showsPodiumTrophy, visibleRanking } from '@/lib/circle-rank';
 
 const kinds: { id: CirclePeriod; label: string }[] = [
   { id: 'semana', label: 'SEMANA' },
@@ -27,7 +27,7 @@ function PodiumCard({ entry, featured, kind, uri }: { entry: CircleEntry; featur
         {entry.position === 1 ? <CircleMark name="crown" size={featured ? 26 : 18} /> : null}
         <CircleAvatar size={featured ? 62 : 46} glow={entry.position === 1} uri={uri} />
       </View>
-      <Text numberOfLines={2} style={styles.podiumName}>
+      <Text accessibilityLabel={entry.name} ellipsizeMode="tail" numberOfLines={2} style={styles.podiumName}>
         {entry.name}
       </Text>
       <Text style={[styles.podiumScore, featured && styles.podiumScoreFirst, tone === 'silver' && styles.podiumScoreSilver, tone === 'bronze' && styles.podiumScoreBronze]}>
@@ -108,6 +108,8 @@ export function CircleBoard({
   const { first, second, third } = podiumSlots(entries);
   const rows = visibleRanking(entries, limit, userId);
   const shownPodium = [second, first, third].filter(Boolean).length;
+  const podiumCount = (shownPodium >= 3 ? 3 : shownPodium === 2 ? 2 : 1) as 1 | 2 | 3;
+  const frames = podiumCardWidths(useWindowDimensions().width, podiumCount);
   const confirmedFriends = faces.filter((face) => face.relation === 'friend').length;
   useEffect(() => {
     onBindLoadMore?.(() => {
@@ -124,9 +126,8 @@ export function CircleBoard({
           </Text>
           <Text style={styles.subtitle}>DISCIPLINA CONECTA PESSOAS</Text>
         </View>
-        <View style={styles.premium}>
-          <CircleMark name="crown" size={12} color={palette.ink} />
-          <Text style={styles.premiumLabel}>PREMIUM</Text>
+        <View accessibilityLabel="Plano Gratuito" style={styles.premium}>
+          <Text style={styles.premiumLabel}>GRATUITO</Text>
         </View>
       </View>
 
@@ -218,19 +219,19 @@ export function CircleBoard({
           ) : null}
 
           {shownPodium > 0 ? (
-            <View style={[styles.podiumRow, shownPodium < 3 && styles.podiumSparse]}>
+            <View style={styles.podiumRow}>
               {second ? (
-                <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${second.name}`} onPress={() => router.push(`/perfil-publico?id=${second.userId}` as Href)} style={styles.podiumHit}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${second.name}`} onPress={() => router.push(`/perfil-publico?id=${second.userId}` as Href)} style={[styles.podiumHit, { width: frames.side }]}>
                   <PodiumCard entry={second} featured={false} kind={kind} uri={photoFor(second.userId, second.avatarPath)} />
                 </Pressable>
               ) : null}
               {first ? (
-                <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${first.name}`} onPress={() => router.push(`/perfil-publico?id=${first.userId}` as Href)} style={styles.podiumHit}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${first.name}`} onPress={() => router.push(`/perfil-publico?id=${first.userId}` as Href)} style={[styles.podiumHit, { width: frames.first }]}>
                   <PodiumCard entry={first} featured kind={kind} uri={photoFor(first.userId, first.avatarPath)} />
                 </Pressable>
               ) : null}
               {third ? (
-                <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${third.name}`} onPress={() => router.push(`/perfil-publico?id=${third.userId}` as Href)} style={styles.podiumHit}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${third.name}`} onPress={() => router.push(`/perfil-publico?id=${third.userId}` as Href)} style={[styles.podiumHit, { width: frames.side }]}>
                   <PodiumCard entry={third} featured={false} kind={kind} uri={photoFor(third.userId, third.avatarPath)} />
                 </Pressable>
               ) : null}
@@ -394,9 +395,8 @@ const styles = StyleSheet.create({
   historyLink: { marginTop: 14, minHeight: 36, justifyContent: 'center' },
   historyLabel: { color: palette.textChampagne, fontFamily: fonts.display, fontSize: 12, letterSpacing: 1 },
   mineLabel: { position: 'absolute', top: 2, left: 8, color: palette.champagne, fontFamily: fonts.display, fontSize: 8, letterSpacing: 0.6 },
-  podiumRow: { marginTop: 16, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center' },
-  podiumSparse: { gap: 10 },
-  podiumHit: { width: '30%', maxWidth: 132 },
+  podiumRow: { marginTop: 18, width: '100%', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 8 },
+  podiumHit: { flexShrink: 0 },
   podium: {
     width: '100%',
     borderRadius: 18,
@@ -404,17 +404,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(214, 181, 122, 0.34)',
     backgroundColor: 'rgba(7, 7, 9, 0.58)',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingTop: 14,
-    paddingBottom: 16,
+    paddingHorizontal: 8,
+    paddingTop: 12,
+    paddingBottom: 14,
   },
   podiumSilver: { borderColor: '#C5C8CE' },
   podiumBronze: { borderColor: '#C48A5A' },
   podiumFirst: {
-    width: '40%',
-    maxWidth: 176,
-    zIndex: 2,
-    marginHorizontal: -8,
     borderColor: palette.champagne,
     backgroundColor: 'rgba(14, 12, 9, 0.82)',
     paddingTop: 16,
@@ -427,10 +423,12 @@ const styles = StyleSheet.create({
   podiumPlaceBronze: { color: '#C48A5A' },
   podiumAvatar: { alignItems: 'center', marginTop: 4, marginBottom: 6, gap: 2 },
   podiumName: {
+    width: '100%',
     color: palette.text,
     fontFamily: fonts.display,
     fontSize: 13,
-    letterSpacing: 0.6,
+    lineHeight: 16,
+    letterSpacing: 0.4,
     textAlign: 'center',
     textTransform: 'uppercase',
   },

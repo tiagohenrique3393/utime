@@ -1,5 +1,5 @@
 import type { CircleEntry } from '@/lib/circle-api';
-import { ordinalPlace, podiumSlots, showsPodiumTrophy, visibleRanking } from '@/lib/circle-rank';
+import { ordinalPlace, podiumCardWidths, podiumColumnWidth, podiumSlots, showsPodiumTrophy, visibleRanking } from '@/lib/circle-rank';
 import { periods } from '@/lib/tasks';
 import { todayKey } from '@/lib/habit-day';
 import { suggestedHabits } from '@/lib/suggested-habits';
@@ -192,6 +192,26 @@ const fullPage = visibleRanking(many, 30, 'eu');
 assertEqual(fullPage.length, 30);
 assertEqual(fullPage.filter((entry) => entry.userId === 'eu').length, 1);
 assertEqual(fullPage.find((entry) => entry.userId === 'eu')?.position, 30);
+
+for (const viewport of [320, 375, 390, 430, 768, 1024, 1280, 1440]) {
+  const column = podiumColumnWidth(viewport);
+  if (column > 460) {
+    throw new Error(`coluna do ranking em ${viewport}`);
+  }
+  for (const count of [1, 2, 3] as const) {
+    const widths = podiumCardWidths(viewport, count);
+    const used = widths.first + widths.side * (count - 1) + 8 * (count - 1);
+    if (used > column || widths.first > 220) {
+      throw new Error(`pódio em ${viewport} com ${count}: ${used} de ${column}, primeiro ${widths.first}`);
+    }
+    if (count === 1 && widths.first < 148 && column >= 148) {
+      throw new Error(`primeiro sozinho estreito em ${viewport}`);
+    }
+    if (count > 1 && (widths.first < widths.side || widths.side > 200 || widths.side < 72)) {
+      throw new Error(`proporção em ${viewport} com ${count}: primeiro ${widths.first}, lateral ${widths.side}`);
+    }
+  }
+}
 
 const secondPlace = [place(1, 'lider'), place(2, 'eu', 1), place(3, 'terceiro')];
 assertEqual(podiumSlots(secondPlace).second?.userId, 'eu');
