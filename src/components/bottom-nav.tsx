@@ -30,12 +30,12 @@ const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = 
   {
     label: 'Círculo',
     href: '/ranking',
-    match: (path) => path === '/ranking' || path === '/circulo-amigos',
+    match: (path) => path === '/ranking' || path === '/circulo-amigos' || path === '/perfil-publico',
   },
   {
     label: 'Perfil',
     href: '/perfil',
-    match: (path) => path === '/perfil',
+    match: (path) => path === '/perfil' || path === '/nome-usuario' || path === '/configuracoes',
   },
 ];
 

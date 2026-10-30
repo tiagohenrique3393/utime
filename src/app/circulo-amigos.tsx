@@ -203,6 +203,11 @@ export default function AddFriendsScreen() {
         const pending = pendingId === person.userId;
         return (
         <View key={person.userId} style={styles.row}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Abrir perfil de ${person.name}`}
+          onPress={() => router.push(`/perfil-publico?id=${person.userId}` as Href)}
+          style={styles.person}>
           <CircleAvatar
             size={40}
             uri={publicAvatarUrl(ownReady && person.userId === getSessionUserId() ? ownPath : person.avatarPath)}
@@ -213,6 +218,7 @@ export default function AddFriendsScreen() {
             </Text>
             {person.handle ? <Text style={styles.handle}>{`@${person.handle}`}</Text> : null}
           </View>
+        </Pressable>
           <FriendActions person={person} pending={pending} onAct={(action) => void act(person, action)} />
         </View>
         );
@@ -300,6 +306,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#09090B',
     paddingHorizontal: 10,
     boxShadow: '0 0 14px rgba(232, 200, 142, 0.08)',
+  },
+  person: {
+    flex: 1,
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   copy: {
     flex: 1,

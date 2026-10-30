@@ -219,9 +219,21 @@ export function CircleBoard({
 
           {shownPodium > 0 ? (
             <View style={[styles.podiumRow, shownPodium < 3 && styles.podiumSparse]}>
-              {second ? <PodiumCard entry={second} featured={false} kind={kind} uri={photoFor(second.userId, second.avatarPath)} /> : null}
-              {first ? <PodiumCard entry={first} featured kind={kind} uri={photoFor(first.userId, first.avatarPath)} /> : null}
-              {third ? <PodiumCard entry={third} featured={false} kind={kind} uri={photoFor(third.userId, third.avatarPath)} /> : null}
+              {second ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${second.name}`} onPress={() => router.push(`/perfil-publico?id=${second.userId}` as Href)} style={styles.podiumHit}>
+                  <PodiumCard entry={second} featured={false} kind={kind} uri={photoFor(second.userId, second.avatarPath)} />
+                </Pressable>
+              ) : null}
+              {first ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${first.name}`} onPress={() => router.push(`/perfil-publico?id=${first.userId}` as Href)} style={styles.podiumHit}>
+                  <PodiumCard entry={first} featured kind={kind} uri={photoFor(first.userId, first.avatarPath)} />
+                </Pressable>
+              ) : null}
+              {third ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${third.name}`} onPress={() => router.push(`/perfil-publico?id=${third.userId}` as Href)} style={styles.podiumHit}>
+                  <PodiumCard entry={third} featured={false} kind={kind} uri={photoFor(third.userId, third.avatarPath)} />
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
 
@@ -245,12 +257,12 @@ export function CircleBoard({
                       {entry.position === 1 ? <CircleMark name="crown" size={13} /> : null}
                       <Text style={[styles.place, self && styles.placeSelf]}>{ordinalPlace(entry.position)}</Text>
                     </View>
-                    <View style={[styles.user, styles.colUser]}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Abrir perfil de ${entry.name}`} onPress={() => router.push(`/perfil-publico?id=${entry.userId}` as Href)} style={[styles.user, styles.colUser]}>
                       <CircleAvatar size={28} uri={photoFor(entry.userId, entry.avatarPath)} />
                       <Text numberOfLines={1} style={styles.userName}>
                         {entry.name}
                       </Text>
-                    </View>
+                    </Pressable>
                     <Text style={[styles.points, styles.colScore, self && styles.pointsSelf]}>{`${formatCirclePoints(entry.score)} PTS`}</Text>
                     <View style={[styles.honor, styles.colHonor]}>
                       {showsPodiumTrophy(entry.podiums) ? (
@@ -384,9 +396,9 @@ const styles = StyleSheet.create({
   mineLabel: { position: 'absolute', top: 2, left: 8, color: palette.champagne, fontFamily: fonts.display, fontSize: 8, letterSpacing: 0.6 },
   podiumRow: { marginTop: 16, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center' },
   podiumSparse: { gap: 10 },
+  podiumHit: { width: '30%', maxWidth: 132 },
   podium: {
-    width: '30%',
-    maxWidth: 132,
+    width: '100%',
     borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(214, 181, 122, 0.34)',

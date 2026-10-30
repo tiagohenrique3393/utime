@@ -34,6 +34,14 @@ const css = `
   mask-image: linear-gradient(to bottom, transparent 0%, #000 8%, #000 34%, transparent 62%);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 8%, #000 34%, transparent 62%);
 }
+.profile-planet-layer.photo {
+  top: -8%;
+  width: 250%;
+  left: -62%;
+}
+.profile-planet-layer.low {
+  top: 18%;
+}
 .profile-planet-veil {
   position: absolute;
   inset: 0;
@@ -44,20 +52,21 @@ const css = `
 }
 `;
 
-export function ProfilePlanet() {
+export function ProfilePlanet({ placement = 'perfil' }: { placement?: 'perfil' | 'photo' | 'low' }) {
   const uri = imageUri(source);
+  const layer = placement === 'perfil' ? 'profile-planet-layer' : `profile-planet-layer ${placement}`;
   if (Platform.OS === 'web' && uri) {
     return (
       <View pointerEvents="none" style={styles.frame}>
         {createElement('style', null, css)}
-        {createElement('img', { src: uri, alt: '', draggable: false, className: 'profile-planet-layer' })}
+        {createElement('img', { src: uri, alt: '', draggable: false, className: layer })}
         {createElement('div', { className: 'profile-planet-veil' })}
       </View>
     );
   }
   return (
     <View pointerEvents="none" style={styles.frame}>
-      <Image source={source} contentFit="cover" style={styles.native} />
+      <Image source={source} contentFit="cover" style={[styles.native, placement === 'photo' && styles.nativePhoto, placement === 'low' && styles.nativeLow]} />
       <View style={styles.nativeFade} />
     </View>
   );
@@ -79,6 +88,14 @@ const styles = StyleSheet.create({
     top: '-18%',
     left: '-42%',
     opacity: 0.5,
+  },
+  nativePhoto: {
+    top: '-8%',
+    left: '-62%',
+    width: '250%',
+  },
+  nativeLow: {
+    top: '18%',
   },
   nativeFade: {
     position: 'absolute',

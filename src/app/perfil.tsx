@@ -1,5 +1,5 @@
-import { router, type Href } from 'expo-router';
-import { createElement, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { router, useFocusEffect, type Href } from 'expo-router';
+import { createElement, useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -7,6 +7,7 @@ import { ProfilePhoto } from '@/components/profile-photo';
 import { ProfilePlanet } from '@/components/profile-planet';
 import { colors, fonts, ui } from '@/constants/theme';
 import { getSessionEmail, getSessionUserId, signOut } from '@/lib/accounts';
+import { loadOwnIdentity } from '@/lib/public-profile';
 import { getProfileSnapshot, subscribeProfile, updateProfileName, type JourneyId } from '@/lib/profile';
 
 const page = '#050505';
@@ -53,7 +54,7 @@ function TrashMark({ size = 16 }: { size?: number }) {
   );
 }
 
-function Mark({ name, size = 18 }: { name: 'user' | 'mail' | 'layers' | 'chevron' | 'logout' | 'pencil'; size?: number }) {
+function Mark({ name, size = 18 }: { name: 'user' | 'mail' | 'layers' | 'chevron' | 'logout' | 'pencil' | 'gear' | 'at' | 'crown'; size?: number }) {
   if (Platform.OS !== 'web') {
     return <View style={styles.nativeMark} />;
   }
@@ -89,6 +90,28 @@ function Mark({ name, size = 18 }: { name: 'user' | 'mail' | 'layers' | 'chevron
       createElement('path', { d: 'M11.6 7.8 16.2 12.4', ...stroke() }),
     );
   }
+  if (name === 'gear') {
+    return svg(
+      size,
+      createElement('circle', { cx: 12, cy: 12, r: 3, ...stroke() }),
+      createElement('path', { d: 'M12 3.5v2.1M12 18.4v2.1M4.8 6.8l1.5 1.5M17.7 15.7l1.5 1.5M3.5 12h2.1M18.4 12h2.1M4.8 17.2l1.5-1.5M17.7 8.3l1.5-1.5', ...stroke() }),
+    );
+  }
+  if (name === 'at') {
+    return svg(
+      size,
+      createElement('circle', { cx: 12, cy: 12, r: 3, ...stroke() }),
+      createElement('path', { d: 'M15 12v1.2a2 2 0 0 0 3.8.7', ...stroke() }),
+      createElement('circle', { cx: 12, cy: 12, r: 7, ...stroke() }),
+    );
+  }
+  if (name === 'crown') {
+    return svg(
+      size,
+      createElement('path', { d: 'M4.5 16.5 6.2 8.5 10 12.2 12 7.2l2 5 3.8-3.7 1.7 8', ...stroke() }),
+      createElement('path', { d: 'M6 18.2h12', ...stroke() }),
+    );
+  }
   return svg(
     size,
     createElement('path', { d: 'M10 7V5.6A1.6 1.6 0 0 1 11.6 4h7A1.6 1.6 0 0 1 20.2 5.6v12.8a1.6 1.6 0 0 1-1.6 1.6h-7A1.6 1.6 0 0 1 10 18.4V17', ...stroke() }),
@@ -110,6 +133,30 @@ export default function ProfileScreen() {
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [nameNotice, setNameNotice] = useState('');
+  const [handle, setHandle] = useState('');
+  const [handleState, setHandleState] = useState<'loading' | 'ready' | 'error'>('loading');
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      loadOwnIdentity()
+        .then((identity) => {
+          if (!active) {
+            return;
+          }
+          setHandle(identity.handle);
+          setHandleState(identity.ok ? 'ready' : 'error');
+        })
+        .catch(() => {
+          if (active) {
+            setHandleState('error');
+          }
+        });
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   useEffect(() => {
     if (!getSessionUserId()) {
@@ -198,13 +245,21 @@ export default function ProfileScreen() {
   const modality = journeyLabel(profile.journey);
   const emailText =
     emailState === 'loading' ? 'Carregando' : emailState === 'error' ? 'Não foi possível carregar o e-mail.' : email || 'Não informado';
+  const handleText = handleState === 'loading' ? 'Carregando' : handleState === 'error' ? 'Não foi possível carregar' : handle ? `@${handle}` : 'Escolher nome de usuário';
 
   return (
     <AppScreen width="narrow" backgroundColor={page} backdrop={<ProfilePlanet />}>
-      <Text style={styles.eyebrow}>Conta</Text>
-      <Text accessibilityRole="header" style={styles.title}>
-        Perfil
-      </Text>
+      <View style={styles.header}>
+        <View style={styles.headerCopy}>
+          <Text style={styles.eyebrow}>Conta</Text>
+          <Text accessibilityRole="header" style={styles.title}>
+            Perfil
+          </Text>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Configurações" onPress={() => router.push('/configuracoes' as Href)} style={styles.gear}>
+          <Mark name="gear" size={22} />
+        </Pressable>
+      </View>
 
       <View style={styles.identity}>
         <ProfilePhoto initial={initial} size={photoSize} />
@@ -226,78 +281,112 @@ export default function ProfileScreen() {
             <Text style={styles.capsuleLabel}>{modality}</Text>
           </View>
         ) : null}
+        {handleState === 'ready' && !handle ? <Text style={styles.invite}>Escolha um nome de usuário para ser encontrado no Circle.</Text> : null}
       </View>
 
-      <View style={styles.card}>
+      <View style={styles.stack}>
         {editingName ? (
-          <View style={styles.row}>
-            <View style={styles.iconWell}>
-              <Mark name="user" />
-            </View>
-            <View style={styles.copy}>
-              <Text style={styles.rowLabel}>Nome</Text>
-              <TextInput
-                value={nameDraft}
-                onChangeText={(value) => {
-                  setNameDraft(value);
-                  setNameNotice('');
-                }}
-                autoCapitalize="words"
-                autoCorrect={false}
-                autoFocus
-                editable={!savingName}
-                textContentType="givenName"
-                autoComplete="given-name"
-                placeholder="Seu primeiro nome"
-                placeholderTextColor={ui.faint}
-                onSubmitEditing={saveName}
-                style={styles.input}
-              />
-              {nameNotice ? <Text style={styles.nameNotice}>{nameNotice}</Text> : null}
-              <View style={styles.nameActions}>
-                <Pressable accessibilityRole="button" disabled={savingName} onPress={cancelNameEdit} style={styles.nameAction}>
-                  <Text style={styles.nameActionMuted}>Cancelar</Text>
-                </Pressable>
-                <Pressable accessibilityRole="button" disabled={savingName} onPress={saveName} style={styles.nameAction}>
-                  <Text style={styles.nameActionLabel}>{savingName ? 'Salvando' : 'Salvar'}</Text>
-                </Pressable>
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <View style={styles.iconWell}>
+                <Mark name="user" />
+              </View>
+              <View style={styles.copy}>
+                <Text style={styles.rowLabel}>Nome</Text>
+                <TextInput
+                  value={nameDraft}
+                  onChangeText={(value) => {
+                    setNameDraft(value);
+                    setNameNotice('');
+                  }}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  autoFocus
+                  editable={!savingName}
+                  textContentType="givenName"
+                  autoComplete="given-name"
+                  placeholder="Seu primeiro nome"
+                  placeholderTextColor={ui.faint}
+                  onSubmitEditing={saveName}
+                  style={styles.input}
+                />
+                {nameNotice ? <Text style={styles.nameNotice}>{nameNotice}</Text> : null}
+                <View style={styles.nameActions}>
+                  <Pressable accessibilityRole="button" disabled={savingName} onPress={cancelNameEdit} style={styles.nameAction}>
+                    <Text style={styles.nameActionMuted}>Cancelar</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" disabled={savingName} onPress={saveName} style={styles.nameAction}>
+                    <Text style={styles.nameActionLabel}>{savingName ? 'Salvando' : 'Salvar'}</Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
           </View>
         ) : (
-          <Pressable accessibilityRole="button" accessibilityLabel="Editar nome" onPress={startNameEdit} style={styles.row}>
-            <View style={styles.iconWell}>
-              <Mark name="user" />
+          <Pressable accessibilityRole="button" accessibilityLabel="Editar nome" onPress={startNameEdit} style={styles.card}>
+            <View style={styles.row}>
+              <View style={styles.iconWell}>
+                <Mark name="user" />
+              </View>
+              <View style={styles.copy}>
+                <Text style={styles.rowLabel}>Nome</Text>
+                <Text numberOfLines={2} style={styles.rowValue}>
+                  {name}
+                </Text>
+              </View>
+              <Mark name="chevron" size={16} />
             </View>
-            <View style={styles.copy}>
-              <Text style={styles.rowLabel}>Nome</Text>
-              <Text numberOfLines={2} style={styles.rowValue}>
-                {name}
-              </Text>
-            </View>
-            <Mark name="chevron" size={16} />
           </Pressable>
         )}
 
-        <View style={styles.divider} />
-        <View style={styles.row}>
-          <View style={styles.iconWell}>
-            <Mark name="mail" />
+        <Pressable accessibilityRole="button" accessibilityLabel="Editar nome de usuário" onPress={() => router.push('/nome-usuario' as Href)} style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.iconWell}>
+              <Mark name="at" />
+            </View>
+            <View style={styles.copy}>
+              <Text style={styles.rowLabel}>Nome de usuário</Text>
+              <Text numberOfLines={1} style={styles.rowValue}>
+                {handleText}
+              </Text>
+            </View>
+            <Mark name="chevron" size={16} />
           </View>
-          <View style={styles.copy}>
-            <Text style={styles.rowLabel}>E-mail</Text>
-            <Text style={styles.rowValue}>{emailText}</Text>
+        </Pressable>
+
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.iconWell}>
+              <Mark name="mail" />
+            </View>
+            <View style={styles.copy}>
+              <Text style={styles.rowLabel}>E-mail</Text>
+              <Text style={styles.rowValue}>{emailText}</Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.divider} />
-        <View style={styles.row}>
-          <View style={styles.iconWell}>
-            <Mark name="layers" />
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.iconWell}>
+              <Mark name="layers" />
+            </View>
+            <View style={styles.copy}>
+              <Text style={styles.rowLabel}>Modalidade</Text>
+              <Text style={styles.rowValue}>{modality}</Text>
+            </View>
           </View>
-          <View style={styles.copy}>
-            <Text style={styles.rowLabel}>Modalidade</Text>
-            <Text style={styles.rowValue}>{modality}</Text>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.iconWell}>
+              <Mark name="crown" />
+            </View>
+            <View style={styles.copy}>
+              <Text style={styles.rowLabel}>Plano</Text>
+              <Text style={styles.rowValue}>Gratuito</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -348,6 +437,28 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  headerCopy: {
+    flex: 1,
+  },
+  gear: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  invite: {
+    marginTop: 12,
+    color: ui.muted,
+    fontFamily: fonts.text,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
   identity: {
     alignItems: 'center',
     marginTop: 28,
@@ -395,13 +506,15 @@ const styles = StyleSheet.create({
     letterSpacing: 1.3,
     textTransform: 'uppercase',
   },
-  card: {
+  stack: {
     marginTop: 26,
-    borderRadius: 22,
+    gap: 10,
+  },
+  card: {
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(196, 165, 116, 0.22)',
     backgroundColor: 'rgba(17, 18, 20, 0.72)',
-    overflow: 'hidden',
   },
   row: {
     minHeight: 74,
@@ -514,7 +627,7 @@ const styles = StyleSheet.create({
   signOutLabel: {
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 14,
+    fontSize: 15,
     letterSpacing: 1.8,
     textTransform: 'uppercase',
   },
