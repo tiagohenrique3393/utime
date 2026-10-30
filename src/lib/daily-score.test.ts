@@ -1,7 +1,7 @@
 import { marksFromLogs } from '@/lib/constancy';
 import { scoreDailyHabits, type DailyHabit } from '@/lib/daily-board';
 import { scoreHabits, type ScoreHabit } from '@/lib/daily-score';
-import { todayKey } from '@/lib/habit-day';
+import { formatDailyPercent, todayKey } from '@/lib/habit-day';
 import { getProgressColor, showsExcellence } from '@/lib/progress-color';
 import { progressReport, type ProgressHabit, type TodayProgressHabit } from '@/lib/progress-view';
 
@@ -80,7 +80,7 @@ const sameDay = progressReport({
   habits: known,
   todayHabits,
 });
-assertEqual(sameDay.dia, hoje.percent, 'Progresso usa a mesma conta de Hoje');
+assertEqual(formatDailyPercent(sameDay.dia ?? -1), formatDailyPercent(hoje.percent), 'Progresso usa a mesma conta de Hoje');
 assertEqual(sameDay.pillars.find((pillar) => pillar.pillar === 'corpo')?.percent, 33.33, 'corpo idêntico');
 assertEqual(sameDay.pillars.find((pillar) => pillar.pillar === 'mente')?.percent, 66.67, 'mente idêntica');
 assertEqual(sameDay.pillars.find((pillar) => pillar.pillar === 'espirito')?.percent, 0, 'espírito idêntico');

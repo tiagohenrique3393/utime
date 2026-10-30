@@ -224,7 +224,7 @@ export function ConstancyBoard({
           <View style={styles.summary}>
             <View style={styles.summaryHead}>
               <Text style={styles.cardTitle}>Resumo do mês</Text>
-              <Text style={styles.summaryCount}>{`${summary.meta} de ${summary.monthDays} dias`}</Text>
+              <Text style={styles.summaryCount}>{`${summary.meta} de ${summary.eligible} dias`}</Text>
               <Text style={styles.summaryPercent}>{`${summary.monthPercent}%`}</Text>
             </View>
             <View style={styles.track}>

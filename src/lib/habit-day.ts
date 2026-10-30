@@ -17,11 +17,20 @@ function zonedPart(date: Date, name: 'year' | 'month' | 'day' | 'hour' | 'minute
 }
 
 export function dailyPercent(total: number, completed: number) {
-  if (total <= 0) {
+  const exact = exactDailyPercent(completed, total);
+  if (exact == null) {
     return 0;
   }
-  const done = Math.max(0, Math.min(total, completed));
-  return Math.round((done / total) * 10000) / 100;
+  return Math.round(exact * 100) / 100;
+}
+
+// Razão real do dia. Sem hábitos programados o dia é neutro e fica fora das médias.
+export function exactDailyPercent(completed: number, planned: number) {
+  if (!Number.isFinite(planned) || planned <= 0) {
+    return null;
+  }
+  const done = Number.isFinite(completed) ? Math.max(0, Math.min(planned, completed)) : 0;
+  return Math.max(0, Math.min(100, (done / planned) * 100));
 }
 
 export function personalCompletionPercent(total: number, completed: number) {

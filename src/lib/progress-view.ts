@@ -1,5 +1,5 @@
 import { isOfficialHydration, logsWithoutOfficialHydration } from '@/lib/daily-score';
-import { dailyPercent, todayKey } from '@/lib/habit-day';
+import { dailyPercent, exactDailyPercent, todayKey } from '@/lib/habit-day';
 import { hydrationReached } from '@/lib/hydration';
 
 export type ProgressPeriod = 'dia' | 'semana' | 'mes' | 'ano';
@@ -114,7 +114,8 @@ function dateKey(year: number, month: number, day: number) {
 }
 
 export function weekDateKeys(today: string) {
-  const start = shiftDateKey(today, -weekdayIndex(today));
+  const mondayOffset = (weekdayIndex(today) + 6) % 7;
+  const start = shiftDateKey(today, -mondayOffset);
   return Array.from({ length: 7 }, (_, index) => shiftDateKey(start, index));
 }
 
@@ -124,7 +125,7 @@ export function monthDateKeys(today: string) {
   return Array.from({ length: last }, (_, index) => dateKey(year, month, index + 1));
 }
 
-// Semana da hidratação: segunda a domingo, sete dias civis. Não altera weekDateKeys.
+// Semana da hidratação: segunda a domingo. A semana dos hábitos usa a mesma fronteira.
 export function hydrationWeekDateKeys(today: string) {
   const mondayOffset = (weekdayIndex(today) + 6) % 7;
   const start = shiftDateKey(today, -mondayOffset);
@@ -186,7 +187,13 @@ export function averagePercent(values: readonly (number | null)[]) {
 }
 
 function logsOn(logs: readonly HabitLog[], dateKeyValue: string) {
-  return logs.filter((log) => log.dateKey === dateKeyValue);
+  const byHabit = new Map<string, boolean>();
+  for (const row of logs) {
+    if (row.dateKey === dateKeyValue && row.habitId) {
+      byHabit.set(row.habitId, row.completed);
+    }
+  }
+  return [...byHabit.entries()].map(([habitId, completed]) => ({ dateKey: dateKeyValue, habitId, completed }));
 }
 
 export function habitPercentOn(
@@ -199,15 +206,13 @@ export function habitPercentOn(
     return null;
   }
   if (dateKeyValue === today && todayRoutine) {
-    const planned = Math.max(0, todayRoutine.total);
-    const done = Math.max(0, Math.min(planned, todayRoutine.completed));
-    return dailyPercent(planned, done);
+    return exactDailyPercent(todayRoutine.completed, todayRoutine.total);
   }
   const rows = logsOn(logs, dateKeyValue);
   if (rows.length === 0) {
     return null;
   }
-  return dailyPercent(rows.length, rows.filter((row) => row.completed).length);
+  return exactDailyPercent(rows.filter((row) => row.completed).length, rows.length);
 }
 
 export function recordedPercents(
@@ -409,7 +414,7 @@ function pillarOnDay(
     const scored = todayHabits.filter((habit) => !isHydrationHabit(habit));
     for (const pillar of pillarOrder) {
       const group = scored.filter((habit) => habit.pillar === pillar);
-      next[pillar] = group.length === 0 ? null : dailyPercent(group.length, group.filter((habit) => habit.done).length);
+      next[pillar] = exactDailyPercent(group.filter((habit) => habit.done).length, group.length);
     }
     return next;
   }
@@ -423,7 +428,7 @@ function pillarOnDay(
       const habit = habits.get(row.habitId);
       return habit !== undefined && habit.pillar === pillar && !isHydrationHabit(habit);
     });
-    next[pillar] = group.length === 0 ? null : dailyPercent(group.length, group.filter((row) => row.completed).length);
+    next[pillar] = exactDailyPercent(group.filter((row) => row.completed).length, group.length);
   }
   return next;
 }

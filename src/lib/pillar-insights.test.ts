@@ -57,7 +57,7 @@ assertEqual(bodyAssetKey(null), 'mantime', 'padrão masculino');
 
 const today = '2026-10-14';
 assertEqual(weekdayOf(today), 3, 'quarta');
-assertEqual(weekDateKeys(today)[0], '2026-10-11', 'semana existente começa no domingo');
+assertEqual(weekDateKeys(today)[0], '2026-10-12', 'semana começa na segunda');
 
 const currentDays = ['2026-10-11', '2026-10-12', '2026-10-13', '2026-10-14'];
 const logs: HabitLog[] = [
@@ -74,8 +74,8 @@ const logs: HabitLog[] = [
 ];
 
 const week = readPillarPeriod({ today, period: 'semana', logs, habits });
-assertEqual(week.current, { corpo: 100, mente: 50, espirito: 0 }, 'semana');
-assertEqual(week.display, 50, 'equilíbrio da semana');
+assertEqual(week.current, { corpo: 100, mente: 33.33, espirito: 0 }, 'semana');
+assertEqual(week.display, 44, 'equilíbrio da semana');
 assertEqual(week.previous?.corpo, 0, 'semana anterior equivalente ignora dia futuro');
 
 const month = readPillarPeriod({ today, period: 'mes', logs, habits });
@@ -114,7 +114,7 @@ const withToday = readPillarPeriod({
     { id: 'e', label: 'Meditar ou refletir', pillar: 'espirito', catalogHabitId: 'espirito-meditacao', done: true },
   ],
 });
-assertEqual(withToday.current.espirito, 25, 'hábito de hoje substitui o registro do dia');
+assertEqual(withToday.current.espirito, 33.33, 'hábito de hoje substitui o registro do dia');
 
 const categories = new Set(insightLibrary.map((item) => item.category));
 assert(insightLibrary.length >= 120, `biblioteca com ${insightLibrary.length} mensagens`);

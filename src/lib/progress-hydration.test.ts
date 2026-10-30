@@ -263,11 +263,11 @@ const habitReport = progressReport({
   todayHabits: null,
   activatedOn: active,
 });
-assertEqual(habitReport.semana, 100);
+assertEqual(habitReport.semana, null);
 assertEqual(habitReport.mes, 100);
 assertEqual(habitReport.ano, 100);
 assertEqual(habitReport.dia, null);
-assertEqual(habitReport.pillars.find((pillar) => pillar.pillar === 'mente')?.percent, 100);
+assertEqual(habitReport.pillars.find((pillar) => pillar.pillar === 'mente')?.percent, null);
 assertEqual(habitReport.pillars.find((pillar) => pillar.pillar === 'corpo')?.percent, null);
 assertEqual(habitReport.water.consumedMl, 4000);
 assertEqual(habitReport.periodGoalMl, 21000);

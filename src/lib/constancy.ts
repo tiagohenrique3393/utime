@@ -240,7 +240,7 @@ export function monthScore(marks: ReadonlyMap<string, DayMark>, year: number, mo
   return {
     ...score,
     monthDays,
-    monthPercent: Math.round((score.meta / monthDays) * 100),
+    monthPercent: score.percent ?? 0,
   };
 }
 
