@@ -1,8 +1,12 @@
 import { supabase } from '../../utils/supabase';
+import { normalizeHabitText } from '@/lib/habit-classify';
+import { matchingCustomHabit, requireHabitRelevance, type HabitRelevance } from '@/lib/habit-relevance';
+
+export { matchingCustomHabit, requireHabitRelevance };
 
 export type HabitPeriod = 'manha' | 'tarde' | 'noite';
 export type HabitPillar = 'corpo' | 'mente' | 'espirito';
-export type HabitRelevance = 'alta' | 'media' | 'baixa';
+export type { HabitRelevance };
 
 export type CatalogHabit = {
   id: string;
@@ -344,12 +348,16 @@ export async function chooseCatalogHabit(
     }
     return { ok: true, message: 'Esse hábito já está na sua rotina.' };
   }
+  const required = requireHabitRelevance(relevance);
+  if (!required.ok) {
+    return { ok: false, message: required.message };
+  }
   if (existing) {
     const restored = await updateUserHabit(existing.id, {
       active: true,
       period: nextPeriod,
       pillar: source.pillar,
-      relevance,
+      relevance: required.relevance,
     });
     if (!restored.ok || ownerId !== userId) {
       return { ok: false, message: 'Não foi possível escolher esse hábito.' };
@@ -373,14 +381,17 @@ export async function chooseCatalogHabit(
     pillar: source.pillar,
     sort_order: nextSortOrder(),
     active: true,
-    relevance,
+    relevance: required.relevance,
   });
   if (error || !data) {
     return { ok: false, message: 'Não foi possível escolher esse hábito.' };
   }
   const created = habitFromRow(data as HabitRow);
-  if (!created) {
-    return { ok: false, message: 'Não foi possível escolher esse hábito.' };
+  if (!created || created.relevance !== required.relevance) {
+    if (created) {
+      await supabase.from('user_habits').delete().eq('id', created.id).eq('user_id', userId);
+    }
+    return { ok: false, message: 'Não foi possível salvar a relevância do hábito.' };
   }
   const marked = await markPersonalized(userId);
   if (!marked) {
@@ -428,6 +439,10 @@ export async function ensureCatalogHabit(input: {
     }
     return { ok: true, habitId: existing.id, message: '' };
   }
+  const required = requireHabitRelevance(input.relevance ?? null);
+  if (!required.ok) {
+    return { ok: false, habitId: null, message: required.message };
+  }
   revision += 1;
   const { data, error } = await writeUserHabit('insert', {
     user_id: userId,
@@ -437,7 +452,7 @@ export async function ensureCatalogHabit(input: {
     pillar: input.pillar,
     sort_order: nextSortOrder(),
     active: true,
-    relevance: input.relevance ?? null,
+    relevance: required.relevance,
   });
   if (error || !data) {
     const code = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
@@ -451,8 +466,11 @@ export async function ensureCatalogHabit(input: {
     };
   }
   const created = habitFromRow(data as HabitRow);
-  if (!created || ownerId !== userId) {
-    return { ok: false, habitId: null, message: 'Não foi possível registrar o hábito.' };
+  if (!created || created.relevance !== required.relevance || ownerId !== userId) {
+    if (created) {
+      await supabase.from('user_habits').delete().eq('id', created.id).eq('user_id', userId);
+    }
+    return { ok: false, habitId: null, message: 'Não foi possível salvar a relevância do hábito.' };
   }
   habits = [...habits, created].sort((left, right) => left.sortOrder - right.sortOrder);
   emit();
@@ -473,9 +491,24 @@ export async function addCustomHabit(input: {
   if (label.length === 0 || !isPeriod(input.period) || !isPillar(input.pillar)) {
     return { ok: false, message: 'Informe o nome, o período e o pilar do hábito.' };
   }
-  const relevance = input.relevance ?? null;
-  if (relevance !== null && !isRelevance(relevance)) {
-    return { ok: false, message: 'Escolha a relevância alta, média ou baixa.' };
+  const required = requireHabitRelevance(input.relevance ?? null);
+  if (!required.ok) {
+    return { ok: false, message: required.message };
+  }
+  const key = normalizeHabitText(label);
+  const sameName = habits.find((habit) => normalizeHabitText(habitTitle(habit, catalog)) === key);
+  if (sameName?.active) {
+    return { ok: false, message: 'Esse hábito já está na sua rotina.' };
+  }
+  const inactiveCustom = matchingCustomHabit(habits, label);
+  if (inactiveCustom && !inactiveCustom.active) {
+    return updateUserHabit(inactiveCustom.id, {
+      active: true,
+      label,
+      period: input.period,
+      pillar: input.pillar,
+      relevance: required.relevance,
+    });
   }
   revision += 1;
   const { data, error } = await writeUserHabit('insert', {
@@ -486,14 +519,17 @@ export async function addCustomHabit(input: {
     pillar: input.pillar,
     sort_order: nextSortOrder(),
     active: true,
-    relevance,
+    relevance: required.relevance,
   });
   if (error || !data) {
     return { ok: false, message: 'Não foi possível adicionar esse hábito.' };
   }
   const created = habitFromRow(data as HabitRow);
-  if (!created) {
-    return { ok: false, message: 'Não foi possível adicionar esse hábito.' };
+  if (!created || created.relevance !== required.relevance) {
+    if (created) {
+      await supabase.from('user_habits').delete().eq('id', created.id).eq('user_id', userId);
+    }
+    return { ok: false, message: 'Não foi possível salvar a relevância do hábito.' };
   }
   const marked = await markPersonalized(userId);
   if (!marked) {

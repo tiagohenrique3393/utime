@@ -141,6 +141,15 @@ export function CircleBoard({
             <Text style={styles.reqLine}>{`BAIXA ${state.baixa}/4`}</Text>
           </View>
           <Text style={styles.joinText}>{requirementMessage({ alta: state.alta, media: state.media, baixa: state.baixa })}</Text>
+          {!state.ready ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Abrir Personalizar hábitos"
+              onPress={() => router.push('/personalizar-habitos' as Href)}
+              style={styles.adjust}>
+              <Text style={styles.adjustLabel}>PERSONALIZAR HÁBITOS</Text>
+            </Pressable>
+          ) : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           <Pressable
             accessibilityRole="button"
@@ -449,6 +458,8 @@ const styles = StyleSheet.create({
   reqLine: { color: palette.textChampagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1.1 },
   joinButton: { minHeight: 48, borderRadius: 999, backgroundColor: palette.champagne, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
   joinButtonOff: { opacity: 0.45 },
+  adjust: { minHeight: 44, borderRadius: 999, borderWidth: 1, borderColor: palette.champagne, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  adjustLabel: { color: palette.textChampagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1 },
   joinButtonLabel: { color: palette.ink, fontFamily: fonts.textMedium, fontSize: 13, letterSpacing: 1 },
   pressed: { opacity: 0.78 },
 });

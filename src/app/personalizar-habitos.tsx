@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppScreen } from '@/components/app-screen';
 import { DayPlanet } from '@/components/day-planet';
 import { HabitGlyph } from '@/components/habit-glyph';
+import { HabitRelevanceChoices } from '@/components/habit-relevance-choices';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import {
@@ -21,6 +22,7 @@ import {
   subscribeHabitRoutine,
   updateUserHabit,
   type HabitPeriod,
+  type HabitRelevance,
   type UserHabit,
 } from '@/lib/habit-catalog';
 import { habitAcceptsDuration, habitIconFor, parseHabitMinutes, periodCopy, pillarTone, suggestedMinutes } from '@/lib/habit-visual';
@@ -42,6 +44,7 @@ export default function PersonalizeHabitsScreen() {
   const [minutesText, setMinutesText] = useState('');
   const [notice, setNotice] = useState('');
   const dragY = useRef(0);
+  const relevanceChain = useRef(new Map<string, Promise<void>>());
 
   useFocusEffect(
     useCallback(() => {
@@ -93,6 +96,26 @@ export default function PersonalizeHabitsScreen() {
     }
     setNotice('');
     setEditing(null);
+  }
+
+  function saveRelevance(habit: UserHabit, next: HabitRelevance) {
+    if (habit.relevance === next) {
+      return;
+    }
+    const previous = relevanceChain.current.get(habit.id) ?? Promise.resolve();
+    const run = previous.then(async () => {
+      const latest = getUserHabits().find((item) => item.id === habit.id);
+      if (!latest || latest.relevance === next) {
+        return;
+      }
+      const result = await updateUserHabit(latest.id, { relevance: next });
+      if (!result.ok) {
+        setNotice(result.message);
+        return;
+      }
+      setNotice('');
+    });
+    relevanceChain.current.set(habit.id, run);
   }
 
   if (!signedIn) {
@@ -206,6 +229,13 @@ export default function PersonalizeHabitsScreen() {
                             <Text style={styles.minutes}>{`${duration} MIN`}</Text>
                           </Pressable>
                         ) : null}
+                        <HabitRelevanceChoices
+                          title="Relevância"
+                          unclassified={habit.relevance === null}
+                          value={habit.relevance}
+                          habitLabel={label}
+                          onChange={(next) => saveRelevance(habit, next)}
+                        />
                       </View>
                       <Pressable
                         accessibilityRole="button"

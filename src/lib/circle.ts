@@ -119,6 +119,38 @@ export function isPersonalCatalogHabit(catalogHabitId: string | null) {
   return catalogHabitId !== null && personalCatalog.has(catalogHabitId);
 }
 
+export type RankingHabit = {
+  id: string;
+  active: boolean;
+  relevance: CircleRelevance | null;
+  catalogHabitId: string | null;
+};
+
+// Conta a instância do usuário. Os 10 hábitos sugeridos e a hidratação oficial
+// ficam de fora, assim como inativos e relevância ainda não escolhida.
+export function rankingHabitCounts(habits: readonly RankingHabit[]) {
+  const seen = new Set<string>();
+  const counts = { alta: 0, media: 0, baixa: 0 };
+  for (const habit of habits) {
+    if (habit.active !== true || habit.relevance === null || isPersonalCatalogHabit(habit.catalogHabitId)) {
+      continue;
+    }
+    if (seen.has(habit.id)) {
+      continue;
+    }
+    if (habit.catalogHabitId !== null) {
+      const catalogKey = `catalog:${habit.catalogHabitId}`;
+      if (seen.has(catalogKey)) {
+        continue;
+      }
+      seen.add(catalogKey);
+    }
+    seen.add(habit.id);
+    counts[habit.relevance] += 1;
+  }
+  return counts;
+}
+
 export function dayScore(counts: { alta: number; media: number; baixa: number }) {
   const alta = Math.max(0, Math.floor(counts.alta));
   const media = Math.max(0, Math.floor(counts.media));

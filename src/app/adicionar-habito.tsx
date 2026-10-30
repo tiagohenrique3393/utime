@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppScreen } from '@/components/app-screen';
 import { DayPlanet } from '@/components/day-planet';
 import { HabitGlyph } from '@/components/habit-glyph';
+import { HabitRelevanceChoices } from '@/components/habit-relevance-choices';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import { classifyHabit, normalizeHabitText } from '@/lib/habit-classify';
@@ -21,6 +22,7 @@ import {
   updateUserHabit,
   type HabitPeriod,
   type HabitPillar,
+  type HabitRelevance,
 } from '@/lib/habit-catalog';
 import { extraHabitTemplates, habitIconFor, libraryNote, pillarTone } from '@/lib/habit-visual';
 import { useRequireSession } from '@/lib/require-session';
@@ -47,8 +49,11 @@ export default function AddHabitScreen() {
   const [period, setPeriod] = useState<HabitPeriod>(origin);
   const [chosenPillar, setChosenPillar] = useState<HabitPillar | null>(null);
   const [minutesText, setMinutesText] = useState('');
+  const [relevance, setRelevance] = useState<HabitRelevance | null>(null);
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState(false);
+  const [confirming, setConfirming] = useState<{ id: string; label: string; pillar: HabitPillar; custom: boolean } | null>(null);
+  const [confirmRelevance, setConfirmRelevance] = useState<HabitRelevance | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -86,17 +91,36 @@ export default function AddHabitScreen() {
   const guess = classifyHabit(name);
   const pillarValue = chosenPillar ?? guess.pillar;
 
-  async function addItem(item: { id: string; label: string; pillar: HabitPillar; custom: boolean }) {
+  function beginAdd(item: { id: string; label: string; pillar: HabitPillar; custom: boolean }) {
     if (pending) {
       return;
     }
+    if (confirming?.id === item.id) {
+      setConfirming(null);
+      return;
+    }
+    const suggested = item.custom ? null : suggestedHabitById(item.id)?.relevance ?? null;
+    setConfirming(item);
+    setConfirmRelevance(suggested);
+    setNotice('');
+  }
+
+  async function confirmAdd() {
+    if (!confirming || pending) {
+      return;
+    }
+    if (!confirmRelevance) {
+      setNotice('Escolha a relevância do hábito: alta, média ou baixa.');
+      return;
+    }
     setPending(true);
-    const result = item.custom
-      ? await addCustomHabit({ label: item.label, period: origin, pillar: item.pillar, relevance: null })
-      : await chooseCatalogHabit(item.id, suggestedHabitById(item.id)?.relevance ?? null, origin);
+    const result = confirming.custom
+      ? await addCustomHabit({ label: confirming.label, period: origin, pillar: confirming.pillar, relevance: confirmRelevance })
+      : await chooseCatalogHabit(confirming.id, confirmRelevance, origin);
     setPending(false);
     setNotice(result.message);
     if (result.ok) {
+      setConfirming(null);
       router.navigate('/personalizar-habitos' as Href);
     }
   }
@@ -111,8 +135,16 @@ export default function AddHabitScreen() {
       setNotice('Informe a duração em minutos, ou deixe em branco.');
       return;
     }
+    if (name.trim().length === 0) {
+      setNotice('Informe o nome do hábito.');
+      return;
+    }
+    if (!relevance) {
+      setNotice('Escolha a relevância do hábito: alta, média ou baixa.');
+      return;
+    }
     setPending(true);
-    const result = await addCustomHabit({ label: name, period, pillar: pillarValue, relevance: null });
+    const result = await addCustomHabit({ label: name, period, pillar: pillarValue, relevance });
     if (result.ok && minutes !== null) {
       const created = getUserHabits().find((habit) => habit.active && habit.customLabel?.trim() === name.trim());
       if (created) {
@@ -162,17 +194,40 @@ export default function AddHabitScreen() {
       {visible.map((item) => {
         const note = libraryNote(item.label);
         const added = activeLabels.has(normalizeHabitText(item.label));
+        const open = confirming?.id === item.id;
         return (
-          <View key={item.id} style={styles.row}>
-            <HabitGlyph name={habitIconFor(item.label, item.custom ? null : item.id)} color={pillarTone[item.pillar]} />
-            <View style={styles.copy}>
-              <Text style={styles.name}>{item.label}</Text>
-              <Text style={styles.detail}>{note.detail}</Text>
+          <View key={item.id}>
+            <View style={styles.row}>
+              <HabitGlyph name={habitIconFor(item.label, item.custom ? null : item.id)} color={pillarTone[item.pillar]} />
+              <View style={styles.copy}>
+                <Text style={styles.name}>{item.label}</Text>
+                <Text style={styles.detail}>{note.detail}</Text>
+              </View>
+              {note.range ? <Text style={styles.range}>{note.range}</Text> : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={added ? `${item.label} já adicionado` : `Adicionar ${item.label}`}
+                accessibilityState={{ expanded: open, disabled: pending || added }}
+                disabled={pending || added}
+                onPress={() => beginAdd(item)}
+                style={[styles.plus, (added || open) && styles.plusOn]}>
+                <Text style={styles.plusLabel}>{added ? '✓' : '+'}</Text>
+              </Pressable>
             </View>
-            {note.range ? <Text style={styles.range}>{note.range}</Text> : null}
-            <Pressable accessibilityRole="button" accessibilityLabel={`Adicionar ${item.label}`} disabled={pending || added} onPress={() => void addItem(item)} style={[styles.plus, added && styles.plusOn]}>
-              <Text style={styles.plusLabel}>{added ? '✓' : '+'}</Text>
-            </Pressable>
+            {open ? (
+              <View style={styles.confirm}>
+                <HabitRelevanceChoices value={confirmRelevance} onChange={setConfirmRelevance} habitLabel={item.label} />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Confirmar inclusão de ${item.label}`}
+                  accessibilityState={{ disabled: pending || confirmRelevance === null }}
+                  disabled={pending || confirmRelevance === null}
+                  onPress={() => void confirmAdd()}
+                  style={[styles.save, (pending || confirmRelevance === null) && styles.saveOff]}>
+                  <Text style={styles.saveLabel}>{pending ? 'Salvando' : 'Incluir hábito'}</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         );
       })}
@@ -202,7 +257,13 @@ export default function AddHabitScreen() {
               </Pressable>
             ))}
           </View>
-          <Pressable accessibilityRole="button" disabled={pending} onPress={() => void createCustom()} style={styles.save}>
+          <HabitRelevanceChoices value={relevance} onChange={setRelevance} habitLabel={name.trim() || 'Hábito personalizado'} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: pending || relevance === null }}
+            disabled={pending || relevance === null}
+            onPress={() => void createCustom()}
+            style={[styles.save, (pending || relevance === null) && styles.saveOff]}>
             <Text style={styles.saveLabel}>{pending ? 'Salvando' : 'Criar hábito'}</Text>
           </Pressable>
         </View>
@@ -243,6 +304,7 @@ const styles = StyleSheet.create({
   plus: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: ui.champagneDeep, alignItems: 'center', justifyContent: 'center' },
   plusOn: { backgroundColor: 'rgba(232,200,142,0.16)' },
   plusLabel: { color: ui.champagneDeep, fontSize: 18, lineHeight: 20 },
+  confirm: { marginTop: 8, marginBottom: 4, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(232,200,142,0.2)', backgroundColor: 'rgba(10,10,10,0.78)', paddingHorizontal: 12, paddingBottom: 12 },
   more: { marginTop: 16, minHeight: 64, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(232,200,142,0.4)', alignItems: 'center', justifyContent: 'center' },
   moreTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 14, letterSpacing: 0.8, textTransform: 'uppercase' },
   moreCopy: { marginTop: 2, color: '#A39E96', fontFamily: fonts.text, fontSize: 12 },
@@ -250,5 +312,6 @@ const styles = StyleSheet.create({
   field: { marginTop: 8, color: ui.textChampagne, fontFamily: fonts.display, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
   input: { height: 46, borderRadius: 12, borderWidth: 1, borderColor: ui.line, backgroundColor: 'rgba(8,8,8,0.8)', paddingHorizontal: 12, color: ui.text, fontFamily: fonts.text, fontSize: 16 },
   save: { marginTop: 12, minHeight: 48, borderRadius: 999, backgroundColor: ui.champagneDeep, alignItems: 'center', justifyContent: 'center' },
+  saveOff: { opacity: 0.45 },
   saveLabel: { color: '#141210', fontFamily: fonts.display, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase' },
 });

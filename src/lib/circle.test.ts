@@ -21,6 +21,7 @@ import {
   periodLabel,
   periodStart,
   publicHandleCandidate,
+  rankingHabitCounts,
   requirementGaps,
   requirementMessage,
   scoreCompletions,
@@ -96,6 +97,11 @@ assertEqual(scoreCompletions(ranked, '2026-10-05', '2026-10-12'), 120);
 assertEqual(scoreCompletions(ranked, '2026-10-01', '2026-11-01'), 120);
 assertEqual(scoreCompletions(ranked, '2026-01-01', '2027-01-01'), 125);
 assertEqual(requirementGaps({ alta: 2, media: 4, baixa: 4 }).ready, true);
+assertEqual(requirementGaps({ alta: 1, media: 4, baixa: 4 }).ready, false);
+assertEqual(requirementGaps({ alta: 2, media: 3, baixa: 4 }).ready, false);
+assertEqual(requirementGaps({ alta: 2, media: 4, baixa: 3 }).ready, false);
+assertEqual(requirementGaps({ alta: 3, media: 4, baixa: 4 }).ready, true);
+assertEqual(requirementGaps({ alta: 10, media: 0, baixa: 0 }).ready, false);
 assertEqual(requirementGaps({ alta: 1, media: 4, baixa: 3 }).altaMissing, 1);
 assertEqual(requirementGaps({ alta: 1, media: 4, baixa: 3 }).baixaMissing, 1);
 assertEqual(requirementMessage({ alta: 1, media: 4, baixa: 4 }), 'Falta 1 hábito de relevância alta.');
@@ -191,5 +197,50 @@ const secondPlace = [place(1, 'lider'), place(2, 'eu', 1), place(3, 'terceiro')]
 assertEqual(podiumSlots(secondPlace).second?.userId, 'eu');
 assertEqual(podiumSlots(secondPlace).first?.userId, 'lider');
 assertEqual(visibleRanking(secondPlace, 20, 'eu').filter((entry) => entry.userId === 'eu').length, 1);
+
+function rankedHabits(alta: number, media: number, baixa: number, inactiveAlta = 0) {
+  const rows = [];
+  for (let index = 0; index < alta; index += 1) {
+    rows.push({ id: `a${index}`, active: true, relevance: 'alta' as const, catalogHabitId: null });
+  }
+  for (let index = 0; index < media; index += 1) {
+    rows.push({ id: `m${index}`, active: true, relevance: 'media' as const, catalogHabitId: null });
+  }
+  for (let index = 0; index < baixa; index += 1) {
+    rows.push({ id: `b${index}`, active: true, relevance: 'baixa' as const, catalogHabitId: null });
+  }
+  for (let index = 0; index < inactiveAlta; index += 1) {
+    rows.push({ id: `off${index}`, active: false, relevance: 'alta' as const, catalogHabitId: null });
+  }
+  return rows;
+}
+
+const balanced = rankingHabitCounts(rankedHabits(2, 4, 4));
+assertEqual(requirementGaps(balanced).ready, true);
+assertEqual(requirementGaps(rankingHabitCounts(rankedHabits(1, 4, 4))).ready, false);
+assertEqual(requirementGaps(rankingHabitCounts(rankedHabits(2, 3, 4))).ready, false);
+assertEqual(requirementGaps(rankingHabitCounts(rankedHabits(2, 4, 3))).ready, false);
+assertEqual(requirementGaps(rankingHabitCounts(rankedHabits(3, 4, 4))).ready, true);
+assertEqual(requirementGaps(rankingHabitCounts(rankedHabits(10, 0, 0))).ready, false);
+const withInactive = rankingHabitCounts(rankedHabits(1, 4, 4, 1));
+assertEqual(withInactive.alta + withInactive.media + withInactive.baixa, 9);
+assertEqual(requirementGaps(withInactive).ready, false);
+assertEqual(requirementGaps(rankingHabitCounts(rankedHabits(2, 4, 4, 6))).ready, true);
+assertEqual(rankingHabitCounts([
+  { id: 'dup', active: true, relevance: 'alta', catalogHabitId: null },
+  { id: 'dup', active: true, relevance: 'alta', catalogHabitId: null },
+  { id: 'water', active: true, relevance: 'baixa', catalogHabitId: 'corpo-hidratacao' },
+  { id: 'suggested', active: true, relevance: 'alta', catalogHabitId: 'mente-estudo' },
+  { id: 'legacy', active: true, relevance: null, catalogHabitId: null },
+]).alta, 1);
+
+const snapshot = [{ habitId: 'a', catalogHabitId: null, relevance: 'alta' as const, occurredOn: '2026-10-05', completed: true }];
+assertEqual(scoreCompletions(snapshot, '2026-10-05', '2026-10-06'), 20);
+assertEqual(scoreCompletions([{ ...snapshot[0], relevance: 'baixa' }], '2026-10-05', '2026-10-06'), 5);
+assertEqual(scoreCompletions(snapshot, '2026-10-05', '2026-10-06'), 20);
+assertEqual(scoreCompletions([
+  { habitId: 'once', catalogHabitId: null, relevance: 'media', occurredOn: '2026-10-05', completed: true },
+  { habitId: 'once', catalogHabitId: null, relevance: 'media', occurredOn: '2026-10-05', completed: true },
+], '2026-10-05', '2026-10-06'), 10);
 
 console.log('circle-ok');
