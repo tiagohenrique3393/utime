@@ -11,7 +11,7 @@ import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import { periodStart, preferOfficialBoard, shiftPeriod, type CirclePeriod } from '@/lib/circle';
 import {
-  circleErrorMessage,
+  circleFailureMessage,
   circleUnavailable,
   applyAvatars,
   enrollCircle,
@@ -69,24 +69,45 @@ export default function CircleScreen() {
       if (!nextState.enrolled) {
         setEntries([]);
         setFaces([]);
+        setNotice('');
         return;
       }
-      const [board, friends] = await Promise.all([
+      const [boardOutcome, facesOutcome] = await Promise.allSettled([
         fetchCircleBoard(nextKind, selected, nextScope),
         fetchCircleFaces(),
       ]);
       if (loadGeneration.current !== generation) {
         return;
       }
-      setEntries(board);
-      setFaces(friends);
-      setNotice('');
-      void fetchAvatarMap([...board, ...friends].map((item) => item.userId)).then((paths) => {
+      const notices: string[] = [];
+      if (boardOutcome.status === 'fulfilled') {
+        setEntries(boardOutcome.value);
+      } else {
+        notices.push(circleFailureMessage(boardOutcome.reason as { code?: string; message?: string }, 'board'));
+      }
+      if (facesOutcome.status === 'fulfilled') {
+        setFaces(facesOutcome.value);
+      } else {
+        notices.push(circleFailureMessage(facesOutcome.reason as { code?: string; message?: string }, 'friends'));
+      }
+      setNotice(notices.join(' '));
+      const visible = [
+        ...(boardOutcome.status === 'fulfilled' ? boardOutcome.value : []),
+        ...(facesOutcome.status === 'fulfilled' ? facesOutcome.value : []),
+      ];
+      if (visible.length === 0) {
+        return;
+      }
+      void fetchAvatarMap(visible.map((item) => item.userId)).then((paths) => {
         if (!paths || loadGeneration.current !== generation) {
           return;
         }
-        setEntries((currentEntries) => applyAvatars(currentEntries, paths));
-        setFaces((currentFaces) => applyAvatars(currentFaces, paths));
+        if (boardOutcome.status === 'fulfilled') {
+          setEntries((currentEntries) => applyAvatars(currentEntries, paths));
+        }
+        if (facesOutcome.status === 'fulfilled') {
+          setFaces((currentFaces) => applyAvatars(currentFaces, paths));
+        }
       });
     } catch (error) {
       const details = error as { code?: string; message?: string };
@@ -95,7 +116,7 @@ export default function CircleScreen() {
         return;
       }
       setMode('circle');
-      setNotice(circleErrorMessage(details));
+      setNotice(circleFailureMessage(details, 'load'));
     }
   }, []);
 
@@ -139,7 +160,7 @@ export default function CircleScreen() {
         setWelcomeOpen(true);
       }
     } catch (error) {
-      setNotice(circleErrorMessage(error as { code?: string; message?: string }));
+      setNotice(circleFailureMessage(error as { code?: string; message?: string }, 'load'));
     }
   }
 
@@ -156,7 +177,7 @@ export default function CircleScreen() {
       setState((current) => ({ ...current, enrolled: false, returning: true, joinedAt: null }));
       setNotice('Sua pontuação nas competições em andamento foi zerada.');
     } catch (error) {
-      setNotice(circleErrorMessage(error as { code?: string; message?: string }));
+      setNotice(circleFailureMessage(error as { code?: string; message?: string }, 'load'));
     } finally {
       setLeaving(false);
     }

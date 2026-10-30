@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { createElement, useCallback, useState } from 'react';
+import { createElement, useCallback, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -8,7 +8,8 @@ import { ProfilePlanet } from '@/components/profile-planet';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import { publicAvatarUrl } from '@/lib/avatar-store';
-import { acceptCircleFriend, addCircleFriend, circleErrorMessage, declineCircleFriend, removeCircleFriend } from '@/lib/circle-api';
+import { acceptCircleFriend, addCircleFriend, circleFailureMessage, declineCircleFriend, removeCircleFriend } from '@/lib/circle-api';
+import { friendNotice } from '@/lib/circle';
 import { fetchPublicProfile, type PublicProfile } from '@/lib/public-profile';
 import type { JourneyId } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
@@ -103,6 +104,7 @@ export default function PublicProfileScreen() {
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState(false);
   const [menu, setMenu] = useState(false);
+  const acting = useRef(false);
 
   const load = useCallback(async (quiet = false) => {
     if (!userId) {
@@ -116,7 +118,6 @@ export default function PublicProfileScreen() {
     const result = await fetchPublicProfile(userId);
     if (!result.ok) {
       if (quiet) {
-        setNotice(result.message);
         return;
       }
       setProfile(null);
@@ -135,9 +136,11 @@ export default function PublicProfileScreen() {
   );
 
   async function act(action: 'add' | 'accept' | 'decline' | 'remove') {
-    if (!profile || pending || profile.relation === 'self') {
+    if (!profile || acting.current || profile.relation === 'self') {
       return;
     }
+    const relation = profile.relation;
+    acting.current = true;
     setPending(true);
     setNotice('');
     setMenu(false);
@@ -151,10 +154,12 @@ export default function PublicProfileScreen() {
       } else {
         await removeCircleFriend(profile.userId);
       }
+      setNotice(friendNotice(action, relation));
       await load(true);
     } catch (error) {
-      setNotice(circleErrorMessage(error as { code?: string; message?: string }));
+      setNotice(circleFailureMessage(error as { code?: string; message?: string }, 'friend'));
     } finally {
+      acting.current = false;
       setPending(false);
     }
   }

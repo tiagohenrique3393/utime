@@ -20,5 +20,7 @@ assertEqual(handleIssue('_tiago'), 'edge', 'underline no início');
 assertEqual(handleIssue(''), 'empty', 'vazio');
 assertEqual(handleIssue('@'), 'empty', 'só arroba');
 assertEqual(handleIssue('tiago@souza'), 'charset', 'arroba no meio');
+assertEqual(handleIssue('utime'), 'reserved', 'nome reservado');
+assertEqual(handleIssue('@Admin'), 'reserved', 'reservado sem diferenciar caixa');
 
 console.log('username ok');

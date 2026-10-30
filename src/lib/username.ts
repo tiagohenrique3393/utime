@@ -1,4 +1,25 @@
-export type HandleIssue = 'empty' | 'short' | 'long' | 'charset' | 'edge';
+export type HandleIssue = 'empty' | 'short' | 'long' | 'charset' | 'edge' | 'reserved';
+
+const reservedHandles = new Set([
+  'admin',
+  'administrador',
+  'ajuda',
+  'api',
+  'help',
+  'moderador',
+  'moderator',
+  'null',
+  'oficial',
+  'official',
+  'root',
+  'sistema',
+  'staff',
+  'suporte',
+  'support',
+  'system',
+  'undefined',
+  'utime',
+]);
 
 const handlePattern = /^[a-z0-9](?:[a-z0-9._]{1,18}[a-z0-9])$/;
 
@@ -23,6 +44,9 @@ export function handleIssue(raw: string): HandleIssue | null {
   if (!handlePattern.test(value)) {
     return 'edge';
   }
+  if (reservedHandles.has(value)) {
+    return 'reserved';
+  }
   return null;
 }
 
@@ -38,6 +62,9 @@ export function handleIssueMessage(issue: HandleIssue | null) {
   }
   if (issue === 'edge') {
     return 'Comece e termine com letra ou número.';
+  }
+  if (issue === 'reserved') {
+    return 'Este nome de usuário não está disponível.';
   }
   return '';
 }

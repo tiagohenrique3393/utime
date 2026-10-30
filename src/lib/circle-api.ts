@@ -1,5 +1,6 @@
 import { supabase } from '../../utils/supabase';
 import { isAvatarPath, withAvatars } from '@/lib/avatar';
+import { circleFailureMessage } from '@/lib/circle-errors';
 import type { CirclePeriod, FriendRelation } from '@/lib/circle';
 
 export type CircleState = {
@@ -90,30 +91,10 @@ function friendRelation(row: PersonRow): FriendRelation {
   return 'friend';
 }
 
-function missingCircle(error: { code?: string; message?: string } | null) {
-  const text = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
-  return text.includes('pgrst202') || text.includes('circle_') || text.includes('could not find the function') || text.includes('schema cache');
-}
-
-export function circleUnavailable(error: { code?: string; message?: string } | null) {
-  return missingCircle(error);
-}
+export { circleFailureMessage, circleUnavailable } from '@/lib/circle-errors';
 
 export function circleErrorMessage(error: { code?: string; message?: string } | null) {
-  const text = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
-  if (text.includes('circle requirements missing')) {
-    return 'A rotina ainda não tem 2 hábitos de alta, 4 de média e 4 de baixa.';
-  }
-  if (text.includes('friend unavailable')) {
-    return 'Essa pessoa não está participando do ranking.';
-  }
-  if (text.includes('friend request missing')) {
-    return 'Essa solicitação não está mais disponível.';
-  }
-  if (missingCircle(error)) {
-    return 'O Círculo ainda não está disponível.';
-  }
-  return 'Não foi possível carregar o Círculo.';
+  return circleFailureMessage(error, 'load');
 }
 
 function person(row: PersonRow): CirclePerson {
