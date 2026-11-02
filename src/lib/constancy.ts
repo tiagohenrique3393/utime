@@ -1,3 +1,4 @@
+import { exactDailyPercent } from '@/lib/habit-day';
 import { shiftDateKey, weekdayIndex } from '@/lib/progress-view';
 
 // Constância lê o plano gravado em habit_day_logs.
@@ -250,6 +251,218 @@ export function recentWeekScores(marks: ReadonlyMap<string, DayMark>, today: str
     const start = shiftDateKey(current, -7 * offset);
     const dates = Array.from({ length: 7 }, (_, day) => shiftDateKey(start, day));
     return { label: `SEM ${index + 1}`, percent: scoreDates(marks, dates, today).percent };
+  });
+}
+
+const fullMonthLabels = [
+  'JANEIRO',
+  'FEVEREIRO',
+  'MARÇO',
+  'ABRIL',
+  'MAIO',
+  'JUNHO',
+  'JULHO',
+  'AGOSTO',
+  'SETEMBRO',
+  'OUTUBRO',
+  'NOVEMBRO',
+  'DEZEMBRO',
+];
+
+export const ACTIVITY_GOAL = 70;
+
+export function monthTitle(year: number, month: number) {
+  return `${fullMonthLabels[month - 1] ?? ''} DE ${year}`;
+}
+
+export function shiftMonth(year: number, month: number, delta: number) {
+  const index = year * 12 + (month - 1) + delta;
+  const nextYear = Math.floor(index / 12);
+  return { year: nextYear, month: index - nextYear * 12 + 1 };
+}
+
+export function todayCursor(today: string) {
+  return { year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) };
+}
+
+export function goalLineFromTop(goal = ACTIVITY_GOAL) {
+  return 100 - goal;
+}
+
+export function describePercent(percent: number) {
+  const fixed = percent.toFixed(2).replace(/\.?0+$/, '').replace('.', ',');
+  return `${fixed}%`;
+}
+
+export type ActivityTone = 'future' | 'idle' | 'below' | 'meta' | 'excellence';
+
+// Classificação visual da Constância. Não substitui dayOutcome nem a sequência.
+// Sem conclusão o dia fica neutro. A faixa usa a contagem inteira, antes do arredondamento exibido.
+export function activityTone(mark: DayMark | null | undefined, dateKeyValue: string, today: string): ActivityTone {
+  if (dateKeyValue > today) {
+    return 'future';
+  }
+  const planned = mark?.planned ?? 0;
+  const done = Math.max(0, mark?.done ?? 0);
+  if (planned <= 0 || done <= 0) {
+    return 'idle';
+  }
+  if (done >= planned) {
+    return 'excellence';
+  }
+  if (done * 100 >= planned * ACTIVITY_GOAL) {
+    return 'meta';
+  }
+  return 'below';
+}
+
+export function activityRatio(mark: DayMark | null | undefined, dateKeyValue: string, today: string) {
+  if (dateKeyValue > today) {
+    return null;
+  }
+  const planned = mark?.planned ?? 0;
+  if (planned <= 0) {
+    return null;
+  }
+  return exactDailyPercent(mark?.done ?? 0, planned);
+}
+
+export function activityStatus(tone: ActivityTone, ratio: number | null) {
+  if (tone === 'future') {
+    return 'data futura, sem atividade registrada';
+  }
+  if (tone === 'idle') {
+    return ratio == null ? 'sem atividade registrada' : `sem atividade registrada, ${describePercent(ratio)}`;
+  }
+  if (tone === 'excellence') {
+    return 'excelência, 100%';
+  }
+  if (tone === 'meta') {
+    return `meta atingida, ${describePercent(ratio ?? 0)}`;
+  }
+  return `abaixo da meta, ${describePercent(ratio ?? 0)}`;
+}
+
+export type MonthActivity = {
+  totalDays: number;
+  below: number;
+  meta: number;
+  excellence: number;
+  idle: number;
+  active: number;
+  activityPercent: number;
+  exactActivityPercent: number;
+};
+
+export function monthActivity(marks: ReadonlyMap<string, DayMark>, year: number, month: number, today: string): MonthActivity {
+  const dates = monthCells(year, month).filter((cell): cell is string => cell !== null);
+  let below = 0;
+  let meta = 0;
+  let excellence = 0;
+  for (const key of dates) {
+    const tone = activityTone(marks.get(key), key, today);
+    if (tone === 'below') {
+      below += 1;
+    } else if (tone === 'meta') {
+      meta += 1;
+    } else if (tone === 'excellence') {
+      excellence += 1;
+    }
+  }
+  const totalDays = dates.length;
+  const active = below + meta + excellence;
+  const idle = totalDays - active;
+  const exactActivityPercent = totalDays === 0 ? 0 : (active / totalDays) * 100;
+  return {
+    totalDays,
+    below,
+    meta,
+    excellence,
+    idle,
+    active,
+    activityPercent: Math.round(exactActivityPercent),
+    exactActivityPercent,
+  };
+}
+
+export function monthActivityProblems(activity: MonthActivity) {
+  const problems: string[] = [];
+  if (activity.active !== activity.below + activity.meta + activity.excellence) {
+    problems.push('atividade diferente da soma das faixas');
+  }
+  if (activity.idle !== activity.totalDays - activity.active) {
+    problems.push('dias sem atividade diferentes do restante');
+  }
+  if (activity.active + activity.idle !== activity.totalDays) {
+    problems.push('atividade e dias sem atividade não fecham o mês');
+  }
+  const expected = activity.totalDays === 0 ? 0 : Math.round((activity.active / activity.totalDays) * 100);
+  if (activity.activityPercent !== expected) {
+    problems.push('percentual mensal divergente');
+  }
+  if (activity.below + activity.meta + activity.excellence + activity.idle !== activity.totalDays) {
+    problems.push('segmentos divergentes do mês');
+  }
+  return problems;
+}
+
+export type PerformanceTone = 'below' | 'meta' | 'excellence';
+
+function stablePercent(value: number) {
+  return Math.round(value * 10000) / 10000;
+}
+
+export function performanceTone(ratio: number): PerformanceTone {
+  const stable = stablePercent(ratio);
+  if (stable >= 100) {
+    return 'excellence';
+  }
+  if (stable >= ACTIVITY_GOAL) {
+    return 'meta';
+  }
+  return 'below';
+}
+
+function weekRatio(marks: ReadonlyMap<string, DayMark>, start: string, today: string) {
+  const elapsed: string[] = [];
+  for (let index = 0; index < 7; index += 1) {
+    const key = shiftDateKey(start, index);
+    if (key <= today) {
+      elapsed.push(key);
+    }
+  }
+  if (elapsed.length === 0 || !elapsed.some((key) => (marks.get(key)?.planned ?? 0) > 0)) {
+    return null;
+  }
+  let sum = 0;
+  for (const key of elapsed) {
+    const planned = marks.get(key)?.planned ?? 0;
+    if (planned <= 0) {
+      continue;
+    }
+    sum += exactDailyPercent(marks.get(key)?.done ?? 0, planned) ?? 0;
+  }
+  return sum / elapsed.length;
+}
+
+export type WeekAverage = {
+  label: string;
+  start: string;
+  ratio: number | null;
+  percent: number | null;
+};
+
+export function recentWeekAverages(marks: ReadonlyMap<string, DayMark>, today: string): WeekAverage[] {
+  const current = weekStartMonday(today);
+  return [3, 2, 1, 0].map((offset, index) => {
+    const start = shiftDateKey(current, -7 * offset);
+    const ratio = weekRatio(marks, start, today);
+    return {
+      label: `SEM ${index + 1}`,
+      start,
+      ratio,
+      percent: ratio == null ? null : Math.round(ratio),
+    };
   });
 }
 

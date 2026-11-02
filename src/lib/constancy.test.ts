@@ -1,6 +1,34 @@
-import { applyTodayRoutine, bestStreak, currentStreak, dayOutcome, keepsStreak, marksFromLogs, monthCells, monthGrid, monthScore, perfectDay, recentWeekScores, weekStartMonday, yearExcellence, type DayLog } from '@/lib/constancy';
-import { isWritableDay, todayKey } from '@/lib/habit-day';
-import { shiftDateKey } from '@/lib/progress-view';
+import {
+  activityRatio,
+  activityStatus,
+  activityTone,
+  applyTodayRoutine,
+  bestStreak,
+  currentStreak,
+  dayOutcome,
+  describePercent,
+  goalLineFromTop,
+  keepsStreak,
+  marksFromLogs,
+  monthActivity,
+  monthActivityProblems,
+  monthCells,
+  monthGrid,
+  monthScore,
+  monthTitle,
+  perfectDay,
+  performanceTone,
+  recentWeekAverages,
+  recentWeekScores,
+  shiftMonth,
+  todayCursor,
+  weekStartMonday,
+  yearExcellence,
+  type DayLog,
+  type DayMark,
+} from '@/lib/constancy';
+import { exactDailyPercent, isWritableDay, todayKey } from '@/lib/habit-day';
+import { shiftDateKey, weekdayIndex } from '@/lib/progress-view';
 
 function assertEqual<T>(actual: T, expected: T) {
   if (actual !== expected) {
@@ -177,5 +205,180 @@ assertEqual(dayOutcome(belowToday.get('2026-10-21'), '2026-10-21', '2026-10-21')
 const unchanged = applyTodayRoutine(todayLogs, '2026-10-21', null);
 assertEqual(unchanged.get('2026-10-21')?.planned, 9);
 assertEqual(monthScore(aligned, 2026, 10, '2026-10-21').excellence, 2);
+
+function assertGrid(year: number, month: number, days: number) {
+  const grid = monthGrid(year, month);
+  const inside = grid.filter((cell) => !cell.outside);
+  const opening = `${year}-${String(month).padStart(2, '0')}-01`;
+  assertEqual(inside.length, days);
+  assertEqual(inside[0]?.dateKey, opening);
+  assertEqual(grid[0]?.dateKey, shiftDateKey(opening, -weekdayIndex(opening)));
+  assertEqual(grid[0]?.outside, weekdayIndex(opening) !== 0);
+  assertEqual(grid.length % 7, 0);
+  assertEqual(grid.filter((cell) => cell.outside).every((cell) => cell.dateKey.slice(0, 7) !== opening.slice(0, 7)), true);
+}
+
+assertGrid(2026, 10, 31);
+assertGrid(2026, 4, 30);
+assertGrid(2026, 6, 30);
+assertGrid(2026, 2, 28);
+assertGrid(2024, 2, 29);
+assertGrid(2026, 12, 31);
+assertGrid(2027, 1, 31);
+assertEqual(shiftMonth(2026, 12, 1).year, 2027);
+assertEqual(shiftMonth(2026, 12, 1).month, 1);
+assertEqual(shiftMonth(2027, 1, -1).year, 2026);
+assertEqual(shiftMonth(2027, 1, -1).month, 12);
+assertEqual(monthGrid(2027, 1)[0]?.dateKey, '2026-12-27');
+assertEqual(monthGrid(2027, 1)[0]?.outside, true);
+assertEqual(monthTitle(2026, 10), 'OUTUBRO DE 2026');
+assertEqual(monthTitle(2026, 2), 'FEVEREIRO DE 2026');
+assertEqual(todayCursor('2026-10-14').year, 2026);
+assertEqual(todayCursor('2026-10-14').month, 10);
+assertEqual(goalLineFromTop(), 30);
+
+assertEqual(activityTone({ planned: 10, done: 0 }, '2026-10-08', '2026-10-10'), 'idle');
+assertEqual(activityTone(undefined, '2026-10-08', '2026-10-10'), 'idle');
+assertEqual(activityTone({ planned: 5, done: 1 }, '2026-10-08', '2026-10-10'), 'below');
+assertEqual(activityTone({ planned: 1000, done: 699 }, '2026-10-08', '2026-10-10'), 'below');
+assertEqual(Math.round(exactDailyPercent(699, 1000) ?? 0), 70);
+assertEqual(activityTone({ planned: 1000, done: 700 }, '2026-10-08', '2026-10-10'), 'meta');
+assertEqual(activityTone({ planned: 10, done: 7 }, '2026-10-08', '2026-10-10'), 'meta');
+assertEqual(activityTone({ planned: 20, done: 17 }, '2026-10-08', '2026-10-10'), 'meta');
+assertEqual(activityTone({ planned: 1000, done: 999 }, '2026-10-08', '2026-10-10'), 'meta');
+assertEqual(Math.round(exactDailyPercent(999, 1000) ?? 0), 100);
+assertEqual(activityTone({ planned: 4, done: 4 }, '2026-10-08', '2026-10-10'), 'excellence');
+assertEqual(activityTone({ planned: 1, done: 1 }, '2026-10-16', '2026-10-10'), 'future');
+assertEqual(activityRatio({ planned: 1000, done: 699 }, '2026-10-08', '2026-10-10') != null, true);
+assertEqual(activityStatus('excellence', 100), 'excelência, 100%');
+assertEqual(activityStatus('below', 69.9).includes('69,9%'), true);
+assertEqual(activityStatus('idle', null), 'sem atividade registrada');
+assertEqual(describePercent(48.38709677419355), '48,39%');
+
+const illustrated = new Map<string, DayMark>();
+for (let day = 1; day <= 5; day += 1) {
+  illustrated.set(`2026-10-${String(day).padStart(2, '0')}`, { planned: 5, done: 1 });
+}
+for (let day = 6; day <= 10; day += 1) {
+  illustrated.set(`2026-10-${String(day).padStart(2, '0')}`, { planned: 20, done: 17 });
+}
+for (let day = 11; day <= 15; day += 1) {
+  illustrated.set(`2026-10-${String(day).padStart(2, '0')}`, { planned: 4, done: 4 });
+}
+illustrated.set('2026-09-27', { planned: 1, done: 1 });
+illustrated.set('2026-11-01', { planned: 1, done: 1 });
+const illustratedMonth = monthActivity(illustrated, 2026, 10, '2026-10-31');
+assertEqual(illustratedMonth.totalDays, 31);
+assertEqual(illustratedMonth.below, 5);
+assertEqual(illustratedMonth.meta, 5);
+assertEqual(illustratedMonth.excellence, 5);
+assertEqual(illustratedMonth.idle, 16);
+assertEqual(illustratedMonth.active, 15);
+assertEqual(illustratedMonth.activityPercent, 48);
+assertEqual(monthActivityProblems(illustratedMonth).length, 0);
+const illustratedTones = { below: 0, meta: 0, excellence: 0, idle: 0 };
+for (const cell of monthGrid(2026, 10)) {
+  if (cell.outside) {
+    continue;
+  }
+  const tone = activityTone(illustrated.get(cell.dateKey), cell.dateKey, '2026-10-31');
+  if (tone === 'future') {
+    illustratedTones.idle += 1;
+  } else {
+    illustratedTones[tone] += 1;
+  }
+}
+assertEqual(illustratedMonth.below, illustratedTones.below);
+assertEqual(illustratedMonth.meta, illustratedTones.meta);
+assertEqual(illustratedMonth.excellence, illustratedTones.excellence);
+assertEqual(illustratedMonth.idle, illustratedTones.idle);
+const openOctober = monthActivity(illustrated, 2026, 10, '2026-10-15');
+assertEqual(openOctober.active, 15);
+assertEqual(openOctober.idle, 16);
+assertEqual(openOctober.activityPercent, 48);
+assertEqual(activityTone(illustrated.get('2026-10-20'), '2026-10-20', '2026-10-15'), 'future');
+
+let live = new Map<string, DayMark>();
+assertEqual(activityTone(live.get('2026-10-10'), '2026-10-10', '2026-10-10'), 'idle');
+live = applyTodayRoutine(live, '2026-10-10', { total: 10, done: 2 });
+assertEqual(activityTone(live.get('2026-10-10'), '2026-10-10', '2026-10-10'), 'below');
+assertEqual(monthActivity(live, 2026, 10, '2026-10-10').below, 1);
+live = applyTodayRoutine(live, '2026-10-10', { total: 10, done: 7 });
+assertEqual(activityTone(live.get('2026-10-10'), '2026-10-10', '2026-10-10'), 'meta');
+assertEqual(monthActivity(live, 2026, 10, '2026-10-10').meta, 1);
+assertEqual(monthActivity(live, 2026, 10, '2026-10-10').below, 0);
+live = applyTodayRoutine(live, '2026-10-10', { total: 10, done: 10 });
+assertEqual(activityTone(live.get('2026-10-10'), '2026-10-10', '2026-10-10'), 'excellence');
+assertEqual(monthActivity(live, 2026, 10, '2026-10-10').excellence, 1);
+live = applyTodayRoutine(live, '2026-10-10', { total: 10, done: 0 });
+assertEqual(activityTone(live.get('2026-10-10'), '2026-10-10', '2026-10-10'), 'idle');
+assertEqual(monthActivity(live, 2026, 10, '2026-10-10').active, 0);
+
+const water = marksFromLogs(
+  [log('2026-10-10', 'habito', true), log('2026-10-10', 'agua', true)],
+  new Set(['agua']),
+);
+assertEqual(water.get('2026-10-10')?.planned, 1);
+assertEqual(activityTone(water.get('2026-10-10'), '2026-10-10', '2026-10-10'), 'excellence');
+const onlyWater = marksFromLogs([log('2026-10-10', 'agua', true)], new Set(['agua']));
+assertEqual(activityTone(onlyWater.get('2026-10-10'), '2026-10-10', '2026-10-10'), 'idle');
+
+const weekToday = '2026-10-14';
+const currentWeek = weekStartMonday(weekToday);
+assertEqual(currentWeek, '2026-10-12');
+assertEqual(weekdayIndex(currentWeek), 1);
+assertEqual(weekdayIndex(shiftDateKey(currentWeek, 6)), 0);
+const weekMarks = new Map<string, DayMark>();
+weekMarks.set('2026-10-12', { planned: 4, done: 4 });
+weekMarks.set('2026-10-13', { planned: 10, done: 0 });
+weekMarks.set('2026-10-14', { planned: 10, done: 5 });
+weekMarks.set('2026-10-15', { planned: 1, done: 1 });
+for (let index = 0; index < 6; index += 1) {
+  weekMarks.set(shiftDateKey('2026-10-05', index), { planned: 10, done: 10 });
+}
+for (let index = 0; index < 7; index += 1) {
+  weekMarks.set(shiftDateKey('2026-09-28', index), { planned: 10, done: 7 });
+  weekMarks.set(shiftDateKey('2026-09-21', index), { planned: 1000, done: 699 });
+}
+const performanceBars = recentWeekAverages(weekMarks, weekToday);
+assertEqual(performanceBars[0]?.start, '2026-09-21');
+assertEqual(performanceBars[1]?.start, '2026-09-28');
+assertEqual(performanceBars[2]?.start, '2026-10-05');
+assertEqual(performanceBars[3]?.start, '2026-10-12');
+assertEqual(performanceBars[0]?.label, 'SEM 1');
+assertEqual(performanceBars[3]?.label, 'SEM 4');
+assertEqual(performanceTone(performanceBars[0]?.ratio ?? 0), 'below');
+assertEqual(performanceBars[0]?.percent, 70);
+assertEqual(performanceTone(performanceBars[1]?.ratio ?? 0), 'meta');
+assertEqual(performanceBars[1]?.percent, 70);
+assertEqual(performanceTone(performanceBars[2]?.ratio ?? 0), 'meta');
+assertEqual(performanceBars[2]?.percent, 86);
+assertEqual(performanceTone(performanceBars[3]?.ratio ?? 0), 'below');
+assertEqual(performanceBars[3]?.percent, 50);
+assertEqual(performanceBars[3]?.ratio, 50);
+
+const perfectWeek = new Map<string, DayMark>();
+for (let index = 0; index < 7; index += 1) {
+  perfectWeek.set(shiftDateKey('2026-10-05', index), { planned: 3, done: 3 });
+}
+const perfectBars = recentWeekAverages(perfectWeek, weekToday);
+assertEqual(perfectBars[2]?.ratio, 100);
+assertEqual(perfectBars[2]?.percent, 100);
+assertEqual(performanceTone(perfectBars[2]?.ratio ?? 0), 'excellence');
+
+assertEqual(weekStartMonday('2026-01-04'), '2025-12-29');
+const yearTurn = new Map<string, DayMark>();
+yearTurn.set('2025-12-31', { planned: 2, done: 2 });
+yearTurn.set('2026-01-01', { planned: 2, done: 2 });
+const turned = recentWeekAverages(yearTurn, '2026-01-04');
+assertEqual(turned[3]?.start, '2025-12-29');
+assertEqual(turned[3]?.ratio, 200 / 7);
+assertEqual(performanceTone(turned[3]?.ratio ?? 0), 'below');
+const sundayBars = recentWeekAverages(new Map(), '2026-10-11');
+const mondayBars = recentWeekAverages(new Map(), '2026-10-12');
+assertEqual(sundayBars[3]?.start, '2026-10-05');
+assertEqual(mondayBars[3]?.start, '2026-10-12');
+assertEqual(sundayBars.every((bar) => bar.ratio === null), true);
+assertEqual(mondayBars.every((bar) => bar.percent === null), true);
 
 console.log('constancy-ok');

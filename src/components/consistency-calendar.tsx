@@ -1,70 +1,96 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { constancyColors } from '@/components/constancy-colors';
 import { GoldStar } from '@/components/gold-star';
 import { fonts, ui } from '@/constants/theme';
-import { dayOutcome, monthGrid, type DayMark } from '@/lib/constancy';
+import {
+  activityRatio,
+  activityStatus,
+  activityTone,
+  monthGrid,
+  monthTitle,
+  shiftMonth,
+  todayCursor,
+  type ActivityTone,
+  type DayMark,
+} from '@/lib/constancy';
 
 const weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-const green = '#46C36A';
-const card = 'rgba(10, 10, 10, 0.78)';
-const line = 'rgba(184, 160, 120, 0.32)';
 
-function monthTitle(year: number, month: number) {
-  const date = new Date(Date.UTC(year, month - 1, 1, 12));
-  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date).toUpperCase();
-}
-
-function shiftMonth(year: number, month: number, delta: number) {
-  const index = year * 12 + (month - 1) + delta;
-  const nextYear = Math.floor(index / 12);
-  return { year: nextYear, month: index - nextYear * 12 + 1 };
-}
+const toneFill: Record<ActivityTone, string> = {
+  future: constancyColors.idle,
+  idle: constancyColors.idle,
+  below: constancyColors.below,
+  meta: constancyColors.meta,
+  excellence: constancyColors.excellence,
+};
 
 export function ConsistencyCalendar({
   today,
   cursor,
   marks,
+  selected,
   onCursor,
+  onSelect,
   onOpenDay,
 }: {
   today: string;
   cursor: { year: number; month: number };
   marks: ReadonlyMap<string, DayMark>;
+  selected: string;
   onCursor: (next: { year: number; month: number }) => void;
+  onSelect: (dateKey: string) => void;
   onOpenDay: (dateKey: string) => void;
 }) {
+  const [gridWidth, setGridWidth] = useState(0);
+  const { width } = useWindowDimensions();
+  const tight = width < 390;
   const todayMonth = Number(today.slice(0, 4)) * 12 + Number(today.slice(5, 7));
   const cursorMonth = cursor.year * 12 + cursor.month;
   const canNext = cursorMonth < todayMonth;
   const cells = monthGrid(cursor.year, cursor.month);
   const title = monthTitle(cursor.year, cursor.month);
+  const diameter = gridWidth > 0 ? Math.max(32, Math.min(48, Math.floor(gridWidth / 7 - 4))) : 38;
+  const numberSize = diameter >= 40 ? 15 : 13;
+  const starSize = Math.max(8, Math.round(diameter * 0.26));
 
   return (
     <View style={styles.card}>
       <View style={styles.toolbar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Mês anterior" onPress={() => onCursor(shiftMonth(cursor.year, cursor.month, -1))} style={styles.arrow}>
-          <Text style={styles.arrowLabel}>‹</Text>
-        </Pressable>
-        <Text style={styles.month}>{title}</Text>
+        {tight ? null : <View style={styles.todaySpacer} />}
+        <View style={styles.monthGroup}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Mês anterior"
+            onPress={() => onCursor(shiftMonth(cursor.year, cursor.month, -1))}
+            style={styles.arrow}>
+            <Text style={styles.arrowLabel}>‹</Text>
+          </Pressable>
+          <Text style={[styles.month, tight && styles.monthTight]}>{title}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Próximo mês"
+            accessibilityState={{ disabled: !canNext }}
+            disabled={!canNext}
+            onPress={() => {
+              if (canNext) {
+                onCursor(shiftMonth(cursor.year, cursor.month, 1));
+              }
+            }}
+            style={styles.arrow}>
+            <Text style={[styles.arrowLabel, !canNext && styles.arrowOff]}>›</Text>
+          </Pressable>
+        </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Próximo mês"
-          accessibilityState={{ disabled: !canNext }}
-          disabled={!canNext}
+          accessibilityLabel="Voltar para hoje"
           onPress={() => {
-            if (canNext) {
-              onCursor(shiftMonth(cursor.year, cursor.month, 1));
-            }
+            onSelect(today);
+            onCursor(todayCursor(today));
           }}
-          style={styles.arrow}>
-          <Text style={[styles.arrowLabel, !canNext && styles.arrowOff]}>›</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Voltar para o mês de hoje"
-          onPress={() => onCursor({ year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) })}
           style={styles.todayButton}>
-          <Text style={styles.todayLabel}>Hoje</Text>
+          <Text style={styles.todayLabel}>HOJE</Text>
         </Pressable>
       </View>
       <View style={styles.weekdays}>
@@ -74,39 +100,59 @@ export function ConsistencyCalendar({
           </Text>
         ))}
       </View>
-      <View style={styles.grid}>
+      <View style={styles.grid} onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}>
         {cells.map((cell) => {
-          const outcome = dayOutcome(marks.get(cell.dateKey), cell.dateKey, today);
+          const tone = activityTone(marks.get(cell.dateKey), cell.dateKey, today);
+          const ratio = activityRatio(marks.get(cell.dateKey), cell.dateKey, today);
           const day = Number(cell.dateKey.slice(8, 10));
+          const isSelected = !cell.outside && cell.dateKey === selected;
           const isToday = cell.dateKey === today && !cell.outside;
-          const future = outcome === 'future' || cell.outside;
-          const status =
-            cell.outside
-              ? 'fora deste mês'
-              : outcome === 'star'
-                ? 'excelência, 100%'
-                : outcome === 'keep'
-                  ? 'meta atingida'
-                  : outcome === 'miss'
-                    ? 'abaixo de 70%'
-                    : outcome === 'empty'
-                      ? 'sem hábitos programados'
-                      : outcome === 'open'
-                        ? 'dia em andamento'
-                        : 'futuro';
-          const label = `${day} de ${title}, ${status}${isToday ? ', hoje' : ''}`;
+          const locked = cell.outside || tone === 'future';
+          const excellence = !cell.outside && tone === 'excellence';
+          const label = cell.outside
+            ? `${day} de ${title}, fora deste mês`
+            : `${day} de ${title}, ${activityStatus(tone, ratio)}${isToday ? ', hoje' : ''}${isSelected ? ', selecionado' : ''}`;
           const body = (
-            <View style={[styles.day, isToday && styles.today]}>
-              <Text style={[styles.dayNumber, (future || outcome === 'miss' || outcome === 'empty') && styles.quiet, isToday && styles.dayNumberOn]}>
-                {day}
-              </Text>
-              {cell.outside ? null : outcome === 'star' ? <GoldStar size={9} /> : null}
-              {cell.outside ? null : outcome === 'keep' ? <View style={styles.dot} /> : null}
+            <View
+              style={[
+                styles.halo,
+                {
+                  width: diameter + 6,
+                  height: diameter + 6,
+                  borderRadius: (diameter + 6) / 2,
+                },
+                isSelected && styles.haloOn,
+              ]}>
+              <View
+                style={[
+                  styles.day,
+                  {
+                    width: diameter,
+                    height: diameter,
+                    borderRadius: diameter / 2,
+                    backgroundColor: cell.outside ? constancyColors.outside : toneFill[tone],
+                  },
+                  excellence && styles.excellence,
+                ]}>
+                <Text
+                  style={[
+                    styles.dayNumber,
+                    { fontSize: numberSize, lineHeight: numberSize + 1 },
+                    cell.outside && styles.outsideNumber,
+                  ]}>
+                  {day}
+                </Text>
+                {excellence ? <GoldStar size={starSize} style={{ marginTop: -2, lineHeight: starSize }} /> : null}
+              </View>
             </View>
           );
-          if (future) {
+          if (locked) {
             return (
-              <View key={cell.dateKey} accessibilityLabel={label} accessibilityState={{ disabled: true }} style={styles.slot}>
+              <View
+                key={`${cell.dateKey}-${cell.outside ? 'out' : 'in'}`}
+                accessibilityLabel={label}
+                accessibilityState={{ disabled: true }}
+                style={[styles.slot, { minHeight: Math.max(44, diameter + 10) }]}>
                 {body}
               </View>
             );
@@ -116,30 +162,16 @@ export function ConsistencyCalendar({
               key={cell.dateKey}
               accessibilityRole="button"
               accessibilityLabel={label}
-              onPress={() => onOpenDay(cell.dateKey)}
-              style={({ pressed }) => [styles.slot, pressed && styles.pressed]}>
+              accessibilityState={{ selected: isSelected }}
+              onPress={() => {
+                onSelect(cell.dateKey);
+                onOpenDay(cell.dateKey);
+              }}
+              style={({ pressed }) => [styles.slot, { minHeight: Math.max(44, diameter + 10) }, pressed && styles.pressed]}>
               {body}
             </Pressable>
           );
         })}
-      </View>
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <GoldStar size={10} />
-          <Text style={styles.legendText}>Excelência (100%)</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={styles.legendDot} />
-          <Text style={styles.legendText}>Meta atingida (≥70%)</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={styles.legendMiss} />
-          <Text style={styles.legendText}>Abaixo da meta</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={styles.legendRing} />
-          <Text style={styles.legendText}>Dia selecionado</Text>
-        </View>
       </View>
     </View>
   );
@@ -149,20 +181,30 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: line,
-    backgroundColor: card,
-    paddingHorizontal: 8,
-    paddingTop: 4,
-    paddingBottom: 10,
+    borderColor: constancyColors.line,
+    backgroundColor: constancyColors.card,
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   toolbar: {
-    minHeight: 40,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
   },
+  todaySpacer: {
+    width: 58,
+  },
+  monthGroup: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   arrow: {
-    width: 28,
-    height: 36,
+    width: 36,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -176,38 +218,44 @@ const styles = StyleSheet.create({
     opacity: 0.28,
   },
   month: {
-    flex: 1,
-    textAlign: 'center',
-    color: ui.text,
+    flexShrink: 1,
+    color: constancyColors.text,
     fontFamily: fonts.display,
-    fontSize: 14,
-    letterSpacing: 1.2,
+    fontSize: 15,
+    lineHeight: 18,
+    letterSpacing: 1.1,
+    textAlign: 'center',
+  },
+  monthTight: {
+    fontSize: 12,
+    lineHeight: 15,
+    letterSpacing: 0.2,
   },
   todayButton: {
-    minHeight: 26,
-    borderRadius: 13,
+    minHeight: 32,
+    width: 58,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: line,
-    paddingHorizontal: 10,
+    borderColor: 'rgba(224, 177, 90, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 4,
   },
   todayLabel: {
-    color: ui.text,
+    color: constancyColors.text,
     fontFamily: fonts.display,
     fontSize: 11,
+    lineHeight: 14,
     letterSpacing: 0.8,
-    textTransform: 'uppercase',
   },
   weekdays: {
     flexDirection: 'row',
-    marginTop: 2,
+    marginTop: 6,
+    marginBottom: 2,
   },
   weekday: {
     width: '14.2857%',
     textAlign: 'center',
-    color: ui.faint,
+    color: constancyColors.muted,
     fontFamily: fonts.text,
     fontSize: 11,
     lineHeight: 14,
@@ -218,81 +266,37 @@ const styles = StyleSheet.create({
   },
   slot: {
     width: '14.2857%',
-    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  halo: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  haloOn: {
+    borderColor: constancyColors.excellenceEdge,
+    boxShadow: '0 0 8px rgba(224, 177, 90, 0.35)',
   },
   day: {
-    width: 34,
-    height: 38,
-    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  today: {
+  excellence: {
     borderWidth: 1,
-    borderColor: ui.textChampagne,
+    borderColor: constancyColors.excellenceEdge,
+    boxShadow: '0 0 8px rgba(224, 177, 90, 0.4)',
   },
   dayNumber: {
-    color: ui.text,
-    fontFamily: fonts.textMedium,
-    fontSize: 13,
-    lineHeight: 16,
+    color: '#FFFFFF',
+    fontFamily: fonts.display,
+    textAlign: 'center',
   },
-  dayNumberOn: {
-    color: ui.text,
-  },
-  quiet: {
-    color: '#6E6A64',
-  },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: green,
-    marginTop: -1,
-  },
-  legend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: 6,
-    rowGap: 3,
-    paddingHorizontal: 4,
-    paddingTop: 6,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  legendText: {
-    color: '#A39E96',
-    fontFamily: fonts.text,
-    fontSize: 7.5,
-    lineHeight: 10,
-    letterSpacing: 0,
-    textTransform: 'uppercase',
-  },
-  legendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: green,
-  },
-  legendMiss: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#6E6A64',
-  },
-  legendRing: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: ui.textChampagne,
+  outsideNumber: {
+    color: constancyColors.quiet,
   },
   pressed: {
-    opacity: 0.72,
+    opacity: 0.74,
   },
 });

@@ -105,6 +105,7 @@ export function BottomNav({ variant = 'default', backgroundColor }: { variant?: 
     <View style={[styles.bar, hoje && styles.barHoje, backgroundColor ? { backgroundColor } : null, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       {tabs.map((tab) => {
         const selected = tab.match(pathname);
+        const constancy = tab.href === '/constancia';
         return (
           <Pressable
             key={tab.label}
@@ -116,8 +117,8 @@ export function BottomNav({ variant = 'default', backgroundColor }: { variant?: 
                 router.navigate(tab.href);
               }
             }}
-            style={({ pressed }) => [styles.item, pressed && styles.pressed]}>
-            <View style={[styles.mark, hoje && styles.markHoje, selected && styles.markSelected, hoje && selected && styles.markGlow]} />
+            style={({ pressed }) => [styles.item, selected && constancy && styles.itemConstancy, pressed && styles.pressed]}>
+            <View style={[styles.mark, hoje && styles.markHoje, selected && !constancy && styles.markSelected, hoje && selected && styles.markGlow]} />
             <NavIcon label={tab.label} selected={selected} />
             <Text
               numberOfLines={2}
@@ -149,6 +150,13 @@ const styles = StyleSheet.create({
     minHeight: 48,
     gap: 5,
     paddingHorizontal: 1,
+  },
+  itemConstancy: {
+    backgroundColor: 'rgba(22, 18, 12, 0.96)',
+    borderRadius: 16,
+    paddingTop: 4,
+    paddingBottom: 2,
+    boxShadow: '0 0 12px rgba(224, 177, 90, 0.22)',
   },
   mark: {
     width: 16,

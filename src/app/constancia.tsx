@@ -1,66 +1,37 @@
 import { router, useFocusEffect, type Href } from 'expo-router';
 import { createElement, useCallback, useState, type ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { ConsistencyCalendar } from '@/components/consistency-calendar';
+import { constancyColors } from '@/components/constancy-colors';
 import { ConstancyPlanet } from '@/components/constancy-planet';
 import { GoldStar } from '@/components/gold-star';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
-import { applyTodayRoutine, bestStreak, currentStreak, marksFromLogs, monthScore, recentWeekScores, yearExcellence, type DayMark } from '@/lib/constancy';
-import { getDailyBoard, refreshDailyBoard, scoreDailyHabits } from '@/lib/daily-board';
+import {
+  ACTIVITY_GOAL,
+  applyTodayRoutine,
+  describePercent,
+  goalLineFromTop,
+  marksFromLogs,
+  monthActivity,
+  performanceTone,
+  recentWeekAverages,
+  todayCursor,
+  type DayMark,
+  type MonthActivity,
+  type PerformanceTone,
+  type WeekAverage,
+} from '@/lib/constancy';
+import { getDailyBoard, refreshDailyBoard, scoreDailyHabits, subscribeDailyBoard } from '@/lib/daily-board';
 import { officialHydrationIds } from '@/lib/daily-score';
 import { getUserHabits } from '@/lib/habit-catalog';
 import { loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
 import { useRequireSession } from '@/lib/require-session';
 
-const page = '#050505';
-const card = 'rgba(10, 10, 10, 0.78)';
-const line = 'rgba(184, 160, 120, 0.32)';
-const green = '#46C36A';
-
 function glyph(type: string, props: Record<string, unknown> | null, ...children: ReactNode[]) {
-  return Platform.OS === 'web' ? createWeb(type, props, ...children) : null;
-}
-
-function createWeb(type: string, props: Record<string, unknown> | null, ...children: ReactNode[]) {
-  return createElement(type, props, ...children);
-}
-
-function Flame() {
-  const icon = glyph(
-    'svg',
-    { width: 18, height: 18, viewBox: '0 0 24 24', 'aria-hidden': true },
-    glyph('path', {
-      d: 'M12 2.4c.4 3.2-1.6 4.8-1.6 7.2 0 1.5.8 2.4 1.6 2.4 2.8 0 5-2.6 5-6.2 2.2 1.8 3.4 4.2 3.4 6.8 0 4.6-3.6 8.2-8.4 8.2S3.6 17.2 3.6 12.6c0-3.4 2.2-6.2 4.2-8.2.8 2.2 1.8 3.2 2.2 4.2.2-2.4.8-4.2 2-6.2z',
-      fill: ui.textChampagne,
-    }),
-  );
-  return <View style={styles.iconBox}>{icon ?? <View style={styles.iconFallback} />}</View>;
-}
-
-function Trophy() {
-  const icon = glyph(
-    'svg',
-    { width: 18, height: 18, viewBox: '0 0 24 24', 'aria-hidden': true },
-    glyph('path', {
-      d: 'M8 4h8v3.2a4 4 0 0 1-8 0V4z',
-      fill: 'none',
-      stroke: ui.textChampagne,
-      strokeWidth: 1.4,
-      strokeLinejoin: 'round',
-    }),
-    glyph('path', {
-      d: 'M8 6.2H5.2A2.4 2.4 0 0 0 7.4 9.2M16 6.2h2.8A2.4 2.4 0 0 1 16.6 9.2M12 11.2V14.2M9 17.2h6M8.2 19.4h7.6',
-      fill: 'none',
-      stroke: ui.textChampagne,
-      strokeWidth: 1.4,
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round',
-    }),
-  );
-  return <View style={styles.iconBox}>{icon ?? <View style={styles.iconFallback} />}</View>;
+  return Platform.OS === 'web' ? createElement(type, props, ...children) : null;
 }
 
 function HeaderIcon({ kind }: { kind: 'back' | 'info' }) {
@@ -81,38 +52,137 @@ function HeaderIcon({ kind }: { kind: 'back' | 'info' }) {
   return icon ?? <Text style={styles.headerFallback}>{kind === 'back' ? '‹' : 'i'}</Text>;
 }
 
-function monthOf(day: string) {
-  return { year: Number(day.slice(0, 4)), month: Number(day.slice(5, 7)) };
+const barFill: Record<PerformanceTone, string> = {
+  below: constancyColors.below,
+  meta: constancyColors.meta,
+  excellence: constancyColors.excellence,
+};
+
+const barSheen: Record<PerformanceTone, string> = {
+  below: constancyColors.belowSheen,
+  meta: constancyColors.metaSheen,
+  excellence: constancyColors.excellenceSheen,
+};
+
+function weekDescription(week: WeekAverage) {
+  if (week.ratio == null || week.percent == null) {
+    return `${week.label}, sem hábitos registrados`;
+  }
+  const tone = performanceTone(week.ratio);
+  const band = tone === 'excellence' ? 'excelência' : tone === 'meta' ? 'na meta' : 'abaixo da meta';
+  return `${week.label}, média ${describePercent(week.ratio)}, ${band}`;
 }
 
-function MonthStrip({
-  months,
-  selectedIndex,
-}: {
-  months: { label: string; count: number | null }[];
-  selectedIndex: number;
-}) {
-  const [width, setWidth] = useState(0);
-  const fits = width === 0 || width >= months.length * 26;
-  const cards = months.map((month, index) => {
-    const selected = index === selectedIndex;
-    return (
-      <View key={month.label} style={[styles.monthCard, !fits && styles.monthCardScroll, selected && styles.monthCardOn]}>
-        <Text style={[styles.monthLabel, selected && styles.monthLabelOn]}>{month.label}</Text>
-        {month.count == null ? <Text style={styles.monthDash}>—</Text> : <Text style={styles.monthValue}>{month.count}</Text>}
-      </View>
-    );
-  });
-  if (!fits) {
-    return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.monthsScroll} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-        {cards}
-      </ScrollView>
-    );
-  }
+function PerformanceChart({ weeks }: { weeks: WeekAverage[] }) {
+  const empty = weeks.every((week) => week.ratio == null);
+  const lineTop = Math.round((goalLineFromTop() / 100) * 112);
   return (
-    <View style={styles.months} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-      {cards}
+    <View style={styles.performance}>
+      <View style={styles.cardHead}>
+        <View style={styles.cardTitleRow}>
+          <View style={styles.tick} />
+          <Text style={styles.cardTitle}>SEU DESEMPENHO</Text>
+        </View>
+        <View style={styles.range}>
+          <View style={styles.rangeRule} />
+          <Text style={styles.rangeLabel}>ÚLTIMAS 4 SEMANAS</Text>
+          <View style={styles.rangeRule} />
+        </View>
+      </View>
+      <View style={styles.percentRow}>
+        {weeks.map((week) => (
+          <Text key={`${week.start}-percent`} style={styles.barPercent}>
+            {week.percent == null ? '—' : `${week.percent}%`}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.scale}>
+        <View pointerEvents="none" style={[styles.goalLine, { top: lineTop }]} />
+        <View pointerEvents="none" style={[styles.goalBadge, { top: lineTop }]}>
+          <Text style={styles.goalMeta}>META</Text>
+          <Text style={styles.goalValue}>{`${ACTIVITY_GOAL}%`}</Text>
+        </View>
+        <View style={styles.bars}>
+          {weeks.map((week) => {
+            const tone = week.ratio == null ? null : performanceTone(week.ratio);
+            const height = week.ratio == null ? 0 : Math.max(0, Math.min(100, week.ratio));
+            return (
+              <View key={week.start} accessibilityLabel={weekDescription(week)} style={styles.barColumn}>
+                {tone ? (
+                  <View style={[styles.bar, { height: `${height}%`, backgroundColor: barFill[tone] }]}>
+                    <View style={[styles.barSheen, { backgroundColor: barSheen[tone] }]} />
+                    <View style={styles.barBase} />
+                    {tone === 'excellence' ? <GoldStar size={13} style={styles.barStar} /> : null}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      </View>
+      <View style={styles.labelRow}>
+        {weeks.map((week) => (
+          <Text key={`${week.start}-label`} style={styles.barLabel}>
+            {week.label}
+          </Text>
+        ))}
+      </View>
+      {empty ? <Text style={styles.empty}>Sem hábitos registrados nestas semanas.</Text> : null}
+    </View>
+  );
+}
+
+function MonthSummary({ activity }: { activity: MonthActivity }) {
+  const segments = [
+    { key: 'below', count: activity.below, color: constancyColors.below },
+    { key: 'meta', count: activity.meta, color: constancyColors.meta },
+    { key: 'excellence', count: activity.excellence, color: constancyColors.excellence },
+    { key: 'idle', count: activity.idle, color: constancyColors.track },
+  ];
+  const indicators = [
+    { key: 'below', value: String(activity.below), label: 'DIAS ABAIXO\nDA META', swatch: 'below' as const },
+    { key: 'meta', value: String(activity.meta), label: 'DIAS NA META\n(≥70%)', swatch: 'meta' as const },
+    { key: 'excellence', value: String(activity.excellence), label: 'DIAS DE\nEXCELÊNCIA (100%)', swatch: 'star' as const },
+    { key: 'active', value: `${activity.activityPercent}%`, label: 'DO MÊS\nCOM ATIVIDADE', swatch: 'percent' as const },
+  ];
+  return (
+    <View
+      accessibilityLabel={`${activity.totalDays} dias, ${activity.active} em atividade. ${activity.below} abaixo da meta, ${activity.meta} na meta, ${activity.excellence} de excelência, ${activity.activityPercent}% do mês com atividade.`}
+      style={styles.summary}>
+      <View style={styles.cardHead}>
+        <View style={styles.cardTitleRow}>
+          <View style={styles.tick} />
+          <Text style={styles.cardTitle}>RESUMO DO MÊS</Text>
+        </View>
+        <Text style={styles.summaryCount}>
+          {`${activity.totalDays} DIAS / `}
+          <Text style={styles.summaryActive}>{activity.active}</Text>
+          {' DIAS EM ATIVIDADE'}
+        </Text>
+      </View>
+      <View style={styles.track}>
+        {segments.map((segment) =>
+          segment.count > 0 ? (
+            <View key={segment.key} style={{ flexGrow: segment.count, flexBasis: 0, backgroundColor: segment.color }} />
+          ) : null,
+        )}
+      </View>
+      <View style={styles.metrics}>
+        {indicators.map((indicator, index) => (
+          <View key={indicator.key} style={styles.metricSlot}>
+            {index > 0 ? <View style={styles.metricRule} /> : null}
+            <View style={styles.metric}>
+              <View style={styles.metricValue}>
+                {indicator.swatch === 'star' ? <GoldStar size={12} /> : null}
+                {indicator.swatch === 'below' ? <View style={[styles.dot, { backgroundColor: constancyColors.below }]} /> : null}
+                {indicator.swatch === 'meta' ? <View style={[styles.dot, { backgroundColor: constancyColors.meta }]} /> : null}
+                <Text style={[styles.metricNumber, indicator.swatch === 'percent' && styles.metricPercent]}>{indicator.value}</Text>
+              </View>
+              <Text style={styles.metricLabel}>{indicator.label}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -121,31 +191,32 @@ export function ConstancyBoard({
   today,
   marks,
   cursor,
+  selected,
   phase,
   notice,
   onCursor,
+  onSelect,
   onOpenDay,
 }: {
   today: string;
   marks: ReadonlyMap<string, DayMark>;
   cursor: { year: number; month: number } | null;
+  selected: string;
   phase: 'loading' | 'ready' | 'error';
   notice: string;
   onCursor: (next: { year: number; month: number }) => void;
+  onSelect: (dateKey: string) => void;
   onOpenDay: (dateKey: string) => void;
 }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 430;
   const [infoOpen, setInfoOpen] = useState(false);
-  const viewed = cursor ?? (today ? monthOf(today) : null);
-  const streak = today ? currentStreak(marks, today) : 0;
-  const record = today ? bestStreak(marks, today) : 0;
-  const excellence = viewed && today ? yearExcellence(marks, viewed.year, today) : null;
-  const summary = viewed && today ? monthScore(marks, viewed.year, viewed.month, today) : null;
-  const weeks = today ? recentWeekScores(marks, today) : [];
-  const weeksEmpty = weeks.every((week) => week.percent === null);
-  const currentMonth = today ? monthOf(today) : null;
+  const viewed = cursor ?? (today ? todayCursor(today) : null);
+  const summary = viewed && today ? monthActivity(marks, viewed.year, viewed.month, today) : null;
+  const weeks = today ? recentWeekAverages(marks, today) : [];
 
   return (
-    <AppScreen width="narrow" backgroundColor={page} backdrop={<ConstancyPlanet />}>
+    <AppScreen width="narrow" backgroundColor={constancyColors.page} backdrop={<ConstancyPlanet />}>
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
@@ -161,10 +232,11 @@ export function ConstancyBoard({
           <HeaderIcon kind="back" />
         </Pressable>
         <View style={styles.headerCopy}>
-          <Text accessibilityRole="header" style={styles.title}>
-            Constância
+          <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>
+            CONSTÂNCIA
           </Text>
-          <Text style={styles.subtitle}>Disciplina hoje, resultados sempre</Text>
+          <View style={styles.headerRule} />
+          <Text style={[styles.subtitle, compact && styles.subtitleCompact]}>DISCIPLINA HOJE, RESULTADOS SEMPRE</Text>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -177,129 +249,28 @@ export function ConstancyBoard({
       </View>
       {infoOpen ? (
         <Text style={styles.info}>
-          A sequência conta os dias encerrados com pelo menos 70% dos hábitos. O dia com 100% marca excelência e também entra na meta.
+          O calendário usa o progresso real do dia. Sem hábitos concluídos, o dia fica neutro. Abaixo de 70% fica vermelho. De 70% até abaixo de 100% fica verde. Exatamente 100% marca excelência. A hidratação não entra nessa conta. Dias anteriores são só consulta.
         </Text>
       ) : null}
 
       {phase === 'loading' ? <Text style={styles.note}>Carregando sua constância.</Text> : null}
       {phase === 'error' ? <Text style={styles.note}>{notice}</Text> : null}
 
-      {phase === 'ready' && today && viewed && excellence && summary ? (
+      {phase === 'ready' && today && viewed && summary ? (
         <>
-          <View style={styles.stats}>
-            <View style={styles.stat}>
-              <Flame />
-              <View style={styles.statCopy}>
-                <View style={styles.figure}>
-                  <Text style={styles.number}>{streak}</Text>
-                  <Text style={styles.unit}>Dias</Text>
-                </View>
-                <Text style={styles.statLabel}>Consecutivos</Text>
-                <Text style={styles.statNote}>Batendo a meta</Text>
-              </View>
-            </View>
-            <View style={styles.stat}>
-              <Trophy />
-              <View style={styles.statCopy}>
-                <View style={styles.figure}>
-                  <Text style={styles.number}>{record}</Text>
-                  <Text style={styles.unit}>Dias</Text>
-                </View>
-                <Text style={styles.statLabel}>Maior sequência</Text>
-                <Text style={styles.statNote}>Alcançada</Text>
-              </View>
-            </View>
-          </View>
-
           <View style={styles.block}>
             <ConsistencyCalendar
               today={today}
               cursor={viewed}
               marks={marks}
+              selected={selected || today}
               onCursor={onCursor}
+              onSelect={onSelect}
               onOpenDay={onOpenDay}
             />
           </View>
-
-          <View style={styles.summary}>
-            <View style={styles.summaryHead}>
-              <Text style={styles.cardTitle}>Resumo do mês</Text>
-              <Text style={styles.summaryCount}>{`${summary.meta} de ${summary.eligible} dias`}</Text>
-              <Text style={styles.summaryPercent}>{`${summary.monthPercent}%`}</Text>
-            </View>
-            <View style={styles.track}>
-              {summary.monthPercent > 0 ? <View style={[styles.fill, { width: `${summary.monthPercent}%` }]} /> : null}
-            </View>
-            <View style={styles.metrics}>
-              <View style={styles.metric}>
-                <View style={styles.metricValue}>
-                  <View style={styles.greenDot} />
-                  <Text style={styles.metricNumber}>{summary.meta}</Text>
-                </View>
-                <Text style={styles.metricLabel}>Dias na meta</Text>
-              </View>
-              <View style={styles.metric}>
-                <View style={styles.metricValue}>
-                  <GoldStar size={12} />
-                  <Text style={styles.metricNumber}>{summary.excellence}</Text>
-                </View>
-                <Text style={styles.metricLabel}>Dias de excelência</Text>
-              </View>
-              <View style={styles.metric}>
-                <View style={styles.metricValue}>
-                  <View style={styles.grayDot} />
-                  <Text style={styles.metricNumber}>{summary.below}</Text>
-                </View>
-                <Text style={styles.metricLabel}>Abaixo da meta</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.performance}>
-            <View style={styles.performanceHead}>
-              <Text style={styles.cardTitle}>Seu desempenho</Text>
-              <Text style={styles.performanceRange}>‹  Últimas 4 semanas  ›</Text>
-            </View>
-            {weeksEmpty ? (
-              <Text style={styles.empty}>Sem dias encerrados nestas semanas.</Text>
-            ) : (
-              <View style={styles.bars}>
-                {weeks.map((week) => (
-                  <View key={week.label} style={styles.barColumn}>
-                    <Text style={styles.barPercent}>{week.percent == null ? '—' : `${week.percent}%`}</Text>
-                    <View style={styles.plot}>
-                      <View
-                        style={[
-                          styles.bar,
-                          {
-                            height: week.percent == null ? 4 : Math.max(4, Math.round((week.percent / 100) * 52)),
-                            backgroundColor: week.percent != null && week.percent > 0 ? '#2A2418' : '#242220',
-                            borderTopColor: week.percent != null && week.percent > 0 ? ui.textChampagne : '#3A3834',
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.barLabel}>{week.label}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-
-          <View style={styles.excellenceCard}>
-            <View style={styles.excellence}>
-              <Text style={styles.cardTitle}>{`Excelência ${excellence.year}`}</Text>
-              <View style={styles.excellenceTotal}>
-                <GoldStar size={13} />
-                <Text style={styles.excellenceNumber}>{excellence.total}</Text>
-                <Text style={styles.excellenceUnit}>Dias{'\n'}perfeitos</Text>
-              </View>
-            </View>
-            <MonthStrip
-              months={excellence.months}
-              selectedIndex={currentMonth !== null && excellence.year === currentMonth.year ? currentMonth.month - 1 : -1}
-            />
-          </View>
+          <MonthSummary activity={summary} />
+          <PerformanceChart weeks={weeks} />
         </>
       ) : null}
     </AppScreen>
@@ -311,6 +282,7 @@ export default function ConstancyScreen() {
   const [today, setToday] = useState('');
   const [marks, setMarks] = useState<Map<string, DayMark>>(() => new Map());
   const [cursor, setCursor] = useState<{ year: number; month: number } | null>(null);
+  const [selected, setSelected] = useState('');
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [notice, setNotice] = useState('');
 
@@ -321,34 +293,66 @@ export default function ConstancyScreen() {
         return;
       }
       let active = true;
-      void (async () => {
-        const day = todayKey();
-        try {
-          await refreshDailyBoard(userId, day);
-        } catch {
-          // A leitura segue com as linhas já gravadas.
-        }
-        const closed = todayKey();
-        const logs = await loadHabitLogsUntil(userId, closed);
-        if (!active) {
-          return;
-        }
-        if (!logs.ok) {
-          setPhase('error');
-          setNotice(logs.message);
-          return;
-        }
+      let loaded = false;
+      let loading = false;
+      let base = new Map<string, DayMark>();
+      let loadedDay = '';
+      const paint = (day: string) => {
         const board = getDailyBoard();
-        const routine = board.ready && board.dateKey === closed ? scoreDailyHabits(board.habits, board.completed) : null;
-        const excluded = officialHydrationIds(getUserHabits().map((habit) => ({ id: habit.id, catalogHabitId: habit.catalogHabitId })));
-        setToday(closed);
-        setMarks(applyTodayRoutine(marksFromLogs(logs.rows, excluded), closed, routine));
-        setCursor((current) => current ?? monthOf(closed));
-        setNotice('');
-        setPhase('ready');
-      })();
+        const routine = board.ready && board.dateKey === day ? scoreDailyHabits(board.habits, board.completed) : null;
+        setToday(day);
+        setMarks(applyTodayRoutine(base, day, routine));
+      };
+      const load = async () => {
+        if (loading) {
+          return;
+        }
+        loading = true;
+        try {
+          const day = todayKey();
+          try {
+            await refreshDailyBoard(userId, day);
+          } catch {
+            // A leitura segue com as linhas já gravadas.
+          }
+          const closed = todayKey();
+          const logs = await loadHabitLogsUntil(userId, closed);
+          if (!active) {
+            return;
+          }
+          if (!logs.ok) {
+            setPhase('error');
+            setNotice(logs.message);
+            return;
+          }
+          const excluded = officialHydrationIds(getUserHabits().map((habit) => ({ id: habit.id, catalogHabitId: habit.catalogHabitId })));
+          base = marksFromLogs(logs.rows, excluded);
+          loadedDay = closed;
+          loaded = true;
+          paint(closed);
+          setCursor((current) => current ?? todayCursor(closed));
+          setSelected((current) => current || closed);
+          setNotice('');
+          setPhase('ready');
+        } finally {
+          loading = false;
+        }
+      };
+      const unsubscribe = subscribeDailyBoard(() => {
+        if (!active || !loaded) {
+          return;
+        }
+        const day = todayKey();
+        if (day !== loadedDay) {
+          void load();
+          return;
+        }
+        paint(day);
+      });
+      void load();
       return () => {
         active = false;
+        unsubscribe();
       };
     }, []),
   );
@@ -362,9 +366,11 @@ export default function ConstancyScreen() {
       today={today}
       marks={marks}
       cursor={cursor}
+      selected={selected}
       phase={phase}
       notice={notice}
       onCursor={setCursor}
+      onSelect={setSelected}
       onOpenDay={(dateKey) => router.push(`/consulta-dia?data=${dateKey}` as Href)}
     />
   );
@@ -373,16 +379,16 @@ export default function ConstancyScreen() {
 const styles = StyleSheet.create({
   blocked: {
     flex: 1,
-    backgroundColor: page,
+    backgroundColor: constancyColors.page,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
+    alignItems: 'center',
+    gap: 4,
   },
   headerButton: {
     width: 32,
-    height: 32,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -395,25 +401,40 @@ const styles = StyleSheet.create({
   headerCopy: {
     flex: 1,
     minWidth: 0,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
+    columnGap: 8,
+    rowGap: 2,
   },
   title: {
-    color: ui.text,
+    color: constancyColors.text,
     fontFamily: fonts.display,
-    fontSize: 28,
-    lineHeight: 32,
-    letterSpacing: 2.4,
-    textTransform: 'uppercase',
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: 1.5,
+  },
+  titleCompact: {
+    fontSize: 16,
+    letterSpacing: 0.8,
+  },
+  headerRule: {
+    width: 1,
+    height: 14,
+    backgroundColor: constancyColors.excellence,
   },
   subtitle: {
-    marginTop: 2,
-    color: '#B7B2AA',
+    flexShrink: 1,
+    color: '#C8C4BC',
     fontFamily: fonts.display,
     fontSize: 10,
     lineHeight: 13,
-    letterSpacing: 1.1,
-    textAlign: 'center',
-    textTransform: 'uppercase',
+    letterSpacing: 0.35,
+  },
+  subtitleCompact: {
+    fontSize: 8,
+    lineHeight: 11,
+    letterSpacing: 0.15,
   },
   info: {
     marginTop: 8,
@@ -429,327 +450,267 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  stats: {
-    marginTop: 14,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  stat: {
-    flex: 1,
-    minHeight: 78,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: line,
-    backgroundColor: card,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  iconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: line,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(184, 160, 120, 0.08)',
-  },
-  iconFallback: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: ui.textChampagne,
-  },
-  statCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  figure: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  number: {
-    color: ui.text,
-    fontFamily: fonts.textMedium,
-    fontSize: 26,
-    lineHeight: 28,
-  },
-  unit: {
-    marginBottom: 3,
-    color: ui.textChampagne,
-    fontFamily: fonts.display,
-    fontSize: 11,
-    lineHeight: 13,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  statLabel: {
-    marginTop: 1,
-    color: ui.textChampagne,
-    fontFamily: fonts.display,
-    fontSize: 10,
-    lineHeight: 12,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  statNote: {
-    color: '#8E8A84',
-    fontFamily: fonts.display,
-    fontSize: 9,
-    lineHeight: 11,
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-  },
   block: {
-    marginTop: 12,
+    marginTop: 14,
   },
   summary: {
     marginTop: 12,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: line,
-    backgroundColor: card,
+    borderColor: constancyColors.line,
+    backgroundColor: constancyColors.card,
     paddingHorizontal: 12,
-    paddingVertical: 12,
-    gap: 10,
+    paddingTop: 12,
+    paddingBottom: 10,
+    gap: 12,
   },
-  summaryHead: {
+  cardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  cardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 1,
+  },
+  tick: {
+    width: 3,
+    height: 14,
+    borderRadius: 1,
+    backgroundColor: constancyColors.excellence,
   },
   cardTitle: {
-    flex: 1,
-    color: ui.text,
+    color: constancyColors.text,
     fontFamily: fonts.display,
     fontSize: 14,
     lineHeight: 18,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    letterSpacing: 0.7,
   },
   summaryCount: {
-    color: '#A39E96',
+    flexShrink: 1,
+    color: constancyColors.muted,
     fontFamily: fonts.text,
     fontSize: 10,
-    lineHeight: 13,
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
+    lineHeight: 14,
+    letterSpacing: 0.2,
+    textAlign: 'right',
   },
-  summaryPercent: {
-    color: ui.textChampagne,
-    fontFamily: fonts.textMedium,
-    fontSize: 18,
-    lineHeight: 22,
+  summaryActive: {
+    color: constancyColors.excellence,
+    fontFamily: fonts.display,
+    fontSize: 12,
   },
   track: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#2A2926',
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: constancyColors.track,
     overflow: 'hidden',
-  },
-  fill: {
-    height: '100%',
-    borderRadius: 2,
-    backgroundColor: ui.textChampagne,
+    flexDirection: 'row',
   },
   metrics: {
     flexDirection: 'row',
-    gap: 6,
+    alignItems: 'stretch',
+  },
+  metricSlot: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  metricRule: {
+    width: 1,
+    marginVertical: 4,
+    backgroundColor: constancyColors.rule,
   },
   metric: {
     flex: 1,
     minWidth: 0,
     alignItems: 'center',
-    gap: 3,
+    justifyContent: 'flex-start',
+    gap: 4,
+    paddingHorizontal: 2,
   },
   metricValue: {
+    minHeight: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    justifyContent: 'center',
+    gap: 4,
   },
   metricNumber: {
-    color: ui.text,
-    fontFamily: fonts.textMedium,
+    color: constancyColors.text,
+    fontFamily: fonts.display,
     fontSize: 16,
     lineHeight: 20,
   },
+  metricPercent: {
+    color: constancyColors.excellence,
+    fontSize: 18,
+    lineHeight: 22,
+  },
   metricLabel: {
-    color: '#8E8A84',
-    fontFamily: fonts.display,
-    fontSize: 9,
-    lineHeight: 11,
-    letterSpacing: 0.3,
+    color: constancyColors.muted,
+    fontFamily: fonts.text,
+    fontSize: 8,
+    lineHeight: 10,
+    letterSpacing: 0.15,
     textAlign: 'center',
-    textTransform: 'uppercase',
   },
-  greenDot: {
+  dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: green,
-  },
-  grayDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#6E6A64',
   },
   performance: {
     marginTop: 12,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: line,
-    backgroundColor: card,
+    borderColor: constancyColors.line,
+    backgroundColor: constancyColors.card,
     paddingHorizontal: 12,
     paddingTop: 12,
-    paddingBottom: 10,
+    paddingBottom: 12,
   },
-  performanceHead: {
+  range: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
-  performanceRange: {
-    color: '#A39E96',
+  rangeRule: {
+    width: 1,
+    height: 12,
+    backgroundColor: constancyColors.excellence,
+  },
+  rangeLabel: {
+    color: constancyColors.muted,
     fontFamily: fonts.display,
     fontSize: 10,
+    lineHeight: 13,
     letterSpacing: 0.5,
-    textTransform: 'uppercase',
   },
-  empty: {
-    marginTop: 14,
-    marginBottom: 6,
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 13,
-    lineHeight: 18,
+  percentRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    paddingLeft: 50,
+    gap: 6,
+  },
+  scale: {
+    height: 112,
+    position: 'relative',
+    justifyContent: 'flex-end',
+  },
+  goalLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 1,
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(224, 177, 90, 0.85)',
+  },
+  goalBadge: {
+    position: 'absolute',
+    left: 0,
+    zIndex: 2,
+    marginTop: -15,
+    minWidth: 42,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(224, 177, 90, 0.8)',
+    backgroundColor: '#100E0B',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    alignItems: 'center',
+  },
+  goalMeta: {
+    color: constancyColors.excellence,
+    fontFamily: fonts.display,
+    fontSize: 8,
+    lineHeight: 10,
+    letterSpacing: 0.4,
+  },
+  goalValue: {
+    color: constancyColors.excellence,
+    fontFamily: fonts.display,
+    fontSize: 9,
+    lineHeight: 11,
   },
   bars: {
-    marginTop: 12,
+    height: 112,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
+    paddingLeft: 50,
+    gap: 6,
   },
   barColumn: {
     flex: 1,
     minWidth: 0,
+    height: '100%',
     alignItems: 'center',
-  },
-  barPercent: {
-    color: ui.text,
-    fontFamily: fonts.textMedium,
-    fontSize: 12,
-    lineHeight: 16,
-    marginBottom: 6,
-  },
-  plot: {
-    height: 52,
     justifyContent: 'flex-end',
   },
-  bar: {
-    width: 34,
-    borderTopWidth: 4,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
-  },
-  barLabel: {
-    marginTop: 6,
-    color: '#8E8A84',
-    fontFamily: fonts.display,
-    fontSize: 10,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  excellenceCard: {
-    marginTop: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: line,
-    backgroundColor: card,
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 10,
-  },
-  excellence: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  excellenceTotal: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  excellenceNumber: {
-    color: ui.text,
-    fontFamily: fonts.textMedium,
-    fontSize: 22,
-    lineHeight: 26,
-  },
-  excellenceUnit: {
-    color: '#A39E96',
-    fontFamily: fonts.display,
-    fontSize: 9,
-    lineHeight: 11,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  months: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  monthsScroll: {
-    marginTop: 10,
-    gap: 4,
-    paddingRight: 2,
-  },
-  monthCard: {
+  barPercent: {
     flex: 1,
     minWidth: 0,
-    minHeight: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'transparent',
+    color: constancyColors.text,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    lineHeight: 16,
+    textAlign: 'center',
+  },
+  bar: {
+    width: '78%',
+    maxWidth: 48,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 1,
   },
-  monthCardScroll: {
-    flexGrow: 0,
-    flexBasis: 'auto',
-    width: 36,
-    minWidth: 36,
+  barSheen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '42%',
+    opacity: 0.55,
   },
-  monthCardOn: {
-    borderColor: ui.textChampagne,
+  barBase: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '30%',
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
   },
-  monthLabel: {
-    color: '#8E8A84',
-    fontFamily: fonts.display,
+  barStar: {
+    zIndex: 1,
+  },
+  labelRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    paddingLeft: 50,
+    gap: 6,
+  },
+  barLabel: {
+    flex: 1,
+    minWidth: 0,
+    color: constancyColors.muted,
+    fontFamily: fonts.text,
     fontSize: 10,
-    letterSpacing: 0.4,
+    lineHeight: 13,
+    letterSpacing: 0.3,
+    textAlign: 'center',
   },
-  monthLabelOn: {
-    color: ui.text,
-  },
-  monthValue: {
-    color: ui.text,
-    fontFamily: fonts.textMedium,
-    fontSize: 13,
-    lineHeight: 16,
-  },
-  monthDash: {
-    color: ui.faint,
+  empty: {
+    marginTop: 8,
+    color: ui.muted,
     fontFamily: fonts.text,
     fontSize: 13,
-    lineHeight: 16,
+    lineHeight: 18,
   },
 });
