@@ -1,5 +1,6 @@
 import { supabase } from '../../utils/supabase';
 import { normalizeHabitText } from '@/lib/habit-classify';
+import { habitOrderAfterMove } from '@/lib/habit-order';
 import { matchingCustomHabit, relevanceLabels, requireHabitRelevance, type HabitRelevance } from '@/lib/habit-relevance';
 
 export { matchingCustomHabit, relevanceLabels, requireHabitRelevance };
@@ -631,6 +632,21 @@ export async function savePersonalizedRoutine(): Promise<HabitResult> {
   personalized = true;
   emit();
   return { ok: true, message: 'Rotina personalizada salva.' };
+}
+
+export async function placeHabit(habitId: string, period: HabitPeriod, index: number): Promise<HabitResult> {
+  const current = habits.find((habit) => habit.id === habitId && habit.active);
+  if (!current || !isPeriod(period)) {
+    return { ok: false, message: 'Não foi possível reordenar esses hábitos.' };
+  }
+  if (current.period !== period) {
+    const moved = await updateUserHabit(habitId, { period });
+    if (!moved.ok) {
+      return moved;
+    }
+  }
+  const ids = habits.filter((habit) => habit.active && habit.period === period).map((habit) => habit.id);
+  return reorderPeriodHabits(period, habitOrderAfterMove(ids, habitId, index));
 }
 
 export async function reorderPeriodHabits(period: HabitPeriod, orderedIds: readonly string[]): Promise<HabitResult> {

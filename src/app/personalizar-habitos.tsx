@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { createElement, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Modal, Platform, Pressable, StyleSheet, Text, View, type ViewProps, type ViewStyle } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { DayPlanet } from '@/components/day-planet';
@@ -18,8 +18,8 @@ import {
   habitTitle,
   hydrateHabitRoutine,
   pillarLabels,
+  placeHabit,
   removeUserHabit,
-  reorderPeriodHabits,
   subscribeHabitRoutine,
   updateUserHabit,
   type HabitPeriod,
@@ -27,7 +27,9 @@ import {
   type HabitRelevance,
   type UserHabit,
 } from '@/lib/habit-catalog';
+import { habitOrderAfterMove, nextPeriod } from '@/lib/habit-order';
 import { habitIconFor, periodCopy, suggestedMinutes } from '@/lib/habit-visual';
+import { useModalGate } from '@/lib/modal-gate';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
 
@@ -43,6 +45,8 @@ const relevanceName: Record<HabitRelevance, string> = {
   baixa: 'Baixa',
 };
 
+type DropHint = { period: HabitPeriod; index: number };
+
 function pillarFigure(pillar: HabitPillar, feminine: boolean) {
   if (pillar === 'corpo') {
     return feminine ? corpoFemale : corpoMale;
@@ -53,6 +57,24 @@ function pillarFigure(pillar: HabitPillar, feminine: boolean) {
   return espiritoFigure;
 }
 
+function Mark({ kind }: { kind: 'drag' | 'edit' | 'remove' }) {
+  if (Platform.OS !== 'web') {
+    return <Text style={kind === 'remove' ? styles.removeLabel : styles.iconLabel}>{kind === 'drag' ? '≡' : kind === 'edit' ? '✎' : '⌫'}</Text>;
+  }
+  const color = kind === 'remove' ? '#E15A4C' : '#C4A574';
+  const path =
+    kind === 'drag'
+      ? 'M7 7h2.2v2.2H7zM12 7h2.2v2.2H12zM7 12h2.2v2.2H7zM12 12h2.2v2.2H12z'
+      : kind === 'edit'
+        ? 'M4 16.8V20h3.2L18.2 9 15 5.8 4 16.8zM15 5.8l2.2-2.2a1.2 1.2 0 0 1 1.7 0l1.5 1.5a1.2 1.2 0 0 1 0 1.7L18.2 9 15 5.8z'
+        : 'M8 8h8l-.6 11.2H8.6L8 8zM6.5 6.2h11M10 6.2V4.8h4v1.4';
+  return createElement(
+    'svg',
+    { width: kind === 'drag' ? 16 : 15, height: kind === 'drag' ? 16 : 15, viewBox: '0 0 24 24', 'aria-hidden': true },
+    createElement('path', { d: path, fill: kind === 'drag' ? color : 'none', stroke: color, strokeWidth: 1.6, strokeLinejoin: 'round' }),
+  );
+}
+
 const emptyDraft: HabitDraft = {
   label: '',
   pillar: 'corpo',
@@ -60,6 +82,12 @@ const emptyDraft: HabitDraft = {
   minutes: 10,
   relevance: null,
 };
+
+const handleStyle = { touchAction: 'none' } as ViewStyle;
+
+function webData(data: Record<string, string>): ViewProps {
+  return { dataSet: data } as unknown as ViewProps;
+}
 
 export default function PersonalizeHabitsScreen() {
   const signedIn = useRequireSession();
@@ -73,7 +101,13 @@ export default function PersonalizeHabitsScreen() {
   const [editor, setEditor] = useState<{ mode: 'create' | 'edit'; habitId: string | null; draft: HabitDraft } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<UserHabit | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
-  const dragY = useRef(0);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [ghost, setGhost] = useState<{ label: string; x: number; y: number } | null>(null);
+  const [dropHint, setDropHint] = useState<DropHint | null>(null);
+  const openRef = useRef(open);
+  const moveRef = useRef<(habitId: string, period: HabitPeriod, index: number) => Promise<void>>(async () => {});
+  openRef.current = open;
+  useModalGate(confirmRemove !== null || confirmAll);
 
   useFocusEffect(
     useCallback(() => {
@@ -86,24 +120,202 @@ export default function PersonalizeHabitsScreen() {
 
   const active = habits.filter((habit) => habit.active);
 
-  async function shift(period: HabitPeriod, habitId: string, delta: number) {
-    const group = active.filter((habit) => habit.period === period);
-    const index = group.findIndex((habit) => habit.id === habitId);
-    const next = index + delta;
-    if (index < 0 || next < 0 || next >= group.length) {
+  async function moveHabit(habitId: string, period: HabitPeriod, index: number) {
+    const current = getUserHabits().find((habit) => habit.id === habitId && habit.active);
+    if (!current) {
       return;
     }
-    const order = group.map((habit) => habit.id);
-    const [moved] = order.splice(index, 1);
-    if (!moved) {
+    const group = getUserHabits().filter((habit) => habit.active && habit.period === period).map((habit) => habit.id);
+    if (current.period === period && habitOrderAfterMove(group, habitId, index).every((id, position) => id === group[position])) {
       return;
     }
-    order.splice(next, 0, moved);
-    const result = await reorderPeriodHabits(period, order);
+    setPending(true);
+    const result = await placeHabit(habitId, period, index);
+    setPending(false);
     if (!result.ok) {
       setNotice(result.message);
     }
   }
+  moveRef.current = moveHabit;
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      return;
+    }
+    type Session = {
+      habitId: string;
+      label: string;
+      pointerId: number;
+      x: number;
+      y: number;
+      startX: number;
+      startY: number;
+      startedAt: number;
+      touch: boolean;
+      active: boolean;
+      hoverPeriod: HabitPeriod | null;
+      hoverTimer: number | null;
+    };
+    let session: Session | null = null;
+
+    function clearHover() {
+      if (session?.hoverTimer != null) {
+        window.clearTimeout(session.hoverTimer);
+        session.hoverTimer = null;
+      }
+      if (session) {
+        session.hoverPeriod = null;
+      }
+    }
+
+    function readDrop(x: number, y: number): DropHint | null {
+      const nodes = document.elementsFromPoint(x, y);
+      for (const node of nodes) {
+        const row = (node as Element).closest?.('[data-drop-kind="row"]');
+        if (row) {
+          const period = row.getAttribute('data-drop-period') as HabitPeriod | null;
+          const index = Number(row.getAttribute('data-drop-index'));
+          if (!period || Number.isNaN(index)) {
+            return null;
+          }
+          const rect = row.getBoundingClientRect();
+          return { period, index: y < rect.top + rect.height / 2 ? index : index + 1 };
+        }
+        const header = (node as Element).closest?.('[data-drop-kind="period"]');
+        if (header) {
+          const period = header.getAttribute('data-drop-period') as HabitPeriod | null;
+          return period ? { period, index: 0 } : null;
+        }
+      }
+      return null;
+    }
+
+    function watchHover(x: number, y: number) {
+      if (!session) {
+        return;
+      }
+      const header = document.elementsFromPoint(x, y).find((node) => (node as Element).closest?.('[data-drop-kind="period"]'));
+      const period = header ? ((header as Element).closest('[data-drop-kind="period"]')?.getAttribute('data-drop-period') as HabitPeriod | null) : null;
+      if (!period || openRef.current[period]) {
+        clearHover();
+        return;
+      }
+      if (session.hoverPeriod === period) {
+        return;
+      }
+      clearHover();
+      session.hoverPeriod = period;
+      session.hoverTimer = window.setTimeout(() => {
+        setOpen((current) => ({ ...current, [period]: true }));
+      }, 380);
+    }
+
+    function scrollEdge(y: number) {
+      let current = document.elementFromPoint(Math.min(window.innerWidth - 8, Math.max(8, window.innerWidth / 2)), Math.min(window.innerHeight - 8, Math.max(8, y))) as HTMLElement | null;
+      while (current) {
+        if (current.scrollHeight > current.clientHeight + 8) {
+          const overflow = getComputedStyle(current).overflowY;
+          if (overflow === 'auto' || overflow === 'scroll') {
+            if (y < 88) {
+              current.scrollTop -= 16;
+            } else if (y > window.innerHeight - 120) {
+              current.scrollTop += 16;
+            }
+            return;
+          }
+        }
+        current = current.parentElement;
+      }
+    }
+
+    function finish(commit: boolean) {
+      const current = session;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      clearHover();
+      session = null;
+      setGhost(null);
+      setDraggingId(null);
+      setDropHint(null);
+      if (commit && current?.active) {
+        const drop = readDrop(current.x, current.y);
+        if (drop) {
+          void moveRef.current(current.habitId, drop.period, drop.index);
+        }
+      }
+    }
+
+    function onMove(event: PointerEvent) {
+      if (!session || event.pointerId !== session.pointerId) {
+        return;
+      }
+      const distance = Math.hypot(event.clientX - session.startX, event.clientY - session.startY);
+      if (!session.active) {
+        if (session.touch) {
+          if (distance > 16 && Date.now() - session.startedAt < 280) {
+            finish(false);
+            return;
+          }
+          if (Date.now() - session.startedAt < 320 || distance < 6) {
+            return;
+          }
+        } else if (distance < 4) {
+          return;
+        }
+        session.active = true;
+        setDraggingId(session.habitId);
+      }
+      event.preventDefault();
+      session.x = event.clientX;
+      session.y = event.clientY;
+      setGhost({ label: session.label, x: event.clientX, y: event.clientY });
+      setDropHint(readDrop(event.clientX, event.clientY));
+      watchHover(event.clientX, event.clientY);
+      scrollEdge(event.clientY);
+    }
+
+    function onUp(event: PointerEvent) {
+      if (!session || event.pointerId !== session.pointerId) {
+        return;
+      }
+      finish(true);
+    }
+
+    function onDown(event: PointerEvent) {
+      if (event.button !== 0 || session) {
+        return;
+      }
+      const handle = (event.target as Element | null)?.closest?.('[data-drag-handle]');
+      const habitId = handle?.getAttribute('data-drag-handle');
+      if (!handle || !habitId) {
+        return;
+      }
+      session = {
+        habitId,
+        label: handle.getAttribute('data-drag-label') || 'Hábito',
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        startX: event.clientX,
+        startY: event.clientY,
+        startedAt: Date.now(),
+        touch: event.pointerType === 'touch',
+        active: false,
+        hoverPeriod: null,
+        hoverTimer: null,
+      };
+      window.addEventListener('pointermove', onMove, { passive: false });
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    }
+
+    window.addEventListener('pointerdown', onDown);
+    return () => {
+      window.removeEventListener('pointerdown', onDown);
+      finish(false);
+    };
+  }, []);
 
   function draftFrom(habit: UserHabit): HabitDraft {
     const label = habitTitle(habit, catalog);
@@ -111,7 +323,7 @@ export default function PersonalizeHabitsScreen() {
       label,
       pillar: habit.pillar,
       period: habit.period,
-      minutes: habit.minutes ?? suggestedMinutes(label, habit.catalogHabitId) ?? 10,
+      minutes: habit.minutes,
       relevance: habit.relevance,
     };
   }
@@ -214,13 +426,14 @@ export default function PersonalizeHabitsScreen() {
         })}
       </View>
       <View accessibilityRole="summary" style={styles.circle}>
-        <Text style={styles.circleMark}>◎</Text>
+        <HabitGlyph name="target" color={ui.champagne} size={18} />
         <View style={styles.circleCopy}>
           <Text style={styles.circleTitle}>Círculo / Ranking</Text>
           <Text style={styles.circleText}>Requisitos: 10 hábitos (2 Alta · 4 Média · 4 Baixa)</Text>
         </View>
       </View>
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+      <Text style={styles.dragHint}>Toque, segure e arraste para reorganizar seus hábitos.</Text>
       {habitPeriods.map((period) => {
         const group = active.filter((habit) => habit.period === period);
         return (
@@ -230,6 +443,7 @@ export default function PersonalizeHabitsScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded: open[period] }}
+              {...webData({ dropKind: 'period', dropPeriod: period })}
               onPress={() => setOpen((current) => ({ ...current, [period]: !current[period] }))}
               style={styles.blockHead}>
               <View style={styles.blockCopy}>
@@ -239,71 +453,92 @@ export default function PersonalizeHabitsScreen() {
               <Text style={styles.blockCount}>{`${group.length} ${group.length === 1 ? 'hábito' : 'hábitos'}`}</Text>
               <Text style={styles.chevron}>{open[period] ? '⌃' : '⌄'}</Text>
             </Pressable>
-            {open[period] ? (
-              <>
-                {group.map((habit, index) => {
+            {open[period]
+              ? group.map((habit, index) => {
                   const label = habitTitle(habit, catalog);
                   const minutes = habit.minutes ?? suggestedMinutes(label, habit.catalogHabitId);
+                  const hinted = dropHint?.period === period && dropHint.index === index;
                   return (
-                    <View key={habit.id} style={styles.row}>
+                    <View
+                      key={habit.id}
+                      {...webData({ dropKind: 'row', dropPeriod: period, dropIndex: String(index) })}
+                      style={[styles.row, draggingId === habit.id && styles.rowDragging, hinted && styles.rowHint]}>
                       <View
+                        accessible
                         accessibilityLabel={`Arrastar ${label}`}
-                        onStartShouldSetResponder={() => true}
-                        onMoveShouldSetResponder={() => true}
-                        onResponderGrant={(event) => {
-                          dragY.current = event.nativeEvent.pageY;
-                        }}
-                        onResponderMove={(event) => {
-                          const delta = event.nativeEvent.pageY - dragY.current;
-                          if (delta > 28) {
-                            dragY.current += 28;
-                            void shift(period, habit.id, 1);
-                          } else if (delta < -28) {
-                            dragY.current -= 28;
-                            void shift(period, habit.id, -1);
+                        accessibilityActions={[
+                          { name: 'increment', label: 'Mover para cima' },
+                          { name: 'decrement', label: 'Mover para baixo' },
+                          { name: 'movePeriod', label: 'Mover para o próximo período' },
+                        ]}
+                        onAccessibilityAction={(event) => {
+                          const action = event.nativeEvent.actionName;
+                          if (action === 'increment') {
+                            void moveHabit(habit.id, period, index - 1);
+                          } else if (action === 'decrement') {
+                            void moveHabit(habit.id, period, index + 1);
+                          } else if (action === 'movePeriod') {
+                            void moveHabit(habit.id, nextPeriod(period), 999);
                           }
                         }}
-                        style={styles.order}>
-                        <Text style={styles.orderLabel}>≡</Text>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`Subir ${label}`} disabled={index === 0} onPress={() => void shift(period, habit.id, -1)}>
-                          <Text style={styles.orderLabel}>↑</Text>
-                        </Pressable>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`Descer ${label}`} disabled={index === group.length - 1} onPress={() => void shift(period, habit.id, 1)}>
-                          <Text style={styles.orderLabel}>↓</Text>
-                        </Pressable>
+                        {...webData({ dragHandle: habit.id, dragLabel: label })}
+                        style={[styles.handle, handleStyle]}>
+                        <Mark kind="drag" />
                       </View>
-                      <HabitGlyph name={habitIconFor(label, habit.catalogHabitId)} color={ui.champagne} />
+                      <HabitGlyph name={habitIconFor(label, habit.catalogHabitId)} color={ui.champagne} size={18} />
                       <View style={styles.rowCopy}>
                         <Text numberOfLines={1} style={styles.rowLabel}>
                           {label}
                         </Text>
-                        <Text style={styles.rowMeta}>{minutes != null ? `${minutes} min` : 'Sem duração'}{habit.relevance ? ` · ${relevanceName[habit.relevance]}` : ''}</Text>
+                        <Text style={styles.rowMeta}>{minutes != null ? `${minutes} min` : 'Sem duração'}</Text>
                       </View>
+                      {habit.relevance ? (
+                        <View style={[styles.pill, habit.relevance === 'alta' && styles.pillHigh]}>
+                          <Text style={[styles.pillLabel, habit.relevance === 'alta' && styles.pillLabelHigh]}>{relevanceName[habit.relevance]}</Text>
+                        </View>
+                      ) : null}
                       <Pressable accessibilityRole="button" accessibilityLabel={`Editar ${label}`} onPress={() => setEditor({ mode: 'edit', habitId: habit.id, draft: draftFrom(habit) })} style={styles.iconButton}>
-                        <Text style={styles.iconLabel}>✎</Text>
+                        <Mark kind="edit" />
                       </Pressable>
                       <Pressable accessibilityRole="button" accessibilityLabel={`Remover ${label}`} onPress={() => setConfirmRemove(habit)} style={styles.iconButton}>
-                        <Text style={styles.removeLabel}>⌫</Text>
+                        <Mark kind="remove" />
                       </Pressable>
                     </View>
                   );
-                })}
-                <View style={styles.legend}>
-                  <Text style={styles.legendItem}>Arrastar{'\n'}Altere a ordem dos hábitos.</Text>
-                  <Text style={styles.legendItem}>Editar{'\n'}Mude o hábito, período ou relevância.</Text>
-                  <Text style={styles.legendItem}>Remover{'\n'}Exclua o hábito da sua rotina.</Text>
-                </View>
-              </>
-            ) : null}
+                })
+              : null}
           </View>
         );
       })}
       <Pressable accessibilityRole="button" onPress={() => { setNotice(''); setEditor({ mode: 'create', habitId: null, draft: emptyDraft }); }} style={styles.add}>
-        <Text style={styles.addLabel}>Adicionar hábito</Text>
+        <Text style={styles.addLabel}>+ Adicionar hábito</Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={() => setConfirmAll(true)} style={styles.removeAll}>
         <Text style={styles.removeAllLabel}>Remover todos os hábitos</Text>
       </Pressable>
+      {ghost && Platform.OS === 'web'
+        ? createElement(
+            'div',
+            {
+              style: {
+                position: 'fixed',
+                left: ghost.x + 14,
+                top: ghost.y + 10,
+                zIndex: 40,
+                pointerEvents: 'none',
+                background: '#16130E',
+                color: '#F3EFE8',
+                border: '1px solid rgba(196,165,116,0.7)',
+                borderRadius: 12,
+                padding: '8px 12px',
+                fontFamily: 'Manrope, sans-serif',
+                fontSize: 13,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+              },
+            },
+            ghost.label,
+          )
+        : null}
       <HabitFormModal
         visible={editor !== null}
         title={editor?.mode === 'edit' ? 'Editar hábito' : 'Novo hábito'}
@@ -319,7 +554,7 @@ export default function PersonalizeHabitsScreen() {
       />
       <Modal visible={confirmRemove !== null} transparent animationType="fade" onRequestClose={() => setConfirmRemove(null)}>
         <View style={styles.scrim}>
-          <View style={styles.dialog}>
+          <View accessibilityViewIsModal style={styles.dialog}>
             <Text style={styles.dialogTitle}>Remover hábito</Text>
             <Text style={styles.dialogCopy}>O hábito sai da rotina. O histórico de check-in permanece.</Text>
             <Pressable accessibilityRole="button" disabled={pending} onPress={() => confirmRemove && void removeOne(confirmRemove)} style={styles.removeAll}>
@@ -333,7 +568,7 @@ export default function PersonalizeHabitsScreen() {
       </Modal>
       <Modal visible={confirmAll} transparent animationType="fade" onRequestClose={() => setConfirmAll(false)}>
         <View style={styles.scrim}>
-          <View style={styles.dialog}>
+          <View accessibilityViewIsModal style={styles.dialog}>
             <Text style={styles.dialogTitle}>Remover todos os hábitos</Text>
             <Text style={styles.dialogCopy}>A rotina fica vazia. Check-ins, pontuação e conquistas já registrados permanecem.</Text>
             <Pressable accessibilityRole="button" disabled={pending} onPress={() => void removeAll()} style={styles.removeAll}>
@@ -366,39 +601,41 @@ const styles = StyleSheet.create({
     minHeight: 58,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(196,165,116,0.35)',
+    borderColor: 'rgba(196,165,116,0.45)',
     backgroundColor: 'rgba(18,16,12,0.92)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 12,
   },
-  circleMark: { color: ui.champagne, fontSize: 16 },
   circleCopy: { flex: 1 },
   circleTitle: { color: ui.champagne, fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
   circleText: { marginTop: 2, color: '#C8C2B8', fontFamily: fonts.text, fontSize: 11, lineHeight: 15 },
   notice: { marginTop: 10, color: ui.textChampagne, fontFamily: fonts.text, fontSize: 13 },
+  dragHint: { marginTop: 14, color: '#8E8A84', fontFamily: fonts.text, fontSize: 12, lineHeight: 16 },
   block: { marginTop: 12, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(232,200,142,0.16)', backgroundColor: '#0A0A0A', overflow: 'hidden' },
   periodPhoto: { position: 'absolute', top: 0, right: 0, left: 0, height: 74 },
-  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 74, backgroundColor: 'rgba(5,5,5,0.62)' },
+  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 74, backgroundColor: 'rgba(5,5,5,0.74)' },
   blockHead: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
   blockCopy: { flex: 1 },
   blockTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 18, letterSpacing: 0.8, textTransform: 'uppercase' },
   blockSubtitle: { color: '#A39E96', fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase' },
   blockCount: { color: ui.text, fontFamily: fonts.text, fontSize: 12 },
   chevron: { color: ui.textChampagne, width: 16, textAlign: 'center' },
-  row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, borderTopWidth: 1, borderTopColor: 'rgba(243,239,232,0.08)' },
-  order: { width: 28 },
-  orderButton: { minHeight: 22, alignItems: 'center', justifyContent: 'center' },
-  orderLabel: { color: '#8E8A84', fontSize: 12 },
+  row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: 'rgba(243,239,232,0.08)' },
+  rowDragging: { opacity: 0.35 },
+  rowHint: { borderTopColor: ui.champagneDeep },
+  handle: { width: 28, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   rowCopy: { flex: 1, minWidth: 0 },
   rowLabel: { color: ui.text, fontFamily: fonts.text, fontSize: 13 },
   rowMeta: { marginTop: 2, color: '#A39E96', fontFamily: fonts.text, fontSize: 11 },
-  iconButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  pill: { borderRadius: 999, borderWidth: 1, borderColor: 'rgba(196,165,116,0.55)', paddingHorizontal: 8, paddingVertical: 3 },
+  pillHigh: { backgroundColor: '#C4A574', borderColor: '#C4A574' },
+  pillLabel: { color: ui.champagne, fontFamily: fonts.display, fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase' },
+  pillLabelHigh: { color: '#1A140E' },
+  iconButton: { width: 30, height: 32, alignItems: 'center', justifyContent: 'center' },
   iconLabel: { color: ui.champagne, fontSize: 16 },
   removeLabel: { color: '#E15A4C', fontSize: 16 },
-  legend: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(243,239,232,0.08)' },
-  legendItem: { flex: 1, color: '#8E8A84', fontFamily: fonts.text, fontSize: 10, lineHeight: 13, textTransform: 'uppercase' },
   add: { marginTop: 16, minHeight: 50, borderRadius: 999, backgroundColor: ui.champagneDeep, alignItems: 'center', justifyContent: 'center' },
   addLabel: { color: '#141210', fontFamily: fonts.display, fontSize: 15, letterSpacing: 1, textTransform: 'uppercase' },
   removeAll: { marginTop: 10, minHeight: 46, borderRadius: 999, borderWidth: 1, borderColor: '#E15A4C', alignItems: 'center', justifyContent: 'center' },

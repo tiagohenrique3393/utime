@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '@/components/motion';
 import { fonts, ui } from '@/constants/theme';
 import type { CelebrationKind } from '@/lib/day-celebration';
+import { useModalGate } from '@/lib/modal-gate';
 
 const green = '#6FCF97';
 const card = '#0C0C0C';
@@ -68,6 +69,7 @@ export function DayCelebration({ kind, onClose }: { kind: CelebrationKind | null
   const reduced = useReducedMotion();
   const [rise] = useState(() => new Animated.Value(0));
   const continueRef = useRef<View>(null);
+  useModalGate(kind !== null);
 
   useEffect(() => {
     if (!kind) {

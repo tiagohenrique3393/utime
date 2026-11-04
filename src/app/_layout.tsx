@@ -5,10 +5,12 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 
 import { NextHabitPrompt } from '@/components/next-habit-prompt';
 import { colors } from '@/constants/theme';
 import { applySessionOwner, getSessionUserId } from '@/lib/accounts';
+import { noteHumanActivity } from '@/lib/next-habit-entry';
 import { isPrivatePath } from '@/lib/require-session';
 import { notePasswordRecovery, prepareAuth } from '@/lib/session';
 import { supabase } from '../../utils/supabase';
@@ -82,13 +84,23 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={theme}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.background },
-          animation: 'fade',
-        }}
-      />
+      <View
+        style={{ flex: 1 }}
+        onStartShouldSetResponderCapture={() => {
+          const userId = getSessionUserId();
+          if (userId) {
+            noteHumanActivity(userId);
+          }
+          return false;
+        }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: colors.background },
+            animation: 'fade',
+          }}
+        />
+      </View>
       <NextHabitPrompt />
     </ThemeProvider>
   );

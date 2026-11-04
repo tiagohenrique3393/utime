@@ -1,4 +1,4 @@
-import { acknowledgeNextHabit, nextHabitEntryGeneration, resetNextHabitEntry, shouldShowNextHabit } from '@/lib/next-habit-entry';
+import { acknowledgeNextHabit, armIdleReminder, idleReminderPending, NEXT_HABIT_IDLE_MS, nextHabitEntryGeneration, noteHumanActivity, resetNextHabitEntry, shouldShowNextHabit } from '@/lib/next-habit-entry';
 import { nextHabitCopy } from '@/lib/next-habit-copy';
 
 function assertEqual<T>(actual: T, expected: T, label: string) {
@@ -23,5 +23,19 @@ assertEqual(jiu.detail.includes('60 min'), true, 'tempo cadastrado');
 const read = nextHabitCopy('Leitura', null);
 assertEqual(read.question, 'JÁ LEU ALGUMA COISA HOJE?', 'pergunta de leitura');
 assertEqual(nextHabitCopy('Estudar inglês', null).question, 'JÁ ESTUDOU HOJE?', 'pergunta de estudo');
+
+acknowledgeNextHabit('ana', 1_000);
+assertEqual(armIdleReminder('ana', 1_000 + 4 * 60 * 1000), false, 'antes de cinco minutos');
+assertEqual(armIdleReminder('ana', 1_000 + NEXT_HABIT_IDLE_MS), true, 'cinco minutos');
+assertEqual(idleReminderPending('ana'), true, 'inatividade pendente');
+noteHumanActivity('ana', 9_000);
+assertEqual(idleReminderPending('ana'), true, 'toque não cancela lembrete já devido');
+assertEqual(armIdleReminder('ana', 9_000 + NEXT_HABIT_IDLE_MS), false, 'não duplica a mesma inatividade');
+acknowledgeNextHabit('ana', 20_000);
+assertEqual(shouldShowNextHabit('ana'), false, 'fechar não conta como nova entrada');
+assertEqual(idleReminderPending('ana'), false, 'fechar reinicia a contagem');
+assertEqual(armIdleReminder('ana', 20_000 + NEXT_HABIT_IDLE_MS), true, 'novo ciclo de cinco minutos');
+noteHumanActivity('bia', 0);
+assertEqual(armIdleReminder('bia', NEXT_HABIT_IDLE_MS), false, 'entrada ainda não consumida não arma inatividade');
 
 console.log('next-habit-entry-ok');

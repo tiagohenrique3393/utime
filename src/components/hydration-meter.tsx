@@ -2,6 +2,7 @@ import { createElement, useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 
 import { fonts, ui } from '@/constants/theme';
+import { useModalGate } from '@/lib/modal-gate';
 import { todayKey } from '@/lib/habit-day';
 import {
   addHydrationIntake,
@@ -22,6 +23,30 @@ const press = { cursor: 'pointer' } as ViewStyle;
 
 function formatMl(ml: number) {
   return `${new Intl.NumberFormat('pt-BR').format(Math.max(0, Math.round(ml)))} ml`;
+}
+
+function Wave() {
+  if (Platform.OS !== 'web') {
+    return <View pointerEvents="none" style={styles.waveFallback} />;
+  }
+  return createElement(
+    'svg',
+    {
+      width: 148,
+      height: 150,
+      viewBox: '0 0 148 150',
+      'aria-hidden': true,
+      style: { position: 'absolute', left: -18, top: 8, opacity: 0.55 },
+    },
+    createElement('path', {
+      d: 'M0 78c18 10 28-8 46 0s28 12 46 0 28-12 56 2v70H0V78z',
+      fill: '#12304A',
+    }),
+    createElement('path', {
+      d: 'M0 98c20 8 30-10 50-2s30 14 48 2 28-8 50 4v48H0V98z',
+      fill: '#1A4E73',
+    }),
+  );
 }
 
 function Drop() {
@@ -57,6 +82,7 @@ export function HydrationMeter({
   const [pending, setPending] = useState(false);
   const loadTicket = useRef(0);
   const locked = dateKey !== todayKey();
+  useModalGate(confirmZero);
 
   useEffect(() => {
     const ticket = ++loadTicket.current;
@@ -134,11 +160,12 @@ export function HydrationMeter({
 
   return (
     <View style={styles.card}>
+      <Wave />
       <View style={styles.titleRow}>
         <Drop />
         <Text style={styles.title}>Hidratação</Text>
         <Text numberOfLines={1} style={styles.goalLabel}>
-          {day.goalMl == null ? 'Meta' : `Meta ${goalLabel}`}
+          {day.goalMl == null ? 'Meta diária' : `Meta diária: ${goalLabel}`}
         </Text>
       </View>
       <View style={styles.amountRow}>
@@ -233,13 +260,24 @@ export function HydrationMeter({
 const styles = StyleSheet.create({
   card: {
     borderRadius: 18,
-    backgroundColor: '#0C0C0C',
+    backgroundColor: '#071422',
     borderWidth: 1,
-    borderColor: 'rgba(243,239,232,0.12)',
+    borderColor: 'rgba(110,182,242,0.28)',
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 14,
     gap: 12,
+    overflow: 'hidden',
+  },
+  waveFallback: {
+    position: 'absolute',
+    left: -10,
+    bottom: 0,
+    width: 120,
+    height: 70,
+    backgroundColor: '#12304A',
+    opacity: 0.7,
+    borderTopRightRadius: 80,
   },
   titleRow: {
     flexDirection: 'row',
@@ -258,7 +296,7 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    color: ui.champagne,
+    color: ui.text,
     fontFamily: fonts.display,
     fontSize: 15,
     lineHeight: 18,
@@ -297,7 +335,7 @@ const styles = StyleSheet.create({
   rail: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#2A2926',
+    backgroundColor: '#16324A',
     overflow: 'hidden',
   },
   fill: {

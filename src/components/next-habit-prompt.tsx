@@ -1,11 +1,10 @@
-import { Image } from 'expo-image';
 import { router, usePathname, type Href } from 'expo-router';
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { AppState, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HabitGlyph } from '@/components/habit-glyph';
 import { DayCelebration } from '@/components/day-celebration';
+import { HabitGlyph } from '@/components/habit-glyph';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import {
@@ -20,18 +19,13 @@ import {
 import { isOfficialHydration } from '@/lib/daily-score';
 import { dismissCelebration, initialCelebrationView, openCelebration, type CelebrationKind } from '@/lib/day-celebration';
 import { loadDayCelebrations, rememberDayCelebration } from '@/lib/day-celebration-store';
-import { zonedHour, todayKey } from '@/lib/habit-day';
+import { todayKey, zonedHour } from '@/lib/habit-day';
 import type { HabitPeriod } from '@/lib/habit-catalog';
 import { habitIconFor } from '@/lib/habit-visual';
+import { modalGateOpen } from '@/lib/modal-gate';
 import { nextHabitCopy } from '@/lib/next-habit-copy';
-import { acknowledgeNextHabit, shouldShowNextHabit } from '@/lib/next-habit-entry';
+import { acknowledgeNextHabit, armIdleReminder, idleReminderPending, noteHumanActivity, shouldShowNextHabit } from '@/lib/next-habit-entry';
 import { nextPendingHabit } from '@/lib/next-habit';
-
-const periodImage: Record<HabitPeriod, number> = {
-  manha: require('@/assets/period-manha.jpg'),
-  tarde: require('@/assets/period-tarde.jpg'),
-  noite: require('@/assets/period-noite.jpg'),
-};
 
 function currentPeriod(date = new Date()): HabitPeriod {
   const hour = zonedHour(date);
@@ -48,6 +42,23 @@ function isAuthScreen(pathname: string) {
   return pathname === '/' || pathname.startsWith('/entrar') || pathname.startsWith('/cadastro') || pathname.startsWith('/recuperar') || pathname.startsWith('/redefinir') || pathname.startsWith('/boas-vindas');
 }
 
+function surfaceActive() {
+  if (Platform.OS === 'web') {
+    return typeof document === 'undefined' || document.visibilityState === 'visible';
+  }
+  return AppState.currentState === 'active';
+}
+
+function anotherModalOpen() {
+  if (modalGateOpen()) {
+    return true;
+  }
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    return document.querySelector('[aria-modal="true"]') != null;
+  }
+  return false;
+}
+
 export function NextHabitPrompt() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
@@ -57,6 +68,12 @@ export function NextHabitPrompt() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [celebration, setCelebration] = useState(initialCelebrationView);
+  const habitRef = useRef<DailyHabit | null>(null);
+  const celebrationRef = useRef(celebration);
+  const pathnameRef = useRef(pathname);
+  habitRef.current = habit;
+  celebrationRef.current = celebration;
+  pathnameRef.current = pathname;
 
   useEffect(() => {
     if (!userId) {
@@ -67,35 +84,115 @@ export function NextHabitPrompt() {
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || isAuthScreen(pathname) || !board.ready || board.dateKey !== todayKey()) {
+    if (userId) {
+      noteHumanActivity(userId);
+    }
+  }, [pathname, userId]);
+
+  function offer() {
+    const owner = getSessionUserId();
+    const current = getDailyBoard();
+    if (!owner || habitRef.current || celebrationRef.current.visible) {
       return;
     }
-    if (!shouldShowNextHabit(userId)) {
+    if (!surfaceActive() || anotherModalOpen() || isAuthScreen(pathnameRef.current) || !current.ready || current.dateKey !== todayKey()) {
       return;
     }
-    const scheduled = board.habits
+    const scheduled = current.habits
       .filter((item) => !isOfficialHydration(item.catalogHabitId) && habitIconFor(item.label, item.catalogHabitId) !== 'drop')
       .map((item) => ({
         id: item.id,
         label: item.label,
         period: item.period,
         minutes: item.minutes,
-        done: isDailyHabitDone(item, board.completed),
+        done: isDailyHabitDone(item, current.completed),
       }));
     const next = nextPendingHabit(scheduled, currentPeriod());
     if (!next) {
-      acknowledgeNextHabit(userId);
+      acknowledgeNextHabit(owner);
       setHabit(null);
       return;
     }
-    const match = board.habits.find((item) => item.id === next.id) ?? null;
+    const match = current.habits.find((item) => item.id === next.id) ?? null;
+    if (!match) {
+      acknowledgeNextHabit(owner);
+      return;
+    }
+    habitRef.current = match;
     setHabit(match);
+  }
+
+  useEffect(() => {
+    if (!userId || isAuthScreen(pathname) || !shouldShowNextHabit(userId)) {
+      return;
+    }
+    offer();
   }, [board, pathname, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+    const tick = () => {
+      const owner = getSessionUserId();
+      if (!owner || !surfaceActive() || isAuthScreen(pathnameRef.current)) {
+        return;
+      }
+      if (shouldShowNextHabit(owner)) {
+        offer();
+        return;
+      }
+      if (!idleReminderPending(owner)) {
+        armIdleReminder(owner);
+      }
+      if (idleReminderPending(owner)) {
+        offer();
+      }
+    };
+    const timer = setInterval(tick, 1000);
+    const app = AppState.addEventListener('change', tick);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', tick);
+    }
+    return () => {
+      clearInterval(timer);
+      app.remove();
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', tick);
+      }
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || Platform.OS !== 'web' || typeof window === 'undefined') {
+      return;
+    }
+    const mark = () => {
+      const owner = getSessionUserId();
+      if (owner) {
+        noteHumanActivity(owner);
+      }
+    };
+    const options = { capture: true, passive: true } as AddEventListenerOptions;
+    window.addEventListener('pointerdown', mark, options);
+    window.addEventListener('keydown', mark, options);
+    window.addEventListener('wheel', mark, options);
+    window.addEventListener('touchstart', mark, options);
+    window.addEventListener('scroll', mark, options);
+    return () => {
+      window.removeEventListener('pointerdown', mark, options);
+      window.removeEventListener('keydown', mark, options);
+      window.removeEventListener('wheel', mark, options);
+      window.removeEventListener('touchstart', mark, options);
+      window.removeEventListener('scroll', mark, options);
+    };
+  }, [userId]);
 
   function finishOffer() {
     if (userId) {
       acknowledgeNextHabit(userId);
     }
+    habitRef.current = null;
     setHabit(null);
     setNotice('');
     setBusy(false);
@@ -145,14 +242,22 @@ export function NextHabitPrompt() {
         <View style={[styles.scrim, { paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 16) }]}>
           {habit && copy ? (
             <View accessibilityViewIsModal style={styles.card}>
-              <Image source={periodImage[habit.period]} contentFit="cover" style={styles.photo} />
-              <View style={styles.shade} />
-              <Pressable accessibilityRole="button" accessibilityLabel="Fechar" hitSlop={8} onPress={finishOffer} style={styles.close}>
-                <Text style={styles.closeLabel}>×</Text>
-              </Pressable>
-              <Text style={styles.kicker}>Seu próximo hábito</Text>
-              <HabitGlyph name={icon} color={ui.champagne} size={28} />
-              <Text style={styles.headline}>{copy.headline}</Text>
+              <View style={styles.head}>
+                <HabitGlyph name="target" color={ui.champagne} size={18} />
+                <Text style={styles.kicker}>Seu próximo hábito</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Fechar" hitSlop={8} onPress={finishOffer} style={styles.close}>
+                  <Text style={styles.closeLabel}>×</Text>
+                </Pressable>
+              </View>
+              <View style={styles.scene}>
+                <View style={styles.sceneGlow} />
+                <View style={styles.sceneLine} />
+              </View>
+              <View style={styles.nameRow}>
+                <HabitGlyph name={icon} color={ui.champagne} size={22} />
+                <Text style={styles.separator}>|</Text>
+                <Text style={styles.headline}>{copy.headline}</Text>
+              </View>
               <Text style={styles.question}>{copy.question}</Text>
               <Text style={styles.detail}>{copy.detail}</Text>
               {notice ? <Text style={styles.notice}>{notice}</Text> : null}
@@ -162,7 +267,7 @@ export function NextHabitPrompt() {
                 disabled={busy}
                 onPress={() => void complete()}
                 style={styles.primary}>
-                <Text style={styles.primaryLabel}>{busy ? 'Salvando' : 'Marcar como concluído'}</Text>
+                <Text style={styles.primaryLabel}>{busy ? 'Salvando' : '✓  Marcar como concluído'}</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -190,7 +295,7 @@ export function NextHabitPrompt() {
 const styles = StyleSheet.create({
   scrim: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.72)',
+    backgroundColor: 'rgba(0,0,0,0.78)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
@@ -200,67 +305,99 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(232,201,155,0.5)',
+    borderColor: 'rgba(232,201,155,0.72)',
     backgroundColor: '#0C0C0C',
     overflow: 'hidden',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingBottom: 18,
-    paddingTop: 148,
+    paddingBottom: 16,
+    shadowColor: '#D4A85A',
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
   },
-  photo: { position: 'absolute', top: 0, right: 0, left: 0, height: 168 },
-  shade: { position: 'absolute', top: 0, right: 0, left: 0, height: 168, backgroundColor: 'rgba(0,0,0,0.55)' },
-  close: { position: 'absolute', top: 10, right: 10, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  closeLabel: { color: ui.text, fontSize: 22 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 12 },
   kicker: {
+    flex: 1,
     color: ui.champagne,
     fontFamily: fonts.display,
-    fontSize: 13,
-    letterSpacing: 1.2,
+    fontSize: 16,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  close: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  closeLabel: { color: ui.text, fontSize: 22 },
+  scene: {
+    marginTop: 10,
+    marginHorizontal: 12,
+    height: 132,
+    borderRadius: 14,
+    backgroundColor: '#070707',
+    overflow: 'hidden',
+  },
+  sceneGlow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 28,
+    height: 46,
+    backgroundColor: '#12304A',
+    borderTopLeftRadius: 80,
+    borderTopRightRadius: 80,
+    opacity: 0.85,
+  },
+  sceneLine: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    bottom: 46,
+    height: 2,
+    backgroundColor: 'rgba(232,201,155,0.8)',
+  },
+  nameRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
+  separator: { color: 'rgba(243,239,232,0.35)', fontSize: 18 },
   headline: {
-    marginTop: 8,
+    flexShrink: 1,
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 28,
-    letterSpacing: 0.8,
+    fontSize: 26,
+    letterSpacing: 0.6,
     textAlign: 'center',
   },
   question: {
     marginTop: 8,
+    paddingHorizontal: 18,
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 16,
-    letterSpacing: 0.8,
+    fontSize: 15,
+    letterSpacing: 0.6,
     textAlign: 'center',
   },
   detail: {
-    marginTop: 8,
+    marginTop: 6,
+    paddingHorizontal: 22,
     color: '#C8C2B8',
     fontFamily: fonts.text,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
   },
-  notice: { marginTop: 8, color: '#E7B4B4', fontFamily: fonts.text, fontSize: 13, textAlign: 'center' },
+  notice: { marginTop: 8, color: '#E7B4B4', fontFamily: fonts.text, fontSize: 13, textAlign: 'center', paddingHorizontal: 16 },
   primary: {
-    marginTop: 16,
-    alignSelf: 'stretch',
+    marginTop: 14,
+    marginHorizontal: 16,
     minHeight: 48,
     borderRadius: 999,
     backgroundColor: ui.champagneDeep,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryLabel: { color: '#141210', fontFamily: fonts.display, fontSize: 15, letterSpacing: 0.8, textTransform: 'uppercase' },
+  primaryLabel: { color: '#141210', fontFamily: fonts.display, fontSize: 15, letterSpacing: 0.6, textTransform: 'uppercase' },
   secondary: {
     marginTop: 8,
-    alignSelf: 'stretch',
+    marginHorizontal: 16,
     minHeight: 44,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(243,239,232,0.18)',
+    borderColor: 'rgba(243,239,232,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },

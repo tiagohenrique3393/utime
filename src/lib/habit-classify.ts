@@ -18,7 +18,11 @@ export type HabitIcon =
   | 'sun'
   | 'heart'
   | 'check'
-  | 'target';
+  | 'target'
+  | 'shower'
+  | 'pray'
+  | 'stretch'
+  | 'agenda';
 
 export type HabitClassification = {
   pillar: HabitPillar;
@@ -60,14 +64,32 @@ export function classifyHabit(name: string): HabitClassification {
   if (!text) {
     return { pillar: 'mente', confident: false, icon: 'target' };
   }
-  if (has(text, ['biblia', 'oracao', 'orar', 'reza', 'rezar', 'espiritual', 'deus', 'fe ']) || text === 'fe' || text.startsWith('fe ')) {
-    return { pillar: 'espirito', confident: true, icon: text.includes('bibl') || text.includes('leitura') || text.includes('ler ') ? 'book' : 'lotus' };
+  if (has(text, ['biblia'])) {
+    return { pillar: 'espirito', confident: true, icon: 'book' };
   }
-  if (has(text, ['medit', 'gratidao', 'grato', 'reflexao'])) {
-    return { pillar: 'espirito', confident: true, icon: text.includes('grat') ? 'heart' : 'lotus' };
+  if (has(text, ['oracao', 'orar', 'reza', 'rezar'])) {
+    return { pillar: 'espirito', confident: true, icon: 'pray' };
   }
-  if (has(text, ['escovar', 'dente', 'banho', 'higiene'])) {
+  if (has(text, ['espiritual', 'deus', 'fe ']) || text === 'fe' || text.startsWith('fe ')) {
+    return { pillar: 'espirito', confident: true, icon: 'lotus' };
+  }
+  if (has(text, ['medit'])) {
+    return { pillar: 'espirito', confident: true, icon: 'lotus' };
+  }
+  if (has(text, ['gratidao', 'grato'])) {
+    return { pillar: 'espirito', confident: true, icon: 'heart' };
+  }
+  if (has(text, ['reflexao'])) {
+    return { pillar: 'espirito', confident: true, icon: 'lotus' };
+  }
+  if (has(text, ['banho', 'ducha', 'chuveiro'])) {
+    return { pillar: 'corpo', confident: true, icon: 'shower' };
+  }
+  if (has(text, ['escovar', 'dente', 'higiene'])) {
     return { pillar: 'corpo', confident: true, icon: 'spark' };
+  }
+  if (has(text, ['along'])) {
+    return { pillar: 'corpo', confident: true, icon: 'stretch' };
   }
   if (has(text, ['raciocinio', 'planej', 'prioridad'])) {
     return { pillar: 'mente', confident: true, icon: 'brain' };
@@ -84,8 +106,8 @@ export function classifyHabit(name: string): HabitClassification {
   if (has(text, ['muscul', 'academia', 'treino', 'treinar', 'atividade fisica', 'exercicio fisico', 'halter'])) {
     return { pillar: 'corpo', confident: true, icon: 'dumbbell' };
   }
-  if (has(text, ['organiz', 'checklist', 'lista'])) {
-    return { pillar: 'mente', confident: true, icon: 'check' };
+  if (has(text, ['organiz', 'agenda', 'checklist', 'lista'])) {
+    return { pillar: 'mente', confident: true, icon: 'agenda' };
   }
   if (has(text, ['aliment', 'refeicao', 'comida'])) {
     return { pillar: 'corpo', confident: true, icon: 'utensils' };
@@ -94,7 +116,7 @@ export function classifyHabit(name: string): HabitClassification {
     return { pillar: 'corpo', confident: true, icon: 'coffee' };
   }
   if (has(text, ['dormir', 'sono'])) {
-    return { pillar: 'corpo', confident: true, icon: 'moon' };
+    return { pillar: 'corpo', confident: true, icon: 'bed' };
   }
   if (has(text, ['agua', 'hidrat'])) {
     return { pillar: 'corpo', confident: true, icon: 'drop' };
@@ -103,7 +125,7 @@ export function classifyHabit(name: string): HabitClassification {
     return { pillar: 'mente', confident: true, icon: 'phone' };
   }
   if (has(text, ['ingles', 'matematica', 'tecnico', 'estud', 'habilidade', 'curso'])) {
-    return { pillar: 'mente', confident: true, icon: text.includes('estud') || text.includes('curso') ? 'brain' : 'book' };
+    return { pillar: 'mente', confident: true, icon: 'book' };
   }
   if (has(text, ['foco', 'trabalho'])) {
     return { pillar: 'mente', confident: true, icon: 'brain' };

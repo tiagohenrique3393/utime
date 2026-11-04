@@ -16,7 +16,7 @@ import { loadDayCelebrations, rememberDayCelebration } from '@/lib/day-celebrati
 import { useDailyBoard } from '@/lib/use-daily-board';
 import { habitPeriods, type HabitPeriod } from '@/lib/habit-catalog';
 import { formatCalendarDate, formatDailyPercent, parseDateKey, todayKey, zonedHour } from '@/lib/habit-day';
-import { habitIconFor, periodCopy, pillarTone } from '@/lib/habit-visual';
+import { habitIconFor, periodCopy } from '@/lib/habit-visual';
 import { weeklyPhrase } from '@/lib/weekly-phrase';
 import { getProgressColor } from '@/lib/progress-color';
 import { useRequireSession } from '@/lib/require-session';
@@ -94,14 +94,13 @@ function HabitRow({ habit, checked, locked, onToggle }: { habit: DailyHabit; che
   const reduced = useReducedMotion();
   const minutes = habit.minutes;
   const icon = habitIconFor(habit.label, habit.catalogHabitId);
-  const color = pillarTone[habit.pillar];
   const body = (
     <>
-      <View style={[styles.mark, checked && { backgroundColor: color, borderColor: color }]}>
+      <View style={[styles.mark, checked && styles.markDone]}>
         {checked ? <View style={styles.tick} /> : null}
       </View>
       <View style={checked && !reduced ? styles.iconDim : null}>
-        <HabitGlyph name={icon} color={checked ? '#6E6A64' : color} />
+        <HabitGlyph name={icon} color={checked ? '#6E6A64' : ui.champagne} />
       </View>
       <Text numberOfLines={1} style={[styles.taskLabel, checked && styles.taskDone]}>
         {habit.label}
@@ -258,7 +257,6 @@ export default function MyDayScreen() {
           {groups.map((group) => {
             const open = sectionOpen(group.period);
             const done = group.habits.filter((habit) => isDailyHabitDone(habit, board.completed)).length;
-            const icon = group.period === 'manha' ? 'sun' : group.period === 'tarde' ? 'sun' : 'moon';
             return (
               <View key={group.period} style={styles.group}>
                 <Image source={periodImage[group.period]} contentFit="cover" style={styles.periodPhoto} />
@@ -269,7 +267,6 @@ export default function MyDayScreen() {
                   accessibilityLabel={periodCopy[group.period].title}
                   onPress={() => setOverrides((prev) => ({ ...prev, [group.period]: !open }))}
                   style={({ pressed }) => [styles.groupHead, rowPress, pressed && styles.pressed]}>
-                  <HabitGlyph name={icon} color={group.period === 'noite' ? '#8EB7E8' : '#E8C88E'} size={18} />
                   <View style={styles.groupCopy}>
                     <Text style={styles.groupTitle}>{periodCopy[group.period].title}</Text>
                     <Text style={styles.groupSubtitle}>{periodCopy[group.period].subtitle}</Text>
@@ -374,7 +371,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A0A0A',
   },
   periodPhoto: { position: 'absolute', top: 0, right: 0, left: 0, height: 86 },
-  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 86, backgroundColor: 'rgba(5,5,5,0.55)' },
+  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 86, backgroundColor: 'rgba(5,5,5,0.74)' },
   groupHead: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
   groupCopy: { flex: 1 },
   groupTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 18, letterSpacing: 1, textTransform: 'uppercase' },
@@ -403,6 +400,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  markDone: { backgroundColor: '#2F9E62', borderColor: '#2F9E62' },
   tick: {
     width: 7,
     height: 4,
