@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useState, useSyncExternalStore } from 'react';
+import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -73,6 +73,7 @@ export default function PersonalizeHabitsScreen() {
   const [editor, setEditor] = useState<{ mode: 'create' | 'edit'; habitId: string | null; draft: HabitDraft } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<UserHabit | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
+  const dragY = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -245,11 +246,29 @@ export default function PersonalizeHabitsScreen() {
                   const minutes = habit.minutes ?? suggestedMinutes(label, habit.catalogHabitId);
                   return (
                     <View key={habit.id} style={styles.row}>
-                      <View style={styles.order}>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`Subir ${label}`} disabled={index === 0} onPress={() => void shift(period, habit.id, -1)} style={styles.orderButton}>
+                      <View
+                        accessibilityLabel={`Arrastar ${label}`}
+                        onStartShouldSetResponder={() => true}
+                        onMoveShouldSetResponder={() => true}
+                        onResponderGrant={(event) => {
+                          dragY.current = event.nativeEvent.pageY;
+                        }}
+                        onResponderMove={(event) => {
+                          const delta = event.nativeEvent.pageY - dragY.current;
+                          if (delta > 28) {
+                            dragY.current += 28;
+                            void shift(period, habit.id, 1);
+                          } else if (delta < -28) {
+                            dragY.current -= 28;
+                            void shift(period, habit.id, -1);
+                          }
+                        }}
+                        style={styles.order}>
+                        <Text style={styles.orderLabel}>≡</Text>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Subir ${label}`} disabled={index === 0} onPress={() => void shift(period, habit.id, -1)}>
                           <Text style={styles.orderLabel}>↑</Text>
                         </Pressable>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`Descer ${label}`} disabled={index === group.length - 1} onPress={() => void shift(period, habit.id, 1)} style={styles.orderButton}>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Descer ${label}`} disabled={index === group.length - 1} onPress={() => void shift(period, habit.id, 1)}>
                           <Text style={styles.orderLabel}>↓</Text>
                         </Pressable>
                       </View>
