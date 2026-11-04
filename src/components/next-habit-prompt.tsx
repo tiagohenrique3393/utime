@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { router, usePathname, type Href } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -21,6 +22,7 @@ import { dismissCelebration, initialCelebrationView, openCelebration, type Celeb
 import { loadDayCelebrations, rememberDayCelebration } from '@/lib/day-celebration-store';
 import { todayKey, zonedHour } from '@/lib/habit-day';
 import type { HabitPeriod } from '@/lib/habit-catalog';
+import { habitSceneSource } from '@/lib/habit-scene-assets';
 import { habitIconFor } from '@/lib/habit-visual';
 import { modalGateOpen } from '@/lib/modal-gate';
 import { nextHabitCopy } from '@/lib/next-habit-copy';
@@ -249,6 +251,11 @@ export function NextHabitPrompt() {
                   <Text style={styles.closeLabel}>×</Text>
                 </Pressable>
               </View>
+              <View style={styles.scene}>
+                <Image source={habitSceneSource(habit.label)} contentFit="cover" style={styles.sceneImage} accessibilityLabel="" />
+                <View pointerEvents="none" style={styles.sceneDim} />
+                <View pointerEvents="none" style={styles.sceneShade} />
+              </View>
               <View style={styles.nameRow}>
                 <HabitGlyph name={icon} color={ui.champagne} size={22} />
                 <Text style={styles.separator}>|</Text>
@@ -318,7 +325,18 @@ const styles = StyleSheet.create({
   },
   close: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   closeLabel: { color: ui.text, fontSize: 22 },
-  nameRow: { marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
+  scene: { height: 168, marginTop: 8, position: 'relative', backgroundColor: '#070707' },
+  sceneImage: { width: '100%', height: '100%' },
+  sceneDim: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.34)' },
+  sceneShade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    experimental_backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,0.05) 10%, rgba(7,7,7,0.35) 62%, #070707 100%)',
+  },
+  nameRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
   separator: { color: 'rgba(243,239,232,0.35)', fontSize: 18 },
   headline: {
     flexShrink: 1,

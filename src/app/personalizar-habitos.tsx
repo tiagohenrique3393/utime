@@ -247,9 +247,11 @@ export default function PersonalizeHabitsScreen() {
 
     function finish(commit: boolean) {
       const current = session;
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
+      const tracking = { capture: true } as EventListenerOptions;
+      window.removeEventListener('pointermove', onMove, tracking);
+      window.removeEventListener('pointerup', onUp, tracking);
+      window.removeEventListener('pointercancel', onUp, tracking);
+      window.removeEventListener('touchmove', blockTouchScroll, tracking);
       clearHover();
       session = null;
       setGhost(null);
@@ -269,15 +271,9 @@ export default function PersonalizeHabitsScreen() {
       }
       const distance = Math.hypot(event.clientX - session.startX, event.clientY - session.startY);
       if (!session.active) {
-        if (session.touch) {
-          if (distance > 16 && Date.now() - session.startedAt < 280) {
-            finish(false);
-            return;
-          }
-          if (Date.now() - session.startedAt < 320 || distance < 6) {
-            return;
-          }
-        } else if (distance < 4) {
+        const held = Date.now() - session.startedAt;
+        const ready = session.touch ? distance >= 8 || held >= 140 : distance >= 4;
+        if (!ready) {
           return;
         }
         session.active = true;
@@ -299,14 +295,29 @@ export default function PersonalizeHabitsScreen() {
       finish(true);
     }
 
+    function blockTouchScroll(event: TouchEvent) {
+      if (session) {
+        event.preventDefault();
+      }
+    }
+
     function onDown(event: PointerEvent) {
-      if (event.button !== 0 || session) {
+      if (session || (event.pointerType === 'mouse' && event.button !== 0)) {
         return;
       }
       const handle = (event.target as Element | null)?.closest?.('[data-drag-handle]');
       const habitId = handle?.getAttribute('data-drag-handle');
       if (!handle || !habitId) {
         return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (handle instanceof HTMLElement && handle.setPointerCapture) {
+        try {
+          handle.setPointerCapture(event.pointerId);
+        } catch {
+          // O ponteiro continua acompanhado pela janela.
+        }
       }
       session = {
         habitId,
@@ -322,14 +333,16 @@ export default function PersonalizeHabitsScreen() {
         hoverPeriod: null,
         hoverTimer: null,
       };
-      window.addEventListener('pointermove', onMove, { passive: false });
-      window.addEventListener('pointerup', onUp);
-      window.addEventListener('pointercancel', onUp);
+      const tracking = { capture: true, passive: false } as AddEventListenerOptions;
+      window.addEventListener('pointermove', onMove, tracking);
+      window.addEventListener('pointerup', onUp, tracking);
+      window.addEventListener('pointercancel', onUp, tracking);
+      window.addEventListener('touchmove', blockTouchScroll, tracking);
     }
 
-    window.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointerdown', onDown, { capture: true, passive: false });
     return () => {
-      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointerdown', onDown, true);
       finish(false);
     };
   }, []);
@@ -562,11 +575,11 @@ export default function PersonalizeHabitsScreen() {
                 position: 'fixed',
                 left: ghost.x + 14,
                 top: ghost.y + 10,
-                zIndex: 40,
+                zIndex: 80,
                 pointerEvents: 'none',
                 background: '#16130E',
                 color: '#F3EFE8',
-                border: '1px solid rgba(196,165,116,0.7)',
+                border: '1px solid #E8C99B',
                 borderRadius: 12,
                 padding: '8px 12px',
                 fontFamily: 'Manrope, sans-serif',
@@ -663,7 +676,7 @@ const styles = StyleSheet.create({
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: 'rgba(243,239,232,0.08)' },
   rowDragging: { opacity: 0.35 },
   rowHint: { borderTopColor: ui.champagneDeep },
-  handle: { width: 28, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  handle: { width: 36, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   rowCopy: { flex: 1, minWidth: 0 },
   rowLabel: { color: ui.text, fontFamily: fonts.text, fontSize: 13 },
   rowMeta: { marginTop: 2, color: '#A39E96', fontFamily: fonts.text, fontSize: 11 },

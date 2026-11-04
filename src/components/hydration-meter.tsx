@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { createElement, useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 
@@ -19,34 +20,11 @@ import {
 import { formatHydrationAmount } from '@/lib/hydration-volume';
 
 const additions = [200, 300, 500] as const;
+const bubbles = require('@/assets/hydration-bubbles.jpg');
 const press = { cursor: 'pointer' } as ViewStyle;
 
 function formatMl(ml: number) {
   return `${new Intl.NumberFormat('pt-BR').format(Math.max(0, Math.round(ml)))} ml`;
-}
-
-function Wave() {
-  if (Platform.OS !== 'web') {
-    return <View pointerEvents="none" style={styles.waveFallback} />;
-  }
-  return createElement(
-    'svg',
-    {
-      width: 148,
-      height: 150,
-      viewBox: '0 0 148 150',
-      'aria-hidden': true,
-      style: { position: 'absolute', left: -18, top: 8, opacity: 0.55 },
-    },
-    createElement('path', {
-      d: 'M0 78c18 10 28-8 46 0s28 12 46 0 28-12 56 2v70H0V78z',
-      fill: '#12304A',
-    }),
-    createElement('path', {
-      d: 'M0 98c20 8 30-10 50-2s30 14 48 2 28-8 50 4v48H0V98z',
-      fill: '#1A4E73',
-    }),
-  );
 }
 
 function Drop() {
@@ -160,7 +138,8 @@ export function HydrationMeter({
 
   return (
     <View style={styles.card}>
-      <Wave />
+      <Image pointerEvents="none" source={bubbles} contentFit="cover" style={styles.bubbles} accessibilityLabel="" />
+      <View pointerEvents="none" style={styles.bubblesShade} />
       <View style={styles.titleRow}>
         <Drop />
         <Text style={styles.title}>Hidratação</Text>
@@ -269,15 +248,21 @@ const styles = StyleSheet.create({
     gap: 12,
     overflow: 'hidden',
   },
-  waveFallback: {
+  bubbles: {
     position: 'absolute',
-    left: -10,
+    left: 0,
+    top: 0,
     bottom: 0,
-    width: 120,
-    height: 70,
-    backgroundColor: '#12304A',
-    opacity: 0.7,
-    borderTopRightRadius: 80,
+    width: '48%',
+    opacity: 0.72,
+  },
+  bubblesShade: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: '68%',
+    experimental_backgroundImage: 'linear-gradient(90deg, rgba(7,20,34,0.08) 0%, rgba(7,20,34,0.72) 58%, #071422 100%)',
   },
   titleRow: {
     flexDirection: 'row',

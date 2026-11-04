@@ -1,6 +1,6 @@
 import { supabase } from '../../utils/supabase';
 import { normalizeHabitText } from '@/lib/habit-classify';
-import { habitOrderAfterMove } from '@/lib/habit-order';
+import { planHabitMove } from '@/lib/habit-order';
 import { matchingCustomHabit, relevanceLabels, requireHabitRelevance, type HabitRelevance } from '@/lib/habit-relevance';
 
 export { matchingCustomHabit, relevanceLabels, requireHabitRelevance };
@@ -635,18 +635,43 @@ export async function savePersonalizedRoutine(): Promise<HabitResult> {
 }
 
 export async function placeHabit(habitId: string, period: HabitPeriod, index: number): Promise<HabitResult> {
-  const current = habits.find((habit) => habit.id === habitId && habit.active);
-  if (!current || !isPeriod(period)) {
+  const userId = ownerId;
+  const planned = isPeriod(period) ? planHabitMove(habits, habitId, period, index) : null;
+  if (!userId || !planned) {
     return { ok: false, message: 'Não foi possível reordenar esses hábitos.' };
   }
-  if (current.period !== period) {
-    const moved = await updateUserHabit(habitId, { period });
-    if (!moved.ok) {
-      return moved;
+  const snapshot = habits.map((habit) => ({ ...habit }));
+  const byId = new Map(planned.map((item) => [item.id, item]));
+  revision += 1;
+  habits = habits
+    .map((habit) => {
+      const next = byId.get(habit.id);
+      if (!next) {
+        return habit;
+      }
+      return { ...habit, period: next.period, sortOrder: next.sortOrder };
+    })
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
+  emit();
+  for (const item of planned) {
+    const previous = snapshot.find((habit) => habit.id === item.id);
+    if (previous && previous.period === item.period && previous.sortOrder === item.sortOrder) {
+      continue;
+    }
+    const saved = await supabase
+      .from('user_habits')
+      .update({ period: item.period, sort_order: item.sortOrder })
+      .eq('id', item.id)
+      .eq('user_id', userId)
+      .select('id')
+      .maybeSingle();
+    if (saved.error || !saved.data || ownerId !== userId) {
+      habits = snapshot;
+      emit();
+      return { ok: false, message: 'Não foi possível reordenar esses hábitos.' };
     }
   }
-  const ids = habits.filter((habit) => habit.active && habit.period === period).map((habit) => habit.id);
-  return reorderPeriodHabits(period, habitOrderAfterMove(ids, habitId, index));
+  return { ok: true, message: 'Ordem salva.' };
 }
 
 export async function reorderPeriodHabits(period: HabitPeriod, orderedIds: readonly string[]): Promise<HabitResult> {

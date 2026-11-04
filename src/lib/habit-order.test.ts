@@ -1,4 +1,4 @@
-import { habitOrderAfterMove, nextPeriod } from '@/lib/habit-order';
+import { habitOrderAfterMove, nextPeriod, planHabitMove } from '@/lib/habit-order';
 
 function assertEqual(actual: string, expected: string, label: string) {
   if (actual !== expected) {
@@ -15,5 +15,19 @@ assertEqual(habitOrderAfterMove(['a', 'a'], 'a', 0).join(','), 'a', 'não duplic
 assertEqual(nextPeriod('manha'), 'tarde', 'manhã');
 assertEqual(nextPeriod('tarde'), 'noite', 'tarde');
 assertEqual(nextPeriod('noite'), 'manha', 'noite');
+
+const duplicated = [
+  { id: 'a', period: 'manha' as const, sortOrder: 1, active: true },
+  { id: 'b', period: 'manha' as const, sortOrder: 1, active: true },
+  { id: 'c', period: 'tarde' as const, sortOrder: 1, active: true },
+  { id: 'off', period: 'manha' as const, sortOrder: 9, active: false },
+];
+const down = planHabitMove(duplicated, 'a', 'manha', 2);
+assertEqual(down?.map((item) => item.id).join(',') ?? '', 'b,a', 'desce mesmo com ordem repetida');
+assertEqual(down?.map((item) => item.sortOrder).join(',') ?? '', '1000,1001', 'grava posições únicas');
+const across = planHabitMove(duplicated, 'a', 'tarde', 1);
+assertEqual(across?.map((item) => `${item.id}:${item.period}:${item.sortOrder}`).join('|') ?? '', 'c:tarde:2000|a:tarde:2001', 'muda de período sem duplicar');
+assertEqual(String(planHabitMove(duplicated, 'off', 'noite', 0)), 'null', 'hábito inativo não entra');
+assertEqual(planHabitMove(duplicated, 'a', 'manha', 0)?.map((item) => item.id).join(',') ?? '', 'a,b', 'sobe para o início do período');
 
 console.log('habit-order-ok');
