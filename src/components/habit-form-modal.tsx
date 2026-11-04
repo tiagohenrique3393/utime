@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleShee
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HabitGlyph } from '@/components/habit-glyph';
-import { fonts, goldFill, ui } from '@/constants/theme';
+import { dayButtonFill, fonts, ui } from '@/constants/theme';
 import type { HabitPeriod, HabitPillar, HabitRelevance } from '@/lib/habit-catalog';
 import { pillarLabels } from '@/lib/habit-catalog';
 import { useModalGate } from '@/lib/modal-gate';
@@ -151,7 +151,7 @@ export function HabitFormModal({
                       accessibilityState={{ selected }}
                       accessibilityLabel={periodCopy[period]}
                       onPress={() => setDraft((current) => ({ ...current, period }))}
-                      style={[styles.period, selected && goldFill, selected && styles.periodOn]}>
+                      style={[styles.period, selected && dayButtonFill, selected && styles.periodOn]}>
                       <HabitGlyph name={icon} color={selected ? '#141210' : '#A39E96'} size={14} />
                       <Text style={[styles.choiceLabel, selected && styles.periodLabelOn]}>{periodCopy[period]}</Text>
                     </Pressable>
@@ -230,7 +230,7 @@ export function HabitFormModal({
               accessibilityState={{ disabled: pending }}
               disabled={pending}
               onPress={() => onSubmit(draft)}
-              style={[styles.save, goldFill, pending && styles.pressed]}>
+              style={[styles.save, dayButtonFill, pending && styles.pressed]}>
               <Text style={styles.saveLabel}>{pending ? 'Salvando' : 'Salvar hábito'}</Text>
             </Pressable>
           </View>
@@ -359,15 +359,15 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   choiceOn: {
-    borderColor: '#E39A3C',
-    backgroundColor: 'rgba(227,154,60,0.2)',
-    boxShadow: '0 0 12px rgba(227,154,60,0.28)',
+    borderColor: '#E7C99A',
+    backgroundColor: 'rgba(231, 201, 154, 0.2)',
+    boxShadow: '0 0 12px rgba(231, 201, 154, 0.28)',
   },
   markFallback: { width: 8, height: 8, borderRadius: 4, backgroundColor: ui.champagne },
   choiceImage: { width: 42, height: 46 },
   choiceLabel: { color: ui.text, fontFamily: fonts.display, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase' },
   choiceLabelOn: { color: ui.champagne },
-  periodOn: { borderColor: '#F2C56A' },
+  periodOn: { borderColor: '#E7C99A' },
   periodLabelOn: { color: '#141210' },
   minuteCurrent: {
     marginTop: 6,

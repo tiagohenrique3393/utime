@@ -44,3 +44,8 @@ export const goldFill = {
   backgroundColor: '#E08A28',
   experimental_backgroundImage: 'linear-gradient(180deg, #F6C56A 0%, #E39A3C 48%, #C56A1E 100%)',
 } as const;
+
+// Mesmo preenchimento sólido do botão Ver meu dia em src/app/inicio.tsx.
+export const dayButtonFill = {
+  backgroundColor: '#E7C99A',
+} as const;

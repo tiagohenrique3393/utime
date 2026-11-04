@@ -9,7 +9,7 @@ import { DragHandSlot, DragHandStyle } from '@/components/drag-hand';
 import { HabitFormModal, type HabitDraft } from '@/components/habit-form-modal';
 import { HabitGlyph } from '@/components/habit-glyph';
 import { useReducedMotion } from '@/components/motion';
-import { fonts, goldFill, ui } from '@/constants/theme';
+import { dayButtonFill, fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import {
   addCustomHabit,
@@ -738,7 +738,7 @@ export default function PersonalizeHabitsScreen() {
           </View>
         );
       })}
-      <Pressable accessibilityRole="button" onPress={() => { setNotice(''); setEditor({ mode: 'create', habitId: null, draft: emptyDraft }); }} style={[styles.add, goldFill]}>
+      <Pressable accessibilityRole="button" onPress={() => { setNotice(''); setEditor({ mode: 'create', habitId: null, draft: emptyDraft }); }} style={[styles.add, dayButtonFill]}>
         <Text style={styles.addLabel}>+ Adicionar hábito</Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={() => setConfirmAll(true)} style={styles.removeAll}>
