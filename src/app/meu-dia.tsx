@@ -9,7 +9,7 @@ import { DayPlanet } from '@/components/day-planet';
 import { HabitGlyph } from '@/components/habit-glyph';
 import { HydrationMeter } from '@/components/hydration-meter';
 import { useReducedMotion } from '@/components/motion';
-import { fonts, goldFill, ui } from '@/constants/theme';
+import { dayButtonFill, fonts, ui } from '@/constants/theme';
 import { getDailyBoard, isDailyHabitDone, scoreDailyHabits, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
 import { dismissCelebration, initialCelebrationView, noteCelebrationsLoaded, openCelebration, type CompletionSnapshot } from '@/lib/day-celebration';
 import { loadDayCelebrations, rememberDayCelebration } from '@/lib/day-celebration-store';
@@ -295,7 +295,7 @@ export default function MyDayScreen() {
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/personalizar-habitos' as Href)}
-          style={({ pressed }) => [styles.personalize, goldFill, rowPress, pressed && styles.pressed]}>
+          style={({ pressed }) => [styles.personalize, dayButtonFill, rowPress, pressed && styles.pressed]}>
           <Text style={styles.personalizeLabel}>Personalizar hábitos</Text>
           <Text style={styles.personalizeArrow}>›</Text>
         </Pressable>
