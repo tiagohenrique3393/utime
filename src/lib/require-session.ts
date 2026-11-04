@@ -14,6 +14,7 @@ const privatePaths = new Set([
   '/perfil',
   '/meu-dia',
   '/personalizar-habitos',
+  '/desafios',
   '/boas-vindas',
 ]);
 

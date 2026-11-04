@@ -33,6 +33,11 @@ const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = 
     match: (path) => path === '/ranking' || path === '/circulo-amigos' || path === '/perfil-publico',
   },
   {
+    label: 'Desafios',
+    href: '/desafios',
+    match: (path) => path === '/desafios',
+  },
+  {
     label: 'Perfil',
     href: '/perfil',
     match: (path) => path === '/perfil' || path === '/nome-usuario' || path === '/configuracoes',
@@ -83,6 +88,14 @@ function NavIcon({ label, selected }: { label: string; selected: boolean }) {
     );
   } else if (label === 'Círculo') {
     body = glyph('circle', { cx: 10, cy: 10, r: 5.2, ...common });
+  } else if (label === 'Desafios') {
+    body = glyph(
+      'g',
+      null,
+      glyph('circle', { cx: 10, cy: 10, r: 4.4, ...common }),
+      glyph('circle', { cx: 10, cy: 10, r: 1.3, fill: stroke, stroke: 'none' }),
+      glyph('path', { d: 'M10 2.6V5.1M10 14.9v2.5M2.6 10H5.1M14.9 10h2.5', ...common }),
+    );
   } else {
     body = glyph(
       'g',
