@@ -1,7 +1,7 @@
 import { formatDailyPercent, todayKey } from '@/lib/habit-day';
 import { greetingParts, homeDateParts } from '@/lib/home-copy';
 import { formatHydrationAmount } from '@/lib/hydration-volume';
-import { nextScheduledHabit, type ScheduledHabit } from '@/lib/next-habit';
+import { nextPendingHabit, nextScheduledHabit, type ScheduledHabit } from '@/lib/next-habit';
 import { getProgressColor, showsExcellence } from '@/lib/progress-color';
 import { ringMetrics } from '@/lib/progress-ring';
 import { shiftDateKey } from '@/lib/progress-view';
@@ -72,6 +72,9 @@ assertEqual(
 );
 assertEqual(nextScheduledHabit(routine.map((habit) => ({ ...habit, done: true }))), null, 'nada pendente');
 assertEqual(nextScheduledHabit([]), null, 'sem hábitos');
+assertEqual(nextPendingHabit(routine, 'tarde')?.id, 'tarde', 'período atual vem antes da manhã');
+assertEqual(nextPendingHabit(routine, 'manha')?.id, 'manha-2', 'manhã atual preserva a ordem');
+assertEqual(nextPendingHabit(routine.map((habit) => (habit.period === 'tarde' ? { ...habit, done: true } : habit)), 'tarde')?.id, 'manha-2', 'sem pendência no período, segue a rotina');
 
 assertEqual(weeklyPhrases.length >= 100, true, 'pelo menos 100 frases');
 assertEqual(new Set(weeklyPhrases).size, weeklyPhrases.length, 'frases únicas');

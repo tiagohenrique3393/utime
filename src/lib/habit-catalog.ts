@@ -579,11 +579,9 @@ export async function updateUserHabit(
     }
     changes.minutes = minutes === null ? null : Math.round(minutes);
   }
-  if (current.catalogHabitId) {
-    changes.custom_label = null;
-  } else if (patch.label !== undefined) {
+  if (patch.label !== undefined) {
     const label = patch.label.trim();
-    if (label.length === 0) {
+    if (label.length === 0 || label.length > 80) {
       return { ok: false, message: 'Informe o nome do hábito.' };
     }
     changes.custom_label = label;

@@ -20,3 +20,8 @@ export function nextScheduledHabit(habits: readonly ScheduledHabit[]) {
     });
   return pending[0]?.habit ?? null;
 }
+
+export function nextPendingHabit(habits: readonly ScheduledHabit[], current: HabitPeriod) {
+  const pendingNow = habits.find((habit) => !habit.done && habit.period === current);
+  return pendingNow ?? nextScheduledHabit(habits);
+}

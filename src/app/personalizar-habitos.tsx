@@ -1,15 +1,16 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useState, useSyncExternalStore } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { DayPlanet } from '@/components/day-planet';
+import { HabitFormModal, type HabitDraft } from '@/components/habit-form-modal';
 import { HabitGlyph } from '@/components/habit-glyph';
-import { HabitRelevanceChoices } from '@/components/habit-relevance-choices';
 import { fonts, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import {
+  addCustomHabit,
   getCatalogHabits,
   getUserHabits,
   habitPeriods,
@@ -22,29 +23,56 @@ import {
   subscribeHabitRoutine,
   updateUserHabit,
   type HabitPeriod,
+  type HabitPillar,
   type HabitRelevance,
   type UserHabit,
 } from '@/lib/habit-catalog';
-import { habitAcceptsDuration, habitIconFor, parseHabitMinutes, periodCopy, pillarTone, suggestedMinutes } from '@/lib/habit-visual';
+import { habitIconFor, periodCopy, suggestedMinutes } from '@/lib/habit-visual';
+import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
 
 const page = '#050505';
-const periodImage: Record<HabitPeriod, number> = {
-  manha: require('@/assets/period-manha.jpg'),
-  tarde: require('@/assets/period-tarde.jpg'),
-  noite: require('@/assets/period-noite.jpg'),
+const corpoMale = require('@/assets/pillars/corpo-mantime.png');
+const corpoFemale = require('@/assets/pillars/corpo-womantime.png');
+const menteFigure = require('@/assets/pillars/mente.png');
+const espiritoFigure = require('@/assets/pillars/espirito.png');
+
+const relevanceName: Record<HabitRelevance, string> = {
+  alta: 'Alta',
+  media: 'Média',
+  baixa: 'Baixa',
+};
+
+function pillarFigure(pillar: HabitPillar, feminine: boolean) {
+  if (pillar === 'corpo') {
+    return feminine ? corpoFemale : corpoMale;
+  }
+  if (pillar === 'mente') {
+    return menteFigure;
+  }
+  return espiritoFigure;
+}
+
+const emptyDraft: HabitDraft = {
+  label: '',
+  pillar: 'corpo',
+  period: 'manha',
+  minutes: 10,
+  relevance: null,
 };
 
 export default function PersonalizeHabitsScreen() {
   const signedIn = useRequireSession();
   const catalog = useSyncExternalStore(subscribeHabitRoutine, getCatalogHabits, getCatalogHabits);
   const habits = useSyncExternalStore(subscribeHabitRoutine, getUserHabits, getUserHabits);
-  const [open, setOpen] = useState<Record<HabitPeriod, boolean>>({ manha: true, tarde: true, noite: true });
-  const [editing, setEditing] = useState<string | null>(null);
-  const [minutesText, setMinutesText] = useState('');
+  const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
+  const feminine = profile.journey === 'womantime';
+  const [open, setOpen] = useState<Record<HabitPeriod, boolean>>({ manha: false, tarde: false, noite: false });
   const [notice, setNotice] = useState('');
-  const dragY = useRef(0);
-  const relevanceChain = useRef(new Map<string, Promise<void>>());
+  const [pending, setPending] = useState(false);
+  const [editor, setEditor] = useState<{ mode: 'create' | 'edit'; habitId: string | null; draft: HabitDraft } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<UserHabit | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -76,46 +104,86 @@ export default function PersonalizeHabitsScreen() {
     }
   }
 
-  function openMinutes(habit: UserHabit, label: string) {
-    const current = habit.minutes ?? suggestedMinutes(label, habit.catalogHabitId);
-    setEditing(habit.id);
-    setMinutesText(current == null ? '' : String(current));
-    setNotice('');
+  function draftFrom(habit: UserHabit): HabitDraft {
+    const label = habitTitle(habit, catalog);
+    return {
+      label,
+      pillar: habit.pillar,
+      period: habit.period,
+      minutes: habit.minutes ?? suggestedMinutes(label, habit.catalogHabitId) ?? 10,
+      relevance: habit.relevance,
+    };
   }
 
-  async function saveMinutes(habit: UserHabit) {
-    const parsed = parseHabitMinutes(minutesText);
-    if (!parsed.ok) {
-      setNotice(parsed.message);
+  async function saveDraft(draft: HabitDraft) {
+    const label = draft.label.trim();
+    if (label.length === 0 || label.length > 80) {
+      setNotice('Informe o nome do hábito.');
       return;
     }
-    const result = await updateUserHabit(habit.id, { minutes: parsed.minutes });
-    if (!result.ok) {
-      setNotice('Não foi possível salvar a duração. Tente novamente.');
+    if (!draft.relevance) {
+      setNotice('Escolha a relevância do hábito: alta, média ou baixa.');
       return;
     }
-    setNotice('');
-    setEditing(null);
-  }
-
-  function saveRelevance(habit: UserHabit, next: HabitRelevance) {
-    if (habit.relevance === next) {
-      return;
-    }
-    const previous = relevanceChain.current.get(habit.id) ?? Promise.resolve();
-    const run = previous.then(async () => {
-      const latest = getUserHabits().find((item) => item.id === habit.id);
-      if (!latest || latest.relevance === next) {
-        return;
+    setPending(true);
+    if (editor?.mode === 'edit' && editor.habitId) {
+      const result = await updateUserHabit(editor.habitId, {
+        label,
+        pillar: draft.pillar,
+        period: draft.period,
+        minutes: draft.minutes,
+        relevance: draft.relevance,
+      });
+      setPending(false);
+      setNotice(result.ok ? '' : result.message);
+      if (result.ok) {
+        setEditor(null);
       }
-      const result = await updateUserHabit(latest.id, { relevance: next });
+      return;
+    }
+    const created = await addCustomHabit({
+      label,
+      period: draft.period,
+      pillar: draft.pillar,
+      relevance: draft.relevance,
+    });
+    if (created.ok && draft.minutes != null) {
+      const saved = getUserHabits().find((habit) => habit.active && habit.customLabel?.trim() === label);
+      if (saved) {
+        await updateUserHabit(saved.id, { minutes: draft.minutes });
+      }
+    }
+    setPending(false);
+    setNotice(created.ok ? 'Hábito adicionado à sua rotina.' : created.message);
+    if (created.ok) {
+      setEditor(null);
+      setOpen((current) => ({ ...current, [draft.period]: true }));
+    }
+  }
+
+  async function removeOne(habit: UserHabit) {
+    setPending(true);
+    const result = await removeUserHabit(habit.id);
+    setPending(false);
+    setNotice(result.ok ? '' : result.message);
+    if (result.ok) {
+      setConfirmRemove(null);
+    }
+  }
+
+  async function removeAll() {
+    setPending(true);
+    for (const habit of getUserHabits().filter((item) => item.active)) {
+      const result = await removeUserHabit(habit.id);
       if (!result.ok) {
+        setPending(false);
         setNotice(result.message);
         return;
       }
-      setNotice('');
-    });
-    relevanceChain.current.set(habit.id, run);
+    }
+    setPending(false);
+    setConfirmAll(false);
+    setNotice('');
   }
 
   if (!signedIn) {
@@ -128,132 +196,136 @@ export default function PersonalizeHabitsScreen() {
         <Text style={styles.backLabel}>‹ Voltar</Text>
       </Pressable>
       <Text accessibilityRole="header" style={styles.title}>
-        Personalizar{'\n'}hábitos
+        Personalizar hábitos
       </Text>
-      <Text style={styles.lead}>Monte sua rotina ideal</Text>
-      <Text style={styles.copy}>Adicione, remova ou ajuste os hábitos. Sua rotina, no seu ritmo.</Text>
+      <Text style={styles.lead}>Monte sua rotina ideal.</Text>
+      <Text style={styles.copy}>Adicione, edite ou remova os hábitos. Ajuste por pilar e por período.</Text>
       <View style={styles.pillars}>
         {habitPillars.map((pillar) => {
           const count = active.filter((habit) => habit.pillar === pillar).length;
           return (
             <View key={pillar} style={styles.pillar}>
-              <HabitGlyph name={pillar === 'corpo' ? 'run' : pillar === 'mente' ? 'brain' : 'lotus'} color={pillarTone[pillar]} size={22} />
-              <Text style={[styles.pillarName, { color: pillarTone[pillar] }]}>{pillarLabels[pillar]}</Text>
+              <Image source={pillarFigure(pillar, feminine)} contentFit="cover" style={styles.pillarImage} />
+              <Text style={styles.pillarName}>{pillarLabels[pillar]}</Text>
               <Text style={styles.pillarCount}>{`${count} ${count === 1 ? 'hábito' : 'hábitos'}`}</Text>
             </View>
           );
         })}
+      </View>
+      <View accessibilityRole="summary" style={styles.circle}>
+        <Text style={styles.circleMark}>◎</Text>
+        <View style={styles.circleCopy}>
+          <Text style={styles.circleTitle}>Círculo / Ranking</Text>
+          <Text style={styles.circleText}>Requisitos: 10 hábitos (2 Alta · 4 Média · 4 Baixa)</Text>
+        </View>
       </View>
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       {habitPeriods.map((period) => {
         const group = active.filter((habit) => habit.period === period);
         return (
           <View key={period} style={styles.block}>
-            <Image pointerEvents="none" source={periodImage[period]} contentFit="cover" style={styles.periodPhoto} />
+            <Image pointerEvents="none" source={period === 'manha' ? require('@/assets/period-manha.jpg') : period === 'tarde' ? require('@/assets/period-tarde.jpg') : require('@/assets/period-noite.jpg')} contentFit="cover" style={styles.periodPhoto} />
             <View pointerEvents="none" style={styles.periodShade} />
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: open[period] }} onPress={() => setOpen((current) => ({ ...current, [period]: !current[period] }))} style={styles.blockHead}>
-              <HabitGlyph name={period === 'noite' ? 'moon' : 'sun'} color={period === 'noite' ? '#8EB7E8' : '#E8C88E'} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: open[period] }}
+              onPress={() => setOpen((current) => ({ ...current, [period]: !current[period] }))}
+              style={styles.blockHead}>
               <View style={styles.blockCopy}>
                 <Text style={styles.blockTitle}>{periodCopy[period].title}</Text>
                 <Text style={styles.blockSubtitle}>{periodCopy[period].subtitle}</Text>
               </View>
-              <Text style={styles.blockCount}>{String(group.length)}</Text>
+              <Text style={styles.blockCount}>{`${group.length} ${group.length === 1 ? 'hábito' : 'hábitos'}`}</Text>
               <Text style={styles.chevron}>{open[period] ? '⌃' : '⌄'}</Text>
             </Pressable>
-            {open[period]
-              ? group.map((habit) => {
+            {open[period] ? (
+              <>
+                {group.map((habit, index) => {
                   const label = habitTitle(habit, catalog);
-                  const duration = habit.minutes ?? suggestedMinutes(label, habit.catalogHabitId);
-                  const canEditDuration = habitAcceptsDuration(label, habit.catalogHabitId) && duration != null;
+                  const minutes = habit.minutes ?? suggestedMinutes(label, habit.catalogHabitId);
                   return (
                     <View key={habit.id} style={styles.row}>
-                      <View
-                        accessibilityLabel={`Reordenar ${label}`}
-                        onStartShouldSetResponder={() => true}
-                        onMoveShouldSetResponder={() => true}
-                        onResponderGrant={(event) => {
-                          dragY.current = event.nativeEvent.pageY;
-                        }}
-                        onResponderMove={(event) => {
-                          const delta = event.nativeEvent.pageY - dragY.current;
-                          if (delta > 28) {
-                            dragY.current += 28;
-                            void shift(period, habit.id, 1);
-                          } else if (delta < -28) {
-                            dragY.current -= 28;
-                            void shift(period, habit.id, -1);
-                          }
-                        }}
-                        style={styles.grip}>
-                        <Text style={styles.gripMark}>≡</Text>
+                      <View style={styles.order}>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Subir ${label}`} disabled={index === 0} onPress={() => void shift(period, habit.id, -1)} style={styles.orderButton}>
+                          <Text style={styles.orderLabel}>↑</Text>
+                        </Pressable>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Descer ${label}`} disabled={index === group.length - 1} onPress={() => void shift(period, habit.id, 1)} style={styles.orderButton}>
+                          <Text style={styles.orderLabel}>↓</Text>
+                        </Pressable>
                       </View>
-                      <HabitGlyph name={habitIconFor(label, habit.catalogHabitId)} color={pillarTone[habit.pillar]} />
+                      <HabitGlyph name={habitIconFor(label, habit.catalogHabitId)} color={ui.champagne} />
                       <View style={styles.rowCopy}>
                         <Text numberOfLines={1} style={styles.rowLabel}>
                           {label}
                         </Text>
-                        {canEditDuration && editing === habit.id ? (
-                          <View style={styles.minutesEdit}>
-                            <TextInput
-                              autoFocus
-                              value={minutesText}
-                              onChangeText={(value) => {
-                                setMinutesText(value.replace(/\D/g, '').slice(0, 4));
-                                setNotice('');
-                              }}
-                              onSubmitEditing={() => void saveMinutes(habit)}
-                              keyboardType="number-pad"
-                              inputMode="numeric"
-                              returnKeyType="done"
-                              maxLength={4}
-                              placeholder="Minutos"
-                              placeholderTextColor={ui.faint}
-                              accessibilityLabel={`Duração de ${label} em minutos`}
-                              style={styles.minutesInput}
-                            />
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={`Salvar duração de ${label}`}
-                              onPress={() => void saveMinutes(habit)}
-                              style={styles.minutesSave}>
-                              <Text style={styles.minutesSaveLabel}>OK</Text>
-                            </Pressable>
-                          </View>
-                        ) : canEditDuration ? (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`Editar duração de ${label}`}
-                            hitSlop={10}
-                            onPress={() => openMinutes(habit, label)}
-                            style={styles.minutesButton}>
-                            <Text style={styles.minutes}>{`${duration} MIN`}</Text>
-                          </Pressable>
-                        ) : null}
-                        <HabitRelevanceChoices
-                          title="Relevância"
-                          unclassified={habit.relevance === null}
-                          value={habit.relevance}
-                          habitLabel={label}
-                          onChange={(next) => saveRelevance(habit, next)}
-                        />
+                        <Text style={styles.rowMeta}>{minutes != null ? `${minutes} min` : 'Sem duração'}{habit.relevance ? ` · ${relevanceName[habit.relevance]}` : ''}</Text>
                       </View>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Remover ${label}`}
-                        onPress={() => void removeUserHabit(habit.id)}
-                        style={styles.remove}>
-                        <Text style={styles.removeLabel}>−</Text>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`Editar ${label}`} onPress={() => setEditor({ mode: 'edit', habitId: habit.id, draft: draftFrom(habit) })} style={styles.iconButton}>
+                        <Text style={styles.iconLabel}>✎</Text>
+                      </Pressable>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`Remover ${label}`} onPress={() => setConfirmRemove(habit)} style={styles.iconButton}>
+                        <Text style={styles.removeLabel}>⌫</Text>
                       </Pressable>
                     </View>
                   );
-                })
-              : null}
-            <Pressable accessibilityRole="button" onPress={() => router.push(`/adicionar-habito?periodo=${period}` as Href)} style={styles.add}>
-              <Text style={styles.addLabel}>+ Adicionar hábito</Text>
-            </Pressable>
+                })}
+                <View style={styles.legend}>
+                  <Text style={styles.legendItem}>Arrastar{'\n'}Altere a ordem dos hábitos.</Text>
+                  <Text style={styles.legendItem}>Editar{'\n'}Mude o hábito, período ou relevância.</Text>
+                  <Text style={styles.legendItem}>Remover{'\n'}Exclua o hábito da sua rotina.</Text>
+                </View>
+              </>
+            ) : null}
           </View>
         );
       })}
+      <Pressable accessibilityRole="button" onPress={() => { setNotice(''); setEditor({ mode: 'create', habitId: null, draft: emptyDraft }); }} style={styles.add}>
+        <Text style={styles.addLabel}>Adicionar hábito</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => setConfirmAll(true)} style={styles.removeAll}>
+        <Text style={styles.removeAllLabel}>Remover todos os hábitos</Text>
+      </Pressable>
+      <HabitFormModal
+        visible={editor !== null}
+        title={editor?.mode === 'edit' ? 'Editar hábito' : 'Novo hábito'}
+        initial={editor?.draft ?? emptyDraft}
+        pending={pending}
+        notice={editor ? notice : ''}
+        onClose={() => {
+          if (!pending) {
+            setEditor(null);
+          }
+        }}
+        onSubmit={(draft) => void saveDraft(draft)}
+      />
+      <Modal visible={confirmRemove !== null} transparent animationType="fade" onRequestClose={() => setConfirmRemove(null)}>
+        <View style={styles.scrim}>
+          <View style={styles.dialog}>
+            <Text style={styles.dialogTitle}>Remover hábito</Text>
+            <Text style={styles.dialogCopy}>O hábito sai da rotina. O histórico de check-in permanece.</Text>
+            <Pressable accessibilityRole="button" disabled={pending} onPress={() => confirmRemove && void removeOne(confirmRemove)} style={styles.removeAll}>
+              <Text style={styles.removeAllLabel}>Remover</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => setConfirmRemove(null)} style={styles.cancel}>
+              <Text style={styles.cancelLabel}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={confirmAll} transparent animationType="fade" onRequestClose={() => setConfirmAll(false)}>
+        <View style={styles.scrim}>
+          <View style={styles.dialog}>
+            <Text style={styles.dialogTitle}>Remover todos os hábitos</Text>
+            <Text style={styles.dialogCopy}>A rotina fica vazia. Check-ins, pontuação e conquistas já registrados permanecem.</Text>
+            <Pressable accessibilityRole="button" disabled={pending} onPress={() => void removeAll()} style={styles.removeAll}>
+              <Text style={styles.removeAllLabel}>Remover todos</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => setConfirmAll(false)} style={styles.cancel}>
+              <Text style={styles.cancelLabel}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </AppScreen>
   );
 }
@@ -261,47 +333,61 @@ export default function PersonalizeHabitsScreen() {
 const styles = StyleSheet.create({
   blank: { flex: 1, backgroundColor: page },
   back: { minHeight: 36, justifyContent: 'center' },
-  backLabel: { color: ui.text, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1.2, textTransform: 'uppercase' },
-  title: { color: ui.text, fontFamily: fonts.display, fontSize: 34, lineHeight: 36, letterSpacing: 0.4, textTransform: 'uppercase' },
-  lead: { marginTop: 8, color: ui.textChampagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1.2, textTransform: 'uppercase' },
-  copy: { marginTop: 6, color: '#A39E96', fontFamily: fonts.text, fontSize: 14, lineHeight: 20 },
-  pillars: { marginTop: 18, flexDirection: 'row', gap: 8 },
-  pillar: {
-    flex: 1,
-    minHeight: 92,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(232,200,142,0.16)',
-    backgroundColor: 'rgba(12,12,12,0.72)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  pillarName: { fontFamily: fonts.display, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
+  backLabel: { color: ui.text, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1.1, textTransform: 'uppercase' },
+  title: { color: ui.text, fontFamily: fonts.display, fontSize: 26, lineHeight: 30, letterSpacing: 0.3, textTransform: 'uppercase' },
+  lead: { marginTop: 8, color: ui.textChampagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 0.6 },
+  copy: { marginTop: 4, color: '#A39E96', fontFamily: fonts.text, fontSize: 13, lineHeight: 18 },
+  pillars: { marginTop: 16, flexDirection: 'row', gap: 8 },
+  pillar: { flex: 1, alignItems: 'center', gap: 4 },
+  pillarImage: { width: 72, height: 84, borderRadius: 16 },
+  pillarName: { color: ui.text, fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
   pillarCount: { color: '#A39E96', fontFamily: fonts.text, fontSize: 11 },
-  notice: { marginTop: 12, color: '#E7B4B4', fontFamily: fonts.text, fontSize: 13 },
-  block: { marginTop: 14, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(232,200,142,0.16)', backgroundColor: '#0A0A0A', overflow: 'hidden' },
-  periodPhoto: { position: 'absolute', top: 0, right: 0, left: 0, height: 72 },
-  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 72, backgroundColor: 'rgba(5,5,5,0.58)' },
-  blockHead: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
+  circle: {
+    marginTop: 14,
+    minHeight: 58,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(196,165,116,0.35)',
+    backgroundColor: 'rgba(18,16,12,0.92)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+  },
+  circleMark: { color: ui.champagne, fontSize: 16 },
+  circleCopy: { flex: 1 },
+  circleTitle: { color: ui.champagne, fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
+  circleText: { marginTop: 2, color: '#C8C2B8', fontFamily: fonts.text, fontSize: 11, lineHeight: 15 },
+  notice: { marginTop: 10, color: ui.textChampagne, fontFamily: fonts.text, fontSize: 13 },
+  block: { marginTop: 12, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(232,200,142,0.16)', backgroundColor: '#0A0A0A', overflow: 'hidden' },
+  periodPhoto: { position: 'absolute', top: 0, right: 0, left: 0, height: 74 },
+  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 74, backgroundColor: 'rgba(5,5,5,0.62)' },
+  blockHead: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
   blockCopy: { flex: 1 },
-  blockTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 16, letterSpacing: 1.1, textTransform: 'uppercase' },
-  blockSubtitle: { color: '#A39E96', fontFamily: fonts.display, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },
-  blockCount: { color: ui.text, fontFamily: fonts.textMedium, fontSize: 14 },
+  blockTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 18, letterSpacing: 0.8, textTransform: 'uppercase' },
+  blockSubtitle: { color: '#A39E96', fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase' },
+  blockCount: { color: ui.text, fontFamily: fonts.text, fontSize: 12 },
   chevron: { color: ui.textChampagne, width: 16, textAlign: 'center' },
-  row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: 'rgba(243,239,232,0.08)' },
-  grip: { width: 28, height: 36, alignItems: 'center', justifyContent: 'center' },
-  gripMark: { color: '#8E8A84', fontSize: 16 },
+  row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, borderTopWidth: 1, borderTopColor: 'rgba(243,239,232,0.08)' },
+  order: { width: 28 },
+  orderButton: { minHeight: 22, alignItems: 'center', justifyContent: 'center' },
+  orderLabel: { color: '#8E8A84', fontSize: 12 },
   rowCopy: { flex: 1, minWidth: 0 },
-  rowLabel: { color: ui.text, fontFamily: fonts.text, fontSize: 15 },
-  minutesButton: { alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center', marginTop: 2, paddingRight: 8 },
-  minutes: { color: '#A39E96', fontFamily: fonts.text, fontSize: 11, letterSpacing: 0.6 },
-  minutesEdit: { marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  minutesInput: { flex: 1, minWidth: 0, height: 36, borderRadius: 8, borderWidth: 1, borderColor: ui.line, color: ui.text, fontFamily: fonts.text, fontSize: 14, paddingHorizontal: 8 },
-  minutesSave: { minWidth: 44, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: 'rgba(232,200,142,0.45)' },
-  minutesSaveLabel: { color: ui.textChampagne, fontFamily: fonts.display, fontSize: 12, letterSpacing: 1 },
-  remove: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#E15A4C', alignItems: 'center', justifyContent: 'center' },
-  removeLabel: { color: '#fff', fontSize: 18, lineHeight: 20 },
-  add: { minHeight: 46, margin: 12, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(232,200,142,0.45)', alignItems: 'center', justifyContent: 'center' },
-  addLabel: { color: ui.textChampagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
+  rowLabel: { color: ui.text, fontFamily: fonts.text, fontSize: 13 },
+  rowMeta: { marginTop: 2, color: '#A39E96', fontFamily: fonts.text, fontSize: 11 },
+  iconButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  iconLabel: { color: ui.champagne, fontSize: 16 },
+  removeLabel: { color: '#E15A4C', fontSize: 16 },
+  legend: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(243,239,232,0.08)' },
+  legendItem: { flex: 1, color: '#8E8A84', fontFamily: fonts.text, fontSize: 10, lineHeight: 13, textTransform: 'uppercase' },
+  add: { marginTop: 16, minHeight: 50, borderRadius: 999, backgroundColor: ui.champagneDeep, alignItems: 'center', justifyContent: 'center' },
+  addLabel: { color: '#141210', fontFamily: fonts.display, fontSize: 15, letterSpacing: 1, textTransform: 'uppercase' },
+  removeAll: { marginTop: 10, minHeight: 46, borderRadius: 999, borderWidth: 1, borderColor: '#E15A4C', alignItems: 'center', justifyContent: 'center' },
+  removeAllLabel: { color: '#E15A4C', fontFamily: fonts.display, fontSize: 13, letterSpacing: 0.8, textTransform: 'uppercase' },
+  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: 18 },
+  dialog: { width: '100%', maxWidth: 380, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(232,201,155,0.35)', backgroundColor: '#0C0C0C', padding: 16 },
+  dialogTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 18, letterSpacing: 0.6, textTransform: 'uppercase' },
+  dialogCopy: { marginTop: 8, color: '#C8C2B8', fontFamily: fonts.text, fontSize: 14, lineHeight: 20 },
+  cancel: { marginTop: 8, minHeight: 42, alignItems: 'center', justifyContent: 'center' },
+  cancelLabel: { color: ui.text, fontFamily: fonts.display, fontSize: 13, letterSpacing: 0.8, textTransform: 'uppercase' },
 });

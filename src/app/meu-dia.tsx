@@ -8,6 +8,7 @@ import { DayCelebration } from '@/components/day-celebration';
 import { DayPlanet } from '@/components/day-planet';
 import { HabitGlyph } from '@/components/habit-glyph';
 import { HydrationMeter } from '@/components/hydration-meter';
+import { useReducedMotion } from '@/components/motion';
 import { fonts, ui } from '@/constants/theme';
 import { getDailyBoard, isDailyHabitDone, scoreDailyHabits, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
 import { dismissCelebration, initialCelebrationView, noteCelebrationsLoaded, openCelebration, type CompletionSnapshot } from '@/lib/day-celebration';
@@ -16,6 +17,7 @@ import { useDailyBoard } from '@/lib/use-daily-board';
 import { habitPeriods, type HabitPeriod } from '@/lib/habit-catalog';
 import { formatCalendarDate, formatDailyPercent, parseDateKey, todayKey, zonedHour } from '@/lib/habit-day';
 import { habitIconFor, periodCopy, pillarTone } from '@/lib/habit-visual';
+import { weeklyPhrase } from '@/lib/weekly-phrase';
 import { getProgressColor } from '@/lib/progress-color';
 import { useRequireSession } from '@/lib/require-session';
 import { HYDRATION_HABIT_ID } from '@/lib/suggested-habits';
@@ -89,6 +91,7 @@ function Ring({ percent, color }: { percent: number; color: string }) {
 }
 
 function HabitRow({ habit, checked, locked, onToggle }: { habit: DailyHabit; checked: boolean; locked: boolean; onToggle: () => void }) {
+  const reduced = useReducedMotion();
   const minutes = habit.minutes;
   const icon = habitIconFor(habit.label, habit.catalogHabitId);
   const color = pillarTone[habit.pillar];
@@ -97,15 +100,17 @@ function HabitRow({ habit, checked, locked, onToggle }: { habit: DailyHabit; che
       <View style={[styles.mark, checked && { backgroundColor: color, borderColor: color }]}>
         {checked ? <View style={styles.tick} /> : null}
       </View>
-      <HabitGlyph name={icon} color={color} />
-      <Text numberOfLines={1} style={styles.taskLabel}>
+      <View style={checked && !reduced ? styles.iconDim : null}>
+        <HabitGlyph name={icon} color={checked ? '#6E6A64' : color} />
+      </View>
+      <Text numberOfLines={1} style={[styles.taskLabel, checked && styles.taskDone]}>
         {habit.label}
       </Text>
-      {minutes ? <Text style={styles.minutes}>{`${minutes} min`}</Text> : null}
+      {minutes ? <Text style={[styles.minutes, checked && styles.taskDone]}>{`${minutes} min`}</Text> : null}
     </>
   );
   if (locked) {
-    return <View style={styles.task}>{body}</View>;
+    return <View style={[styles.task, checked && styles.taskChecked]}>{body}</View>;
   }
   return (
     <Pressable
@@ -113,7 +118,7 @@ function HabitRow({ habit, checked, locked, onToggle }: { habit: DailyHabit; che
       accessibilityState={{ checked }}
       accessibilityLabel={habit.label}
       onPress={onToggle}
-      style={({ pressed }) => [styles.task, rowPress, pressed && styles.pressed]}>
+      style={({ pressed }) => [styles.task, checked && styles.taskChecked, rowPress, pressed && styles.pressed]}>
       {body}
     </Pressable>
   );
@@ -246,22 +251,8 @@ export default function MyDayScreen() {
               <Text style={styles.ringCaption}>{`${counts.done} de ${counts.total} hábitos`}</Text>
             </View>
             <View style={styles.quote}>
-              <Text style={styles.quoteText}>“Disciplina hoje, resultados amanhã.”</Text>
+              <Text style={styles.quoteText}>{`“${weeklyPhrase(board.dateKey)}”`}</Text>
             </View>
-          </View>
-          <View style={styles.periods}>
-            {groups.map((group) => {
-              const done = group.habits.filter((habit) => isDailyHabitDone(habit, board.completed)).length;
-              const icon = group.period === 'manha' ? 'run' : group.period === 'tarde' ? 'sun' : 'moon';
-              const color = group.period === 'manha' ? '#E15A4C' : group.period === 'tarde' ? '#E8C88E' : '#6EB6F2';
-              return (
-                <View key={group.period} style={styles.periodChip}>
-                  <HabitGlyph name={icon} color={color} size={14} />
-                  <Text style={styles.periodCount}>{`${done}/${group.habits.length}`}</Text>
-                  <Text style={styles.periodName}>{periodCopy[group.period].title}</Text>
-                </View>
-              );
-            })}
           </View>
           {board.notice ? <Text style={styles.notice}>{board.notice}</Text> : null}
           {groups.map((group) => {
@@ -323,17 +314,17 @@ const styles = StyleSheet.create({
   kicker: {
     color: ui.textChampagne,
     fontFamily: fonts.display,
-    fontSize: 12,
-    letterSpacing: 2.4,
+    fontSize: 10,
+    letterSpacing: 1.6,
     textTransform: 'uppercase',
   },
   title: {
     marginTop: 2,
     color: ui.text,
     fontFamily: fonts.display,
-    fontSize: 36,
-    lineHeight: 40,
-    letterSpacing: 0.6,
+    fontSize: 26,
+    lineHeight: 30,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   date: {
@@ -374,10 +365,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quoteText: { color: ui.text, fontFamily: fonts.text, fontSize: 14, lineHeight: 20 },
-  periods: { marginTop: 16, flexDirection: 'row', justifyContent: 'space-between' },
-  periodChip: { alignItems: 'center', gap: 2, minWidth: 72 },
-  periodCount: { color: ui.text, fontFamily: fonts.textMedium, fontSize: 13 },
-  periodName: { color: '#8E8A84', fontFamily: fonts.display, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },
   group: {
     marginTop: 12,
     borderRadius: 18,
@@ -390,7 +377,7 @@ const styles = StyleSheet.create({
   periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 86, backgroundColor: 'rgba(5,5,5,0.55)' },
   groupHead: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
   groupCopy: { flex: 1 },
-  groupTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase' },
+  groupTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 18, letterSpacing: 1, textTransform: 'uppercase' },
   groupSubtitle: { color: '#A39E96', fontFamily: fonts.display, fontSize: 11, letterSpacing: 1.1, textTransform: 'uppercase' },
   groupCount: { color: ui.text, fontFamily: fonts.textMedium, fontSize: 14 },
   chevron: { color: ui.textChampagne, fontSize: 16, width: 16, textAlign: 'center' },
@@ -404,6 +391,9 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(243,239,232,0.08)',
     backgroundColor: 'rgba(5,5,5,0.45)',
   },
+  taskChecked: { backgroundColor: 'rgba(0,0,0,0.72)' },
+  taskDone: { opacity: 0.55, textDecorationLine: 'line-through' },
+  iconDim: { opacity: 0.55 },
   mark: {
     width: 18,
     height: 18,
@@ -422,7 +412,7 @@ const styles = StyleSheet.create({
     borderColor: '#141210',
     transform: [{ rotate: '-45deg' }],
   },
-  taskLabel: { flex: 1, color: ui.text, fontFamily: fonts.text, fontSize: 14 },
+  taskLabel: { flex: 1, color: ui.text, fontFamily: fonts.text, fontSize: 13 },
   minutes: { color: '#8E8A84', fontFamily: fonts.text, fontSize: 12 },
   hydration: { marginTop: 14 },
   personalize: {

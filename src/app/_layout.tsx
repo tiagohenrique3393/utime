@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
 
+import { NextHabitPrompt } from '@/components/next-habit-prompt';
 import { colors } from '@/constants/theme';
 import { applySessionOwner, getSessionUserId } from '@/lib/accounts';
 import { isPrivatePath } from '@/lib/require-session';
@@ -88,6 +89,7 @@ export default function RootLayout() {
           animation: 'fade',
         }}
       />
+      <NextHabitPrompt />
     </ThemeProvider>
   );
 }

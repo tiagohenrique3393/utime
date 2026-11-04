@@ -7,6 +7,7 @@ import { clearOwnAvatar } from '@/lib/avatar';
 import { establishSessionFromUrl } from '@/lib/session';
 import { setHabitOwner } from '@/lib/habit-catalog';
 import { setProfileOwner } from '@/lib/profile';
+import { resetNextHabitEntry } from '@/lib/next-habit-entry';
 import { setSessionUserId } from '@/lib/session-user';
 import { hydrateAccount } from '@/lib/sync';
 import { setTaskOwner } from '@/lib/tasks';
@@ -218,6 +219,7 @@ export async function updatePassword(password: string): Promise<AuthResult> {
 }
 
 export async function signOut(): Promise<void> {
+  resetNextHabitEntry();
   await supabase.auth.signOut();
   await applySessionOwner(null);
 }

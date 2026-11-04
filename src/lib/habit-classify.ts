@@ -2,6 +2,9 @@ import type { HabitPillar } from '@/lib/habit-catalog';
 
 export type HabitIcon =
   | 'run'
+  | 'walk'
+  | 'dumbbell'
+  | 'kimono'
   | 'lotus'
   | 'book'
   | 'brain'
@@ -14,6 +17,7 @@ export type HabitIcon =
   | 'bed'
   | 'sun'
   | 'heart'
+  | 'check'
   | 'target';
 
 export type HabitClassification = {
@@ -68,8 +72,20 @@ export function classifyHabit(name: string): HabitClassification {
   if (has(text, ['raciocinio', 'planej', 'prioridad'])) {
     return { pillar: 'mente', confident: true, icon: 'brain' };
   }
-  if (has(text, ['muscul', 'academia', 'caminh', 'corrida', 'treino', 'atividade fisica', 'exercicio fisico'])) {
+  if (has(text, ['jiu jitsu', 'jiujitsu', 'bjj', 'kimono'])) {
+    return { pillar: 'corpo', confident: true, icon: 'kimono' };
+  }
+  if (has(text, ['caminh'])) {
+    return { pillar: 'corpo', confident: true, icon: 'walk' };
+  }
+  if (has(text, ['corrida', 'correr'])) {
     return { pillar: 'corpo', confident: true, icon: 'run' };
+  }
+  if (has(text, ['muscul', 'academia', 'treino', 'treinar', 'atividade fisica', 'exercicio fisico', 'halter'])) {
+    return { pillar: 'corpo', confident: true, icon: 'dumbbell' };
+  }
+  if (has(text, ['organiz', 'checklist', 'lista'])) {
+    return { pillar: 'mente', confident: true, icon: 'check' };
   }
   if (has(text, ['aliment', 'refeicao', 'comida'])) {
     return { pillar: 'corpo', confident: true, icon: 'utensils' };
