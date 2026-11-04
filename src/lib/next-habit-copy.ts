@@ -10,47 +10,21 @@ function has(text: string, words: readonly string[]) {
   return words.some((word) => text.includes(word));
 }
 
-function withTime(detail: string, minutes: number | null) {
-  if (minutes == null || minutes <= 0) {
-    return detail;
-  }
-  return `${detail} Você reservou ${minutes} min.`;
-}
-
-export function nextHabitCopy(label: string, minutes: number | null): NextHabitCopy {
+export function nextHabitCopy(label: string, _minutes: number | null): NextHabitCopy {
   const text = normalizeHabitText(label);
   const headline = label.trim().toUpperCase();
+  const question = 'JÁ FEZ ESSE HÁBITO HOJE?';
   if (has(text, ['jiu jitsu', 'jiujitsu', 'bjj', 'kimono'])) {
-    return {
-      headline,
-      question: 'JÁ TREINOU HOJE?',
-      detail: 'Faça o seu treino e mantenha a constância no tatame.',
-    };
+    return { headline, question, detail: 'Faça o seu treino e mantenha a constância no tatame.' };
   }
-  if (has(text, ['leitur', 'livro']) || text === 'ler' || text.startsWith('ler ')) {
-    return {
-      headline,
-      question: 'JÁ LEU ALGUMA COISA HOJE?',
-      detail: withTime('Comece com algumas páginas. O importante é manter a constância.', minutes),
-    };
+  if (has(text, ['medit', 'respir'])) {
+    return { headline, question, detail: 'Conecte-se, respire e mantenha o equilíbrio.' };
   }
-  if (has(text, ['muscul', 'academia', 'treino', 'treinar', 'halter'])) {
-    return {
-      headline,
-      question: 'JÁ TREINOU HOJE?',
-      detail: withTime('Reserve um momento para cuidar do seu corpo.', minutes),
-    };
+  if (has(text, ['leitur', 'livro', 'estud', 'curso']) || text === 'ler' || text.startsWith('ler ')) {
+    return { headline, question, detail: 'Estimule o foco e o aprendizado.' };
   }
-  if (has(text, ['estud', 'curso'])) {
-    return {
-      headline,
-      question: 'JÁ ESTUDOU HOJE?',
-      detail: withTime('Alguns minutos de foco também fazem diferença.', minutes),
-    };
+  if (has(text, ['dente', 'escov', 'banho', 'agua', 'dorm', 'saúde', 'saude'])) {
+    return { headline, question, detail: 'Cuide da sua saúde e bem-estar.' };
   }
-  return {
-    headline,
-    question: 'JÁ FEZ ESSE HÁBITO HOJE?',
-    detail: withTime('Reserve um momento e mantenha a constância.', minutes),
-  };
+  return { headline, question, detail: 'Reserve um momento e mantenha a constância.' };
 }

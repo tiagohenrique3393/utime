@@ -89,11 +89,13 @@ const mine = localKeysForAccount('user-1', [
   'youtime.journey.user-1',
   'youtime.pillar-insights.user-1',
   'utime-day-celebration:user-1:2026-10-21',
+  'utime.drag-learned.user-1',
+  'utime.drag-learned.user-2',
   'youtime.profile.user-2',
   'utime-day-celebration:user-2:2026-10-21',
   'youtime.preview.journey',
 ]);
-assertEqual(mine.length, 5, 'so as chaves da propria conta');
+assertEqual(mine.length, 6, 'so as chaves da propria conta');
 assertEqual(mine.includes('youtime.profile.user-2'), false, 'nao apaga outra conta');
 
 const me = '11111111-1111-4111-8111-111111111111';

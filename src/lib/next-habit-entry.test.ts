@@ -17,11 +17,14 @@ assertEqual(nextHabitEntryGeneration() > start, true, 'logout abre nova geraçã
 assertEqual(shouldShowNextHabit('ana'), true, 'novo login mostra de novo');
 
 const jiu = nextHabitCopy('Jiu-jitsu', 60);
-assertEqual(jiu.question, 'JÁ TREINOU HOJE?', 'pergunta de jiu-jitsu');
+assertEqual(jiu.question, 'JÁ FEZ ESSE HÁBITO HOJE?', 'pergunta única');
 assertEqual(jiu.detail, 'Faça o seu treino e mantenha a constância no tatame.', 'texto do tatame');
 const read = nextHabitCopy('Leitura', null);
-assertEqual(read.question, 'JÁ LEU ALGUMA COISA HOJE?', 'pergunta de leitura');
-assertEqual(nextHabitCopy('Estudar inglês', null).question, 'JÁ ESTUDOU HOJE?', 'pergunta de estudo');
+assertEqual(read.question, 'JÁ FEZ ESSE HÁBITO HOJE?', 'pergunta de leitura');
+assertEqual(read.detail, 'Estimule o foco e o aprendizado.', 'frase de leitura');
+assertEqual(nextHabitCopy('Meditar 10 minutos', null).detail, 'Conecte-se, respire e mantenha o equilíbrio.', 'frase de meditação');
+assertEqual(nextHabitCopy('Escovar os dentes', null).detail, 'Cuide da sua saúde e bem-estar.', 'frase de cuidado');
+assertEqual(nextHabitCopy('Um nome bem longo para o hábito de foco profundo', 45).headline, 'UM NOME BEM LONGO PARA O HÁBITO DE FOCO PROFUNDO', 'nome longo');
 
 acknowledgeNextHabit('ana', 1_000);
 assertEqual(armIdleReminder('ana', 1_000 + 4 * 60 * 1000), false, 'antes de cinco minutos');

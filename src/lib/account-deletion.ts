@@ -159,6 +159,7 @@ const accountKeyPrefixes = [
   'youtime.journey.',
   'youtime.pillar-insights.',
   'utime-day-celebration:',
+  'utime.drag-learned.',
 ];
 
 export function localKeysForAccount(userId: string, keys: readonly string[]) {
@@ -173,6 +174,9 @@ export function localKeysForAccount(userId: string, keys: readonly string[]) {
       return true;
     }
     if (key.startsWith(`utime-day-celebration:${userId}:`)) {
+      return true;
+    }
+    if (key === `utime.drag-learned.${userId}`) {
       return true;
     }
     return false;

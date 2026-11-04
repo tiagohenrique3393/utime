@@ -5,8 +5,10 @@ import { Modal, Platform, Pressable, StyleSheet, Text, View, type ViewProps, typ
 
 import { AppScreen } from '@/components/app-screen';
 import { DayPlanet } from '@/components/day-planet';
+import { DragHandSlot, DragHandStyle } from '@/components/drag-hand';
 import { HabitFormModal, type HabitDraft } from '@/components/habit-form-modal';
 import { HabitGlyph } from '@/components/habit-glyph';
+import { useReducedMotion } from '@/components/motion';
 import { fonts, goldFill, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import {
@@ -27,7 +29,9 @@ import {
   type HabitRelevance,
   type UserHabit,
 } from '@/lib/habit-catalog';
-import { habitOrderAfterMove, nextPeriod } from '@/lib/habit-order';
+import { dragHintVisible, readDragLearned, writeDragLearned } from '@/lib/drag-hint';
+import { locateHabitDrop, type DragBand } from '@/lib/habit-drag';
+import { habitOrderAfterMove, nextPeriod, planHabitMove } from '@/lib/habit-order';
 import { habitIconFor, periodCopy, suggestedMinutes } from '@/lib/habit-visual';
 import { useModalGate } from '@/lib/modal-gate';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
@@ -81,7 +85,7 @@ function Mark({ kind }: { kind: 'drag' | 'edit' | 'remove' }) {
   const color = kind === 'remove' ? '#E15A4C' : '#C4A574';
   const path =
     kind === 'drag'
-      ? 'M7 7h2.2v2.2H7zM12 7h2.2v2.2H12zM7 12h2.2v2.2H7zM12 12h2.2v2.2H12z'
+      ? 'M7 4.5h2.2v2.2H7zM12.8 4.5h2.2v2.2h-2.2zM7 9.6h2.2v2.2H7zM12.8 9.6h2.2v2.2h-2.2zM7 14.7h2.2v2.2H7zM12.8 14.7h2.2v2.2h-2.2z'
       : kind === 'edit'
         ? 'M4 16.8V20h3.2L18.2 9 15 5.8 4 16.8zM15 5.8l2.2-2.2a1.2 1.2 0 0 1 1.7 0l1.5 1.5a1.2 1.2 0 0 1 0 1.7L18.2 9 15 5.8z'
         : 'M8 8h8l-.6 11.2H8.6L8 8zM6.5 6.2h11M10 6.2V4.8h4v1.4';
@@ -100,10 +104,41 @@ const emptyDraft: HabitDraft = {
   relevance: null,
 };
 
-const handleStyle = { touchAction: 'none' } as ViewStyle;
+const handleStyle = { touchAction: 'none', userSelect: 'none' } as ViewStyle;
 
 function webData(data: Record<string, string>): ViewProps {
   return { dataSet: data } as unknown as ViewProps;
+}
+
+function browserStorage() {
+  if (typeof localStorage === 'undefined') {
+    return null;
+  }
+  return localStorage;
+}
+
+function hostElement(node: unknown): HTMLElement | null {
+  if (node && typeof node === 'object' && 'dataset' in node && 'style' in node) {
+    return node as HTMLElement;
+  }
+  return null;
+}
+
+function withLift(habits: readonly UserHabit[], lift: { id: string; period: HabitPeriod; index: number } | null) {
+  if (!lift) {
+    return habits;
+  }
+  const planned = planHabitMove(habits, lift.id, lift.period, lift.index);
+  if (!planned) {
+    return habits;
+  }
+  const byId = new Map(planned.map((item) => [item.id, item]));
+  return habits
+    .map((habit) => {
+      const next = byId.get(habit.id);
+      return next ? { ...habit, period: next.period, sortOrder: next.sortOrder } : habit;
+    })
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
 }
 
 export default function PersonalizeHabitsScreen() {
@@ -112,6 +147,7 @@ export default function PersonalizeHabitsScreen() {
   const habits = useSyncExternalStore(subscribeHabitRoutine, getUserHabits, getUserHabits);
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const feminine = profile.journey === 'womantime';
+  const reducedMotion = useReducedMotion();
   const [open, setOpen] = useState<Record<HabitPeriod, boolean>>({ manha: false, tarde: false, noite: false });
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState(false);
@@ -120,9 +156,11 @@ export default function PersonalizeHabitsScreen() {
   const [confirmAll, setConfirmAll] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [ghost, setGhost] = useState<{ label: string; x: number; y: number } | null>(null);
-  const [dropHint, setDropHint] = useState<DropHint | null>(null);
+  const [lift, setLift] = useState<{ id: string; period: HabitPeriod; index: number } | null>(null);
+  const [hintOn, setHintOn] = useState(false);
+  const [learned, setLearned] = useState(false);
   const openRef = useRef(open);
-  const moveRef = useRef<(habitId: string, period: HabitPeriod, index: number) => Promise<void>>(async () => {});
+  const moveRef = useRef<(habitId: string, period: HabitPeriod, index: number) => Promise<boolean>>(async () => false);
   openRef.current = open;
   useModalGate(confirmRemove !== null || confirmAll);
 
@@ -136,24 +174,43 @@ export default function PersonalizeHabitsScreen() {
   );
 
   const active = habits.filter((habit) => habit.active);
+  const shown = withLift(active, lift);
+
+  useEffect(() => {
+    setLearned(readDragLearned(getSessionUserId(), browserStorage()));
+  }, [signedIn]);
 
   async function moveHabit(habitId: string, period: HabitPeriod, index: number) {
     const current = getUserHabits().find((habit) => habit.id === habitId && habit.active);
     if (!current) {
-      return;
+      return false;
     }
     const group = getUserHabits().filter((habit) => habit.active && habit.period === period).map((habit) => habit.id);
     if (current.period === period && habitOrderAfterMove(group, habitId, index).every((id, position) => id === group[position])) {
-      return;
+      return true;
     }
     setPending(true);
     const result = await placeHabit(habitId, period, index);
     setPending(false);
     if (!result.ok) {
       setNotice(result.message);
+      return false;
     }
+    return true;
   }
   moveRef.current = moveHabit;
+
+  function togglePeriod(period: HabitPeriod) {
+    const willOpen = !open[period];
+    setOpen((current) => ({ ...current, [period]: !current[period] }));
+    if (!willOpen) {
+      setHintOn(false);
+      return;
+    }
+    if (!readDragLearned(getSessionUserId(), browserStorage())) {
+      setHintOn(true);
+    }
+  }
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') {
@@ -170,41 +227,76 @@ export default function PersonalizeHabitsScreen() {
       startedAt: number;
       touch: boolean;
       active: boolean;
+      handle: Element;
+      drop: DropHint | null;
       hoverPeriod: HabitPeriod | null;
       hoverTimer: number | null;
+      holdTimer: number | null;
     };
     let session: Session | null = null;
+    let saving = false;
+    let restoreScroll: (() => void) | null = null;
 
     function clearHover() {
       if (session?.hoverTimer != null) {
         window.clearTimeout(session.hoverTimer);
         session.hoverTimer = null;
       }
+      if (session?.holdTimer != null) {
+        window.clearTimeout(session.holdTimer);
+        session.holdTimer = null;
+      }
       if (session) {
         session.hoverPeriod = null;
       }
     }
 
-    function readDrop(x: number, y: number): DropHint | null {
-      const nodes = document.elementsFromPoint(x, y);
-      for (const node of nodes) {
-        const row = (node as Element).closest?.('[data-drop-kind="row"]');
-        if (row) {
-          const period = row.getAttribute('data-drop-period') as HabitPeriod | null;
-          const index = Number(row.getAttribute('data-drop-index'));
-          if (!period || Number.isNaN(index)) {
-            return null;
-          }
-          const rect = row.getBoundingClientRect();
-          return { period, index: y < rect.top + rect.height / 2 ? index : index + 1 };
+    function unlockScroll() {
+      restoreScroll?.();
+      restoreScroll = null;
+    }
+
+    function lockScroll(from: Element | null) {
+      let node = from?.parentElement ?? null;
+      while (node) {
+        const overflow = getComputedStyle(node).overflowY;
+        if ((overflow === 'auto' || overflow === 'scroll') && node.scrollHeight > node.clientHeight + 4) {
+          const previous = node.style.overflowY;
+          const previousTouch = node.style.touchAction;
+          node.style.overflowY = 'hidden';
+          node.style.touchAction = 'none';
+          const locked = node;
+          restoreScroll = () => {
+            locked.style.overflowY = previous;
+            locked.style.touchAction = previousTouch;
+          };
+          return;
         }
-        const header = (node as Element).closest?.('[data-drop-kind="period"]');
-        if (header) {
-          const period = header.getAttribute('data-drop-period') as HabitPeriod | null;
-          return period ? { period, index: 0 } : null;
-        }
+        node = node.parentElement;
       }
-      return null;
+    }
+
+    function readBands() {
+      const headers: DragBand[] = [];
+      const rows: DragBand[] = [];
+      document.querySelectorAll('[data-drop-kind="period"]').forEach((node) => {
+        const period = node.getAttribute('data-drop-period') as HabitPeriod | null;
+        if (!period) {
+          return;
+        }
+        const rect = node.getBoundingClientRect();
+        headers.push({ period, top: rect.top, bottom: rect.bottom });
+      });
+      document.querySelectorAll('[data-drop-kind="row"]').forEach((node) => {
+        const period = node.getAttribute('data-drop-period') as HabitPeriod | null;
+        const id = node.getAttribute('data-drop-id');
+        if (!period || !id) {
+          return;
+        }
+        const rect = node.getBoundingClientRect();
+        rows.push({ period, id, top: rect.top, bottom: rect.bottom });
+      });
+      return { headers, rows };
     }
 
     function watchHover(x: number, y: number) {
@@ -214,35 +306,40 @@ export default function PersonalizeHabitsScreen() {
       const header = document.elementsFromPoint(x, y).find((node) => (node as Element).closest?.('[data-drop-kind="period"]'));
       const period = header ? ((header as Element).closest('[data-drop-kind="period"]')?.getAttribute('data-drop-period') as HabitPeriod | null) : null;
       if (!period || openRef.current[period]) {
-        clearHover();
+        if (session.hoverTimer != null) {
+          window.clearTimeout(session.hoverTimer);
+          session.hoverTimer = null;
+          session.hoverPeriod = null;
+        }
         return;
       }
       if (session.hoverPeriod === period) {
         return;
       }
-      clearHover();
+      if (session.hoverTimer != null) {
+        window.clearTimeout(session.hoverTimer);
+      }
       session.hoverPeriod = period;
       session.hoverTimer = window.setTimeout(() => {
         setOpen((current) => ({ ...current, [period]: true }));
       }, 380);
     }
 
-    function scrollEdge(y: number) {
-      let current = document.elementFromPoint(Math.min(window.innerWidth - 8, Math.max(8, window.innerWidth / 2)), Math.min(window.innerHeight - 8, Math.max(8, y))) as HTMLElement | null;
-      while (current) {
-        if (current.scrollHeight > current.clientHeight + 8) {
-          const overflow = getComputedStyle(current).overflowY;
-          if (overflow === 'auto' || overflow === 'scroll') {
-            if (y < 88) {
-              current.scrollTop -= 16;
-            } else if (y > window.innerHeight - 120) {
-              current.scrollTop += 16;
-            }
-            return;
-          }
-        }
-        current = current.parentElement;
+    function beginDrag() {
+      if (!session || session.active) {
+        return;
       }
+      session.active = true;
+      if (session.handle instanceof HTMLElement && session.handle.setPointerCapture) {
+        try {
+          session.handle.setPointerCapture(session.pointerId);
+        } catch {
+          // O ponteiro continua acompanhado pela janela.
+        }
+      }
+      lockScroll(session.handle);
+      setDraggingId(session.habitId);
+      setHintOn(false);
     }
 
     function finish(commit: boolean) {
@@ -250,19 +347,35 @@ export default function PersonalizeHabitsScreen() {
       const tracking = { capture: true } as EventListenerOptions;
       window.removeEventListener('pointermove', onMove, tracking);
       window.removeEventListener('pointerup', onUp, tracking);
-      window.removeEventListener('pointercancel', onUp, tracking);
+      window.removeEventListener('pointercancel', onCancel, tracking);
       window.removeEventListener('touchmove', blockTouchScroll, tracking);
       clearHover();
       session = null;
       setGhost(null);
       setDraggingId(null);
-      setDropHint(null);
-      if (commit && current?.active) {
-        const drop = readDrop(current.x, current.y);
-        if (drop) {
-          void moveRef.current(current.habitId, drop.period, drop.index);
+      unlockScroll();
+      if (current?.handle instanceof HTMLElement && current.handle.hasPointerCapture?.(current.pointerId)) {
+        try {
+          current.handle.releasePointerCapture(current.pointerId);
+        } catch {
+          // A captura já foi encerrada pelo navegador.
         }
       }
+      if (!commit || !current?.active || !current.drop) {
+        setLift(null);
+        return;
+      }
+      const drop = current.drop;
+      saving = true;
+      void moveRef.current(current.habitId, drop.period, drop.index).then((saved) => {
+        saving = false;
+        setLift(null);
+        if (saved) {
+          writeDragLearned(getSessionUserId(), browserStorage());
+          setLearned(true);
+          setHintOn(false);
+        }
+      });
     }
 
     function onMove(event: PointerEvent) {
@@ -272,20 +385,29 @@ export default function PersonalizeHabitsScreen() {
       const distance = Math.hypot(event.clientX - session.startX, event.clientY - session.startY);
       if (!session.active) {
         const held = Date.now() - session.startedAt;
-        const ready = session.touch ? distance >= 8 || held >= 140 : distance >= 4;
-        if (!ready) {
+        if (session.touch && distance > 16 && held < 160) {
+          finish(false);
           return;
         }
-        session.active = true;
-        setDraggingId(session.habitId);
+        if (session.touch ? held < 160 : distance < 4) {
+          return;
+        }
+        beginDrag();
+      }
+      if (!session?.active) {
+        return;
       }
       event.preventDefault();
       session.x = event.clientX;
       session.y = event.clientY;
-      setGhost({ label: session.label, x: event.clientX, y: event.clientY });
-      setDropHint(readDrop(event.clientX, event.clientY));
+      setGhost({ label: session.label, x: event.clientX, y: event.clientY - 36 });
+      const bands = readBands();
+      const drop = locateHabitDrop(event.clientY, session.habitId, bands.headers, bands.rows);
+      if (drop) {
+        session.drop = drop;
+        setLift({ id: session.habitId, period: drop.period, index: drop.index });
+      }
       watchHover(event.clientX, event.clientY);
-      scrollEdge(event.clientY);
     }
 
     function onUp(event: PointerEvent) {
@@ -295,30 +417,46 @@ export default function PersonalizeHabitsScreen() {
       finish(true);
     }
 
+    function onCancel(event: PointerEvent) {
+      if (!session || event.pointerId !== session.pointerId) {
+        return;
+      }
+      finish(false);
+    }
+
     function blockTouchScroll(event: TouchEvent) {
-      if (session) {
+      if (session?.active) {
         event.preventDefault();
       }
     }
 
+    function handleFrom(event: PointerEvent) {
+      for (const node of event.composedPath()) {
+        if (node instanceof Element) {
+          const found = node.closest('[data-drag-handle]');
+          if (found) {
+            return found;
+          }
+        }
+      }
+      return null;
+    }
+
     function onDown(event: PointerEvent) {
-      if (session || (event.pointerType === 'mouse' && event.button !== 0)) {
+      setHintOn(false);
+      if (saving || session || (event.pointerType === 'mouse' && event.button !== 0)) {
         return;
       }
-      const handle = (event.target as Element | null)?.closest?.('[data-drag-handle]');
+      const handle = handleFrom(event);
       const habitId = handle?.getAttribute('data-drag-handle');
       if (!handle || !habitId) {
         return;
       }
-      event.preventDefault();
-      event.stopPropagation();
-      if (handle instanceof HTMLElement && handle.setPointerCapture) {
-        try {
-          handle.setPointerCapture(event.pointerId);
-        } catch {
-          // O ponteiro continua acompanhado pela janela.
-        }
+      const touch = event.pointerType !== 'mouse';
+      if (!touch) {
+        event.preventDefault();
       }
+      event.stopPropagation();
       session = {
         habitId,
         label: handle.getAttribute('data-drag-label') || 'Hábito',
@@ -328,15 +466,21 @@ export default function PersonalizeHabitsScreen() {
         startX: event.clientX,
         startY: event.clientY,
         startedAt: Date.now(),
-        touch: event.pointerType === 'touch',
+        touch,
         active: false,
+        handle,
+        drop: null,
         hoverPeriod: null,
         hoverTimer: null,
+        holdTimer: null,
       };
+      if (touch) {
+        session.holdTimer = window.setTimeout(() => beginDrag(), 160);
+      }
       const tracking = { capture: true, passive: false } as AddEventListenerOptions;
       window.addEventListener('pointermove', onMove, tracking);
       window.addEventListener('pointerup', onUp, tracking);
-      window.addEventListener('pointercancel', onUp, tracking);
+      window.addEventListener('pointercancel', onCancel, tracking);
       window.addEventListener('touchmove', blockTouchScroll, tracking);
     }
 
@@ -435,6 +579,7 @@ export default function PersonalizeHabitsScreen() {
 
   return (
     <AppScreen width="narrow" backgroundColor={page} backdrop={<DayPlanet />}>
+      <DragHandStyle />
       <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.navigate('/meu-dia' as Href)} style={styles.back}>
         <Text style={styles.backLabel}>‹ Voltar</Text>
       </Pressable>
@@ -464,7 +609,12 @@ export default function PersonalizeHabitsScreen() {
       </View>
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       {habitPeriods.map((period) => {
-        const group = active.filter((habit) => habit.period === period);
+        const group = shown.filter((habit) => habit.period === period);
+        const showHand = dragHintVisible({
+          learned,
+          expanded: hintOn && open[period] && group.length > 0 && habitPeriods.find((item) => open[item] && shown.some((habit) => habit.period === item)) === period,
+          dismissed: draggingId !== null,
+        });
         return (
           <View key={period} style={styles.block}>
             <Image pointerEvents="none" source={period === 'manha' ? require('@/assets/period-manha.jpg') : period === 'tarde' ? require('@/assets/period-tarde.jpg') : require('@/assets/period-noite.jpg')} contentFit="cover" style={styles.periodPhoto} />
@@ -472,8 +622,16 @@ export default function PersonalizeHabitsScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded: open[period] }}
+              ref={(node) => {
+                const element = hostElement(node);
+                if (!element) {
+                  return;
+                }
+                element.dataset.dropKind = 'period';
+                element.dataset.dropPeriod = period;
+              }}
               {...webData({ dropKind: 'period', dropPeriod: period })}
-              onPress={() => setOpen((current) => ({ ...current, [period]: !current[period] }))}
+              onPress={() => togglePeriod(period)}
               style={styles.blockHead}>
               <View style={styles.blockCopy}>
                 <Text style={styles.blockTitle}>{periodCopy[period].title}</Text>
@@ -482,18 +640,37 @@ export default function PersonalizeHabitsScreen() {
               <Text style={styles.blockCount}>{`${group.length} ${group.length === 1 ? 'hábito' : 'hábitos'}`}</Text>
               <Text style={styles.chevron}>{open[period] ? '⌃' : '⌄'}</Text>
             </Pressable>
+            {showHand ? <DragHandSlot reduced={reducedMotion} /> : null}
             {open[period]
               ? group.map((habit, index) => {
                   const label = habitTitle(habit, catalog);
                   const minutes = habit.minutes ?? suggestedMinutes(label, habit.catalogHabitId);
-                  const hinted = dropHint?.period === period && dropHint.index === index;
+                  const hinted = lift?.period === period && lift.index === index && lift.id !== habit.id;
                   return (
                     <View
                       key={habit.id}
-                      {...webData({ dropKind: 'row', dropPeriod: period, dropIndex: String(index) })}
+                      ref={(node) => {
+                        const element = hostElement(node);
+                        if (!element) {
+                          return;
+                        }
+                        element.dataset.dropKind = 'row';
+                        element.dataset.dropPeriod = period;
+                        element.dataset.dropId = habit.id;
+                      }}
+                      {...webData({ dropKind: 'row', dropPeriod: period, dropIndex: String(index), dropId: habit.id })}
                       style={[styles.row, draggingId === habit.id && styles.rowDragging, hinted && styles.rowHint]}>
                       <View
                         accessible
+                        ref={(node) => {
+                          const element = hostElement(node);
+                          if (!element) {
+                            return;
+                          }
+                          element.style.touchAction = 'none';
+                          element.dataset.dragHandle = habit.id;
+                          element.dataset.dragLabel = label;
+                        }}
                         accessibilityLabel={`Arrastar ${label}`}
                         accessibilityActions={[
                           { name: 'increment', label: 'Mover para cima' },
@@ -664,7 +841,7 @@ const styles = StyleSheet.create({
   circleTitle: { color: ui.champagne, fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
   circleText: { marginTop: 2, color: '#C8C2B8', fontFamily: fonts.text, fontSize: 11, lineHeight: 15 },
   notice: { marginTop: 10, color: ui.textChampagne, fontFamily: fonts.text, fontSize: 13 },
-  block: { marginTop: 12, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(232,200,142,0.16)', backgroundColor: '#0A0A0A', overflow: 'hidden' },
+  block: { marginTop: 12, position: 'relative', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(232,200,142,0.16)', backgroundColor: '#0A0A0A', overflow: 'hidden' },
   periodPhoto: { position: 'absolute', top: 0, right: 0, left: 0, height: 78 },
   periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 78, backgroundColor: 'rgba(5,5,5,0.48)' },
   blockHead: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
