@@ -9,7 +9,7 @@ import { DayPlanet } from '@/components/day-planet';
 import { HabitGlyph } from '@/components/habit-glyph';
 import { HydrationMeter } from '@/components/hydration-meter';
 import { useReducedMotion } from '@/components/motion';
-import { fonts, ui } from '@/constants/theme';
+import { fonts, goldFill, ui } from '@/constants/theme';
 import { getDailyBoard, isDailyHabitDone, scoreDailyHabits, toggleDailyHabit, type DailyHabit } from '@/lib/daily-board';
 import { dismissCelebration, initialCelebrationView, noteCelebrationsLoaded, openCelebration, type CompletionSnapshot } from '@/lib/day-celebration';
 import { loadDayCelebrations, rememberDayCelebration } from '@/lib/day-celebration-store';
@@ -99,8 +99,8 @@ function HabitRow({ habit, checked, locked, onToggle }: { habit: DailyHabit; che
       <View style={[styles.mark, checked && styles.markDone]}>
         {checked ? <View style={styles.tick} /> : null}
       </View>
-      <View style={checked && !reduced ? styles.iconDim : null}>
-        <HabitGlyph name={icon} color={checked ? '#6E6A64' : ui.champagne} />
+      <View style={[styles.glyphRing, checked && !reduced ? styles.iconDim : null]}>
+        <HabitGlyph name={icon} color={checked ? '#6E6A64' : ui.champagne} size={16} />
       </View>
       <Text numberOfLines={1} style={[styles.taskLabel, checked && styles.taskDone]}>
         {habit.label}
@@ -295,7 +295,7 @@ export default function MyDayScreen() {
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/personalizar-habitos' as Href)}
-          style={({ pressed }) => [styles.personalize, rowPress, pressed && styles.pressed]}>
+          style={({ pressed }) => [styles.personalize, goldFill, rowPress, pressed && styles.pressed]}>
           <Text style={styles.personalizeLabel}>Personalizar hábitos</Text>
           <Text style={styles.personalizeArrow}>›</Text>
         </Pressable>
@@ -370,14 +370,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#0A0A0A',
   },
-  periodPhoto: { position: 'absolute', top: 0, right: 0, left: 0, height: 86 },
-  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 86, backgroundColor: 'rgba(5,5,5,0.74)' },
+  periodPhoto: { position: 'absolute', top: 0, right: 0, left: 0, height: 78 },
+  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 78, backgroundColor: 'rgba(5,5,5,0.48)' },
   groupHead: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
   groupCopy: { flex: 1 },
   groupTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 18, letterSpacing: 1, textTransform: 'uppercase' },
   groupSubtitle: { color: '#A39E96', fontFamily: fonts.display, fontSize: 11, letterSpacing: 1.1, textTransform: 'uppercase' },
   groupCount: { color: ui.text, fontFamily: fonts.textMedium, fontSize: 14 },
-  chevron: { color: ui.textChampagne, fontSize: 16, width: 16, textAlign: 'center' },
+  chevron: { color: '#E8C99B', fontSize: 16, width: 16, textAlign: 'center' },
   task: {
     minHeight: 52,
     flexDirection: 'row',
@@ -413,11 +413,19 @@ const styles = StyleSheet.create({
   taskLabel: { flex: 1, color: ui.text, fontFamily: fonts.text, fontSize: 13 },
   minutes: { color: '#8E8A84', fontFamily: fonts.text, fontSize: 12 },
   hydration: { marginTop: 14 },
+  glyphRing: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(232,201,155,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   personalize: {
     marginTop: 16,
     minHeight: 54,
     borderRadius: 999,
-    backgroundColor: ui.champagneDeep,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

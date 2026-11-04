@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DayCelebration } from '@/components/day-celebration';
 import { HabitGlyph } from '@/components/habit-glyph';
-import { fonts, ui } from '@/constants/theme';
+import { fonts, goldFill, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import {
   getDailyBoard,
@@ -249,10 +249,6 @@ export function NextHabitPrompt() {
                   <Text style={styles.closeLabel}>×</Text>
                 </Pressable>
               </View>
-              <View style={styles.scene}>
-                <View style={styles.sceneGlow} />
-                <View style={styles.sceneLine} />
-              </View>
               <View style={styles.nameRow}>
                 <HabitGlyph name={icon} color={ui.champagne} size={22} />
                 <Text style={styles.separator}>|</Text>
@@ -266,7 +262,7 @@ export function NextHabitPrompt() {
                 accessibilityState={{ disabled: busy }}
                 disabled={busy}
                 onPress={() => void complete()}
-                style={styles.primary}>
+                style={[styles.primary, goldFill]}>
                 <Text style={styles.primaryLabel}>{busy ? 'Salvando' : '✓  Marcar como concluído'}</Text>
               </Pressable>
               <Pressable
@@ -305,14 +301,11 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(232,201,155,0.72)',
-    backgroundColor: '#0C0C0C',
+    borderColor: '#E8C99B',
+    backgroundColor: '#070707',
     overflow: 'hidden',
     paddingBottom: 16,
-    shadowColor: '#D4A85A',
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 0 },
+    boxShadow: '0 0 24px rgba(226,170,70,0.5)',
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 12 },
   kicker: {
@@ -325,34 +318,7 @@ const styles = StyleSheet.create({
   },
   close: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   closeLabel: { color: ui.text, fontSize: 22 },
-  scene: {
-    marginTop: 10,
-    marginHorizontal: 12,
-    height: 132,
-    borderRadius: 14,
-    backgroundColor: '#070707',
-    overflow: 'hidden',
-  },
-  sceneGlow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 28,
-    height: 46,
-    backgroundColor: '#12304A',
-    borderTopLeftRadius: 80,
-    borderTopRightRadius: 80,
-    opacity: 0.85,
-  },
-  sceneLine: {
-    position: 'absolute',
-    left: 24,
-    right: 24,
-    bottom: 46,
-    height: 2,
-    backgroundColor: 'rgba(232,201,155,0.8)',
-  },
-  nameRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
+  nameRow: { marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
   separator: { color: 'rgba(243,239,232,0.35)', fontSize: 18 },
   headline: {
     flexShrink: 1,
@@ -386,7 +352,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     minHeight: 48,
     borderRadius: 999,
-    backgroundColor: ui.champagneDeep,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -397,7 +362,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(243,239,232,0.2)',
+    borderColor: 'rgba(232,201,155,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },

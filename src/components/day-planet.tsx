@@ -23,23 +23,22 @@ function imageUri(mod: unknown) {
 const css = `
 .day-planet-layer {
   position: absolute;
-  width: 210%;
+  width: 156%;
   height: auto;
-  left: 64%;
-  top: -46%;
-  transform: translateX(-50%);
-  opacity: 0.85;
+  left: 70%;
+  top: -6%;
+  transform: translateX(-46%);
+  opacity: 0.96;
   pointer-events: none;
   user-select: none;
-  filter: brightness(0.48) saturate(0.7);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 42%, transparent 68%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 42%, transparent 68%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 46%, transparent 82%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 46%, transparent 82%);
 }
 .day-planet-veil {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(5,5,5,0.8) 0%, rgba(5,5,5,0.88) 30%, rgba(5,5,5,0.96) 54%, #050505 72%);
+  background: linear-gradient(180deg, rgba(5,5,5,0.05) 0%, rgba(5,5,5,0.18) 34%, rgba(5,5,5,0.72) 68%, #050505 100%);
 }
 `;
 
@@ -76,16 +75,16 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     left: 0,
-    height: 250,
+    height: 300,
     overflow: 'hidden',
   },
   nativeImage: {
     position: 'absolute',
-    width: '190%',
-    height: 420,
-    left: '-20%',
-    top: -168,
-    opacity: 0.22,
+    width: '170%',
+    height: 360,
+    left: '-10%',
+    top: -48,
+    opacity: 0.92,
   },
   nativeVeil: {
     position: 'absolute',
@@ -93,7 +92,7 @@ const styles = StyleSheet.create({
     right: 0,
     left: 0,
     bottom: 0,
-    backgroundColor: 'rgba(5,5,5,0.8)',
+    backgroundColor: 'rgba(5,5,5,0.22)',
   },
   nativeFade: {
     position: 'absolute',

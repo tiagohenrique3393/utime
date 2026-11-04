@@ -7,7 +7,7 @@ import { AppScreen } from '@/components/app-screen';
 import { DayPlanet } from '@/components/day-planet';
 import { HabitFormModal, type HabitDraft } from '@/components/habit-form-modal';
 import { HabitGlyph } from '@/components/habit-glyph';
-import { fonts, ui } from '@/constants/theme';
+import { fonts, goldFill, ui } from '@/constants/theme';
 import { getSessionUserId } from '@/lib/accounts';
 import {
   addCustomHabit,
@@ -55,6 +55,23 @@ function pillarFigure(pillar: HabitPillar, feminine: boolean) {
     return menteFigure;
   }
   return espiritoFigure;
+}
+
+function Seal({ kind, tone }: { kind: HabitRelevance; tone: string }) {
+  if (Platform.OS !== 'web') {
+    return null;
+  }
+  const path =
+    kind === 'alta'
+      ? 'M3 15h14l-1.4-7.2L12.2 11 10 5.2 7.8 11 4.4 7.8 3 15z'
+      : kind === 'media'
+        ? 'M10 16.2a6.2 6.2 0 1 0 0-12.4 6.2 6.2 0 0 0 0 12.4zM10 12.6a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2z'
+        : 'M3 13.2h14v2.2H3zM4.2 9h11.6v2.1H4.2zM5.4 4.8h9.2v2.1H5.4z';
+  return createElement(
+    'svg',
+    { width: 12, height: 12, viewBox: '0 0 20 20', 'aria-hidden': true },
+    createElement('path', { d: path, fill: 'none', stroke: tone, strokeWidth: 1.5, strokeLinejoin: 'round', strokeLinecap: 'round' }),
+  );
 }
 
 function Mark({ kind }: { kind: 'drag' | 'edit' | 'remove' }) {
@@ -433,7 +450,6 @@ export default function PersonalizeHabitsScreen() {
         </View>
       </View>
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-      <Text style={styles.dragHint}>Toque, segure e arraste para reorganizar seus hábitos.</Text>
       {habitPeriods.map((period) => {
         const group = active.filter((habit) => habit.period === period);
         return (
@@ -485,7 +501,9 @@ export default function PersonalizeHabitsScreen() {
                         style={[styles.handle, handleStyle]}>
                         <Mark kind="drag" />
                       </View>
-                      <HabitGlyph name={habitIconFor(label, habit.catalogHabitId)} color={ui.champagne} size={18} />
+                      <View style={styles.glyphRing}>
+                        <HabitGlyph name={habitIconFor(label, habit.catalogHabitId)} color={ui.champagne} size={16} />
+                      </View>
                       <View style={styles.rowCopy}>
                         <Text numberOfLines={1} style={styles.rowLabel}>
                           {label}
@@ -493,7 +511,8 @@ export default function PersonalizeHabitsScreen() {
                         <Text style={styles.rowMeta}>{minutes != null ? `${minutes} min` : 'Sem duração'}</Text>
                       </View>
                       {habit.relevance ? (
-                        <View style={[styles.pill, habit.relevance === 'alta' && styles.pillHigh]}>
+                        <View style={[styles.pill, habit.relevance === 'alta' && styles.pillHigh, habit.relevance === 'media' && styles.pillMid]}>
+                          <Seal kind={habit.relevance} tone={habit.relevance === 'alta' ? '#1A140E' : ui.champagne} />
                           <Text style={[styles.pillLabel, habit.relevance === 'alta' && styles.pillLabelHigh]}>{relevanceName[habit.relevance]}</Text>
                         </View>
                       ) : null}
@@ -507,10 +526,29 @@ export default function PersonalizeHabitsScreen() {
                   );
                 })
               : null}
+            {open[period] ? (
+              <View style={styles.legend}>
+                <View style={styles.legendItem}>
+                  <Mark kind="drag" />
+                  <Text style={styles.legendTitle}>Arrastar</Text>
+                  <Text style={styles.legendText}>Altera a ordem dos hábitos.</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <Mark kind="edit" />
+                  <Text style={styles.legendTitle}>Editar</Text>
+                  <Text style={styles.legendText}>Mude o hábito, período ou relevância.</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <Mark kind="remove" />
+                  <Text style={styles.legendTitle}>Remover</Text>
+                  <Text style={styles.legendText}>Exclua o hábito da sua rotina.</Text>
+                </View>
+              </View>
+            ) : null}
           </View>
         );
       })}
-      <Pressable accessibilityRole="button" onPress={() => { setNotice(''); setEditor({ mode: 'create', habitId: null, draft: emptyDraft }); }} style={styles.add}>
+      <Pressable accessibilityRole="button" onPress={() => { setNotice(''); setEditor({ mode: 'create', habitId: null, draft: emptyDraft }); }} style={[styles.add, goldFill]}>
         <Text style={styles.addLabel}>+ Adicionar hábito</Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={() => setConfirmAll(true)} style={styles.removeAll}>
@@ -589,11 +627,11 @@ const styles = StyleSheet.create({
   back: { minHeight: 36, justifyContent: 'center' },
   backLabel: { color: ui.text, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1.1, textTransform: 'uppercase' },
   title: { color: ui.text, fontFamily: fonts.display, fontSize: 26, lineHeight: 30, letterSpacing: 0.3, textTransform: 'uppercase' },
-  lead: { marginTop: 8, color: ui.textChampagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 0.6 },
-  copy: { marginTop: 4, color: '#A39E96', fontFamily: fonts.text, fontSize: 13, lineHeight: 18 },
+  lead: { marginTop: 8, color: ui.champagne, fontFamily: fonts.display, fontSize: 15, letterSpacing: 0.4 },
+  copy: { marginTop: 4, color: '#D5D0C8', fontFamily: fonts.text, fontSize: 13, lineHeight: 18 },
   pillars: { marginTop: 16, flexDirection: 'row', gap: 8 },
   pillar: { flex: 1, alignItems: 'center', gap: 4 },
-  pillarImage: { width: 72, height: 84, borderRadius: 16 },
+  pillarImage: { width: 84, height: 96 },
   pillarName: { color: ui.text, fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
   pillarCount: { color: '#A39E96', fontFamily: fonts.text, fontSize: 11 },
   circle: {
@@ -601,27 +639,27 @@ const styles = StyleSheet.create({
     minHeight: 58,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(196,165,116,0.45)',
+    borderColor: '#E8C99B',
     backgroundColor: 'rgba(18,16,12,0.92)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 12,
+    boxShadow: '0 0 16px rgba(226,170,70,0.28)',
   },
   circleCopy: { flex: 1 },
   circleTitle: { color: ui.champagne, fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
   circleText: { marginTop: 2, color: '#C8C2B8', fontFamily: fonts.text, fontSize: 11, lineHeight: 15 },
   notice: { marginTop: 10, color: ui.textChampagne, fontFamily: fonts.text, fontSize: 13 },
-  dragHint: { marginTop: 14, color: '#8E8A84', fontFamily: fonts.text, fontSize: 12, lineHeight: 16 },
   block: { marginTop: 12, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(232,200,142,0.16)', backgroundColor: '#0A0A0A', overflow: 'hidden' },
-  periodPhoto: { position: 'absolute', top: 0, right: 0, left: 0, height: 74 },
-  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 74, backgroundColor: 'rgba(5,5,5,0.74)' },
-  blockHead: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
+  periodPhoto: { position: 'absolute', top: 0, right: 0, left: 0, height: 78 },
+  periodShade: { position: 'absolute', top: 0, right: 0, left: 0, height: 78, backgroundColor: 'rgba(5,5,5,0.48)' },
+  blockHead: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
   blockCopy: { flex: 1 },
   blockTitle: { color: ui.text, fontFamily: fonts.display, fontSize: 18, letterSpacing: 0.8, textTransform: 'uppercase' },
   blockSubtitle: { color: '#A39E96', fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase' },
   blockCount: { color: ui.text, fontFamily: fonts.text, fontSize: 12 },
-  chevron: { color: ui.textChampagne, width: 16, textAlign: 'center' },
+  chevron: { color: '#E8C99B', width: 16, textAlign: 'center', fontSize: 16 },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: 'rgba(243,239,232,0.08)' },
   rowDragging: { opacity: 0.35 },
   rowHint: { borderTopColor: ui.champagneDeep },
@@ -629,14 +667,40 @@ const styles = StyleSheet.create({
   rowCopy: { flex: 1, minWidth: 0 },
   rowLabel: { color: ui.text, fontFamily: fonts.text, fontSize: 13 },
   rowMeta: { marginTop: 2, color: '#A39E96', fontFamily: fonts.text, fontSize: 11 },
-  pill: { borderRadius: 999, borderWidth: 1, borderColor: 'rgba(196,165,116,0.55)', paddingHorizontal: 8, paddingVertical: 3 },
-  pillHigh: { backgroundColor: '#C4A574', borderColor: '#C4A574' },
+  glyphRing: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(232,201,155,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 0 8px rgba(232,201,155,0.45)',
+  },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(196,165,116,0.55)', paddingHorizontal: 8, paddingVertical: 3 },
+  pillHigh: { backgroundColor: '#E0A24A', borderColor: '#E0A24A' },
+  pillMid: { borderColor: '#E8C99B' },
   pillLabel: { color: ui.champagne, fontFamily: fonts.display, fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase' },
   pillLabelHigh: { color: '#1A140E' },
   iconButton: { width: 30, height: 32, alignItems: 'center', justifyContent: 'center' },
   iconLabel: { color: ui.champagne, fontSize: 16 },
   removeLabel: { color: '#E15A4C', fontSize: 16 },
-  add: { marginTop: 16, minHeight: 50, borderRadius: 999, backgroundColor: ui.champagneDeep, alignItems: 'center', justifyContent: 'center' },
+  legend: {
+    marginHorizontal: 10,
+    marginBottom: 10,
+    marginTop: 8,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(232,201,155,0.4)',
+  },
+  legendItem: { flex: 1, alignItems: 'center', gap: 4 },
+  legendTitle: { color: ui.champagne, fontFamily: fonts.display, fontSize: 10, letterSpacing: 0.6, textTransform: 'uppercase', textAlign: 'center' },
+  legendText: { color: '#A39E96', fontFamily: fonts.text, fontSize: 10, lineHeight: 13, textAlign: 'center' },
+  add: { marginTop: 16, minHeight: 50, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   addLabel: { color: '#141210', fontFamily: fonts.display, fontSize: 15, letterSpacing: 1, textTransform: 'uppercase' },
   removeAll: { marginTop: 10, minHeight: 46, borderRadius: 999, borderWidth: 1, borderColor: '#E15A4C', alignItems: 'center', justifyContent: 'center' },
   removeAllLabel: { color: '#E15A4C', fontFamily: fonts.display, fontSize: 13, letterSpacing: 0.8, textTransform: 'uppercase' },

@@ -24,7 +24,7 @@ export function nextHabitCopy(label: string, minutes: number | null): NextHabitC
     return {
       headline,
       question: 'JÁ TREINOU HOJE?',
-      detail: withTime('Faça o seu treino e mantenha a constância no tatame.', minutes),
+      detail: 'Faça o seu treino e mantenha a constância no tatame.',
     };
   }
   if (has(text, ['leitur', 'livro']) || text === 'ler' || text.startsWith('ler ')) {

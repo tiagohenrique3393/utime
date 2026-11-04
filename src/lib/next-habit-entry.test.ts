@@ -18,8 +18,7 @@ assertEqual(shouldShowNextHabit('ana'), true, 'novo login mostra de novo');
 
 const jiu = nextHabitCopy('Jiu-jitsu', 60);
 assertEqual(jiu.question, 'JÁ TREINOU HOJE?', 'pergunta de jiu-jitsu');
-assertEqual(jiu.detail.includes('tatame'), true, 'texto do tatame');
-assertEqual(jiu.detail.includes('60 min'), true, 'tempo cadastrado');
+assertEqual(jiu.detail, 'Faça o seu treino e mantenha a constância no tatame.', 'texto do tatame');
 const read = nextHabitCopy('Leitura', null);
 assertEqual(read.question, 'JÁ LEU ALGUMA COISA HOJE?', 'pergunta de leitura');
 assertEqual(nextHabitCopy('Estudar inglês', null).question, 'JÁ ESTUDOU HOJE?', 'pergunta de estudo');
