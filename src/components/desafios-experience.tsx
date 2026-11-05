@@ -286,9 +286,6 @@ export function DesafiosExperience({
   }
 
   const body = (() => {
-    if (snapshot.plan === 'free') {
-      return <Text style={styles.note}>Desafios é uma função Premium. A aba permanece visível, mas o contrato e os registros ficam bloqueados.</Text>;
-    }
     if (snapshot.plan === 'unavailable') {
       return <Text style={styles.note}>{snapshot.message || 'Desafios ainda não está disponível nesta conta.'}</Text>;
     }

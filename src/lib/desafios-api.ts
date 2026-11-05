@@ -226,15 +226,12 @@ function snapshot(value: unknown, fallback: string): ChallengeSnapshot {
   if (!item) {
     return { ...emptySnapshot, message: fallback };
   }
-  if (item.plan === 'free') {
-    return { ...emptySnapshot, plan: 'free' };
-  }
   const draft = record(item.draft);
   const duration = typeof draft?.durationDays === 'number' && isChallengeDuration(draft.durationDays) ? draft.durationDays : null;
   const notice = record(item.notice);
   const counts = record(item.counts);
   return {
-    plan: 'premium',
+    plan: item.plan === 'free' ? 'free' : 'premium',
     today: text(item.today),
     firstName: text(item.firstName),
     draft: {
