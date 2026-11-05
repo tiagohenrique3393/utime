@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { createElement, useRef, useState, type ReactNode } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, type GestureResponderEvent } from 'react-native';
+import { createElement, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type GestureResponderEvent } from 'react-native';
 
 import { DayPlanet } from '@/components/day-planet';
 import { AppScreen } from '@/components/app-screen';
@@ -9,6 +9,7 @@ import type { ActiveChallenge, ChallengeHistoryItem, ChallengeSnapshot } from '@
 import {
   COMMITMENT_LIMIT,
   PILLARS,
+  appendSignaturePoint,
   buildObligations,
   canCheckIn,
   contractDayNumber,
@@ -27,7 +28,7 @@ import type { JourneyId } from '@/lib/profile';
 
 const gold = '#E6D2AE';
 const ink = '#161412';
-const green = '#3DDC97';
+const green = '#39FF73';
 const red = '#E07A72';
 const card = 'rgba(12, 11, 10, 0.92)';
 const line = 'rgba(230, 210, 174, 0.42)';
@@ -116,14 +117,12 @@ function figureFor(pillar: ChallengePillar, journey: JourneyId | null) {
   return null;
 }
 
-function Banner({ journey }: { journey: JourneyId | null }) {
-  if (!journey) {
-    return <View style={styles.banner} />;
-  }
+function Banner({ journey, badge = '' }: { journey: JourneyId | null; badge?: string }) {
   return (
     <View style={styles.banner}>
-      <Image source={banners[journey]} contentFit="cover" style={styles.bannerImage} accessibilityLabel={journey === 'womantime' ? 'Woman Time' : 'Man Time'} />
+      {journey ? <Image source={banners[journey]} contentFit="cover" style={styles.bannerImage} accessibilityLabel={journey === 'womantime' ? 'Woman Time' : 'Man Time'} /> : null}
       <View style={styles.bannerVeil} />
+      {badge ? <View style={styles.dayBadge}><Text style={styles.dayBadgeText}>{badge}</Text></View> : null}
     </View>
   );
 }
@@ -157,7 +156,7 @@ function DurationRow({ value, onChange, disabled = false }: { value: ChallengeDu
   );
 }
 
-function Header({ journey, onBack }: { journey: JourneyId | null; onBack: () => void }) {
+function Header({ journey, premium, onBack }: { journey: JourneyId | null; premium: boolean; onBack: () => void }) {
   const modality = journey === 'womantime' ? 'WOMAN TIME' : journey === 'metime' ? 'MAN TIME' : 'JORNADA';
   return (
     <View style={styles.header}>
@@ -165,9 +164,8 @@ function Header({ journey, onBack }: { journey: JourneyId | null; onBack: () => 
         <Mark name="back" size={18} />
       </Pressable>
       <Text style={styles.modality}>{modality}</Text>
-      <View style={styles.premium}><Text style={styles.premiumText}>PREMIUM</Text></View>
       <View style={styles.headerSpace} />
-      <Mark name="crown" size={18} />
+      {premium ? <View accessibilityLabel="Plano Premium" style={styles.premium}><Text style={styles.premiumText}>PREMIUM</Text></View> : null}
     </View>
   );
 }
@@ -183,22 +181,32 @@ function TitleBlock() {
 
 function SignaturePad({ strokes, onChange }: { strokes: SignatureStroke[]; onChange: (strokes: SignatureStroke[]) => void }) {
   const size = useRef({ width: 1, height: 1 });
-  const drawing = useRef<SignatureStroke>([]);
+  const drawn = useRef(strokes);
+  useEffect(() => {
+    if (strokes.length === 0) {
+      drawn.current = [];
+    }
+  }, [strokes]);
   function point(event: GestureResponderEvent) {
     const width = Math.max(size.current.width, 1);
     const height = Math.max(size.current.height, 1);
     return {
-      x: Math.round(Math.max(0, Math.min(1, event.nativeEvent.locationX / width)) * 1000) / 1000,
-      y: Math.round(Math.max(0, Math.min(1, event.nativeEvent.locationY / height)) * 1000) / 1000,
+      x: event.nativeEvent.locationX / width,
+      y: event.nativeEvent.locationY / height,
     };
   }
-  const lines = strokes.map((stroke, index) => stroke.map((item) => `${item.x * 100},${item.y * 100}`).join(' ') && (
+  function draw(event: GestureResponderEvent, phase: 'start' | 'move') {
+    const next = appendSignaturePoint(drawn.current, point(event), phase);
+    drawn.current = next;
+    onChange(next);
+  }
+  const lines = strokes.map((stroke, index) => stroke.length > 0 && (
     createElement('polyline', {
       key: index,
       points: stroke.map((item) => `${item.x * 300} ${item.y * 120}`).join(' '),
       fill: 'none',
       stroke: gold,
-      strokeWidth: 2,
+      strokeWidth: 2.4,
       strokeLinecap: 'round',
       strokeLinejoin: 'round',
     })
@@ -206,23 +214,18 @@ function SignaturePad({ strokes, onChange }: { strokes: SignatureStroke[]; onCha
   return (
     <View
       accessibilityLabel="Área de assinatura"
-      style={styles.pad}
+      style={[styles.pad, Platform.OS === 'web' ? styles.padWeb : null]}
       onLayout={(event) => {
         size.current = { width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height };
       }}
       onStartShouldSetResponder={() => true}
       onMoveShouldSetResponder={() => true}
-      onResponderGrant={(event) => {
-        drawing.current = [point(event)];
-        onChange([...strokes, drawing.current]);
-      }}
-      onResponderMove={(event) => {
-        drawing.current = [...drawing.current, point(event)];
-        onChange([...strokes.slice(0, -1), drawing.current]);
-      }}>
+      onResponderTerminationRequest={() => false}
+      onResponderGrant={(event) => draw(event, 'start')}
+      onResponderMove={(event) => draw(event, 'move')}>
       {Platform.OS === 'web'
-        ? createElement('svg', { width: '100%', height: '100%', viewBox: '0 0 300 120', preserveAspectRatio: 'none' }, lines)
-        : <Text style={styles.padNote}>{strokes.length > 0 ? 'Assinatura registrada' : 'Desenhe aqui'}</Text>}
+        ? createElement('svg', { width: '100%', height: '100%', viewBox: '0 0 300 120', preserveAspectRatio: 'none', style: { touchAction: 'none' } }, lines)
+        : <Text style={styles.padNote}>{strokes.some((stroke) => stroke.length > 1) ? 'Assinatura registrada' : 'Desenhe aqui'}</Text>}
     </View>
   );
 }
@@ -278,7 +281,17 @@ export function DesafiosExperience({
   const [accepted, setAccepted] = useState(false);
   const [detail, setDetail] = useState<ChallengePillar | null>(null);
   const [replaceOpen, setReplaceOpen] = useState(false);
+  const [formNotice, setFormNotice] = useState('');
+  const frame = useWindowDimensions();
   const today = snapshot.today;
+  function missingSetup() {
+    const start = today || '2026-01-01';
+    if (!draft.durationDays) {
+      return 'Escolha a duração: 7, 14, 21 ou 30 dias.';
+    }
+    const built = buildObligations(draft.commitments, start, draft.durationDays);
+    return built.ok ? '' : built.message;
+  }
   const preview = draft.durationDays && today ? buildObligations(draft.commitments, today, draft.durationDays) : null;
   const previewEnd = draft.durationDays && today ? contractSpan(today, draft.durationDays).endsOn : '';
 
@@ -311,8 +324,7 @@ export function DesafiosExperience({
                 <Figure pillar={pillar} journey={journey} />
                 <View style={styles.editCopy}>
                   <Text style={styles.editTitle}>{`${pillarName[pillar].toUpperCase()} (obrigatório)`}</Text>
-                  <Text numberOfLines={2} style={styles.example}>{item.text || examples[pillar]}</Text>
-                  <FrequencyEditor commitment={item} onChange={(frequency) => updateCommitment(pillar, { frequency })} />
+                  <Text numberOfLines={2} style={item.text ? styles.homeText : styles.example}>{item.text || examples[pillar]}</Text>
                 </View>
                 <Pressable accessibilityRole="button" accessibilityLabel={`Editar ${pillarName[pillar]}`} onPress={() => { setEditor(pillar); setDraftText(item.text); }} style={styles.pencil}>
                   <Mark name="pencil" size={16} />
@@ -322,8 +334,17 @@ export function DesafiosExperience({
             );
           })}
           <View style={styles.sectionRow}><Mark name="calendar" size={16} /><Text style={styles.section}>DURAÇÃO DO DESAFIO</Text></View>
-          <DurationRow value={draft.durationDays} onChange={(value) => onDraft({ ...draft, durationDays: value })} />
-          <GoldButton label="ASSINAR CONTRATO" disabled={pending} onPress={() => onView('contract')} />
+          <DurationRow value={draft.durationDays} disabled={Boolean(active)} onChange={(value) => onDraft({ ...draft, durationDays: value })} />
+          <GoldButton label="ASSINAR CONTRATO" disabled={pending} onPress={() => {
+            const problem = missingSetup();
+            if (problem) {
+              setFormNotice(problem);
+              return;
+            }
+            setFormNotice('');
+            onView('contract');
+          }} />
+          {formNotice ? <Text style={styles.warning}>{formNotice}</Text> : null}
         </>
       );
     }
@@ -338,58 +359,62 @@ export function DesafiosExperience({
       return (
         <>
           <Text accessibilityRole="header" style={styles.screenTitle}>CONTRATO COMIGO MESMO</Text>
-          <Text style={styles.lead}>Contrato de Desafio Pessoal</Text>
-          <View style={styles.paper}>
+          <Text style={styles.lead}>{`Desafio Pessoal | ${spanDays ?? '—'} dias`}</Text>
+          <ScrollView style={{ maxHeight: Math.max(150, Math.min(240, frame.height - 430)) }} contentContainerStyle={styles.paper}>
             <Text style={styles.clause}>
-              {`Pelo presente, eu, ${snapshot.firstName || signedName || 'usuário'}, firmo comigo mesmo o compromisso de realizar um desafio pessoal, baseado nos três pilares: Corpo, Mente e Espírito, pelo período de ${spanDays ?? '—'} dias, conforme as cláusulas abaixo:`}
+              {`Eu, ${snapshot.firstName || signedName || 'usuário'}, firmo o compromisso de realizar um desafio pessoal nos três pilares, pelo período de ${spanDays ?? '—'} dias.`}
             </Text>
-            <Text style={styles.clauseTitle}>CLÁUSULA 1 - DO OBJETIVO</Text>
-            <Text style={styles.clause}>O usuário assume o compromisso de cumprir as metas pessoais definidas nos pilares Corpo, Mente e Espírito.</Text>
-            {commitments.map((item) => <Text key={item.pillar} style={styles.clause}>{`${pillarName[item.pillar]}: ${item.text || '—'}`}</Text>)}
-            <Text style={styles.clauseTitle}>CLÁUSULA 2 - DO PRAZO</Text>
-            <Text style={styles.clause}>{`O desafio terá duração de ${spanDays ?? '—'} dias consecutivos, com início em ${starts ? formatChallengeDate(starts) : '—'} e término em ${ends ? formatChallengeDate(ends) : '—'}. O primeiro dia é a data da assinatura. O último dia se encerra à meia-noite seguinte, no horário de Brasília.`}</Text>
-            <Text style={styles.clauseTitle}>CLÁUSULA 3 - DA CONSTÂNCIA</Text>
-            <Text style={styles.clause}>O usuário compromete-se a cumprir os compromissos nas datas e condições estabelecidas.</Text>
-            {PILLARS.map((pillar) => <Text key={pillar} style={styles.clause}>{`${pillarName[pillar]}. ${plan && plan.ok ? obligationSummary(pillar, plan.obligations) : 'Defina a frequência antes de assinar.'}`}</Text>)}
-            <Text style={styles.clauseTitle}>CLÁUSULA 4 - DO DESCUMPRIMENTO</Text>
-            <Text style={styles.clause}>O não cumprimento de qualquer obrigação exigível provocará a rescisão automática do contrato após o encerramento do respectivo prazo.</Text>
-            <Text style={styles.clauseTitle}>CLÁUSULA 5 - DA CONCORDÂNCIA</Text>
-            <Text style={styles.clause}>O usuário declara que leu, compreendeu e aceitou integralmente as condições do desafio. Este registro é um compromisso pessoal no aplicativo e não é uma assinatura digital certificada.</Text>
-            {reading ? (
-              <Text style={styles.signatureText}>{reading.signatureMode === 'typed' ? reading.signatureText : 'Assinatura desenhada na tela'}</Text>
-            ) : (
-              <>
-                <Text style={styles.section}>ASSINATURA</Text>
-                <View style={styles.modeRow}>
-                  <Pressable accessibilityRole="button" accessibilityState={{ selected: mode === 'touch' }} onPress={() => setMode('touch')} style={[styles.mode, mode === 'touch' && styles.modeOn]}><Text style={[styles.modeLabel, mode === 'touch' && styles.modeLabelOn]}>Touchscreen</Text></Pressable>
-                  <Pressable accessibilityRole="button" accessibilityState={{ selected: mode === 'typed' }} onPress={() => setMode('typed')} style={[styles.mode, mode === 'typed' && styles.modeOn]}><Text style={[styles.modeLabel, mode === 'typed' && styles.modeLabelOn]}>Digitar nome</Text></Pressable>
-                </View>
-                {mode === 'touch' ? <SignaturePad strokes={strokes} onChange={setStrokes} /> : (
-                  <>
-                    <TextInput accessibilityLabel="Nome da assinatura" value={name} onChangeText={setName} placeholder="Nome completo" placeholderTextColor="#8C8882" style={styles.input} />
-                    <Text style={styles.signatureText}>{name.trim() || ' '}</Text>
-                  </>
-                )}
-                <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: accepted }} onPress={() => setAccepted((value) => !value)} style={styles.accept}>
-                  <View style={[styles.box, accepted && styles.boxOn]} />
-                  <Text style={styles.acceptLabel}>Li e aceito o contrato.</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-          {reading ? null : (
-            <View style={styles.signRow}>
-              <Pressable accessibilityRole="button" onPress={() => { setStrokes([]); setName(''); }} style={styles.clear}><Text style={styles.clearLabel}>Limpar</Text></Pressable>
-              <Pressable
-                accessibilityRole="button"
-                disabled={pending || !accepted || !signatureIsValid(mode, name, strokes) || !preview?.ok}
-                onPress={() => onSign({ mode, name, strokes })}
-                style={({ pressed }) => [styles.signButton, (pressed || pending || !accepted || !signatureIsValid(mode, name, strokes) || !preview?.ok) && styles.pressed]}>
-                <Text style={styles.goldLabel}>{pending ? 'SALVANDO' : 'ASSINAR E SALVAR'}</Text>
+            <Text style={styles.clauseTitle}>OBJETIVO</Text>
+            <Text style={styles.clause}>Cumprir as metas definidas nos três pilares.</Text>
+            {commitments.map((item) => <Text key={item.pillar} style={styles.clause}>{`${pillarName[item.pillar].toUpperCase()}: ${item.text || '—'}`}</Text>)}
+            <Text style={styles.clauseTitle}>PRAZO</Text>
+            <Text style={styles.clause}>{`${spanDays ?? '—'} dias. Início em ${starts ? formatChallengeDate(starts) : '—'} e término em ${ends ? formatChallengeDate(ends) : '—'}, no horário de Brasília.`}</Text>
+            <Text style={styles.clauseTitle}>CONSTÂNCIA</Text>
+            <Text style={styles.clause}>Cumprir as metas nas condições acordadas. {plan && plan.ok ? '' : 'Defina a frequência antes de assinar.'}</Text>
+            <Text style={styles.clauseTitle}>DESCUMPRIMENTO</Text>
+            <Text style={styles.clause}>O não cumprimento de uma obrigação exigível rescinde o contrato automaticamente.</Text>
+            <Text style={styles.clauseTitle}>CONCORDÂNCIA</Text>
+            <Text style={styles.clause}>Declaro que li e aceito este compromisso.</Text>
+          </ScrollView>
+          {reading ? (
+            <Text style={styles.signatureText}>{reading.signatureMode === 'typed' ? reading.signatureText : 'Assinatura desenhada na tela'}</Text>
+          ) : (
+            <>
+              <Text style={styles.attention}>ATENÇÃO: Não cumprir uma meta obrigatória no prazo combinado rescinde automaticamente o contrato.</Text>
+              <View style={styles.modeRow}>
+                <Pressable accessibilityRole="button" accessibilityState={{ selected: mode === 'touch' }} onPress={() => setMode('touch')} style={[styles.mode, mode === 'touch' && styles.modeOn]}><Text style={[styles.modeLabel, mode === 'touch' && styles.modeLabelOn]}>Touchscreen</Text></Pressable>
+                <Pressable accessibilityRole="button" accessibilityState={{ selected: mode === 'typed' }} onPress={() => setMode('typed')} style={[styles.mode, mode === 'typed' && styles.modeOn]}><Text style={[styles.modeLabel, mode === 'typed' && styles.modeLabelOn]}>Digitar nome</Text></Pressable>
+              </View>
+              {mode === 'touch' ? <SignaturePad strokes={strokes} onChange={setStrokes} /> : (
+                <TextInput accessibilityLabel="Nome da assinatura" value={name} onChangeText={setName} placeholder="Nome completo" placeholderTextColor="#8C8882" style={styles.input} />
+              )}
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: accepted }} onPress={() => setAccepted((value) => !value)} style={styles.accept}>
+                <View style={[styles.box, accepted && styles.boxOn]} />
+                <Text style={styles.acceptLabel}>Li e aceito o contrato.</Text>
               </Pressable>
-            </View>
+              <View style={styles.signRow}>
+                <Pressable accessibilityRole="button" onPress={() => { setStrokes([]); if (mode === 'typed') setName(''); }} style={styles.clear}><Text style={styles.clearLabel}>Limpar</Text></Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={pending}
+                  onPress={() => {
+                    const problem = missingSetup()
+                      || (!accepted ? 'Confirme que leu e aceitou o contrato.' : '')
+                      || (!signatureIsValid(mode, name, strokes) ? (mode === 'touch' ? 'Desenhe a assinatura na área indicada.' : 'Digite o nome com pelo menos 2 caracteres.') : '');
+                    if (problem) {
+                      setFormNotice(problem);
+                      return;
+                    }
+                    setFormNotice('');
+                    onSign({ mode, name, strokes });
+                  }}
+                  style={({ pressed }) => [styles.signButton, (pressed || pending) && styles.pressed]}>
+                  <Text style={styles.goldLabel}>{pending ? 'SALVANDO' : 'ASSINAR E SALVAR'}</Text>
+                </Pressable>
+              </View>
+              {formNotice ? <Text style={styles.warning}>{formNotice}</Text> : null}
+            </>
           )}
-          {preview && !preview.ok ? <Text style={styles.warning}>{preview.message}</Text> : null}
         </>
       );
     }
@@ -397,10 +422,10 @@ export function DesafiosExperience({
       const day = contractDayNumber(active.startsOn, active.endsOn, today);
       return (
         <>
-          <Banner journey={journey} />
-          <Text style={styles.dayLabel}>{`Dia ${day} de ${active.durationDays}`}</Text>
+          <Text style={styles.trackLead}>Meus desafios em andamento</Text>
+          <Banner journey={journey} badge={`Dia ${day} de ${active.durationDays} dias`} />
           {active.commitments.map((item) => (
-            <Pressable key={item.pillar} accessibilityRole="button" accessibilityLabel={`Abrir ${pillarName[item.pillar]}`} onPress={() => setDetail(item.pillar)} style={styles.trackCard}>
+            <Pressable key={item.pillar} accessibilityRole="button" accessibilityLabel={`Registrar ${pillarName[item.pillar]}`} onPress={() => setDetail(item.pillar)} style={styles.trackCard}>
               <Figure pillar={item.pillar} journey={journey} />
               <View style={styles.trackCopy}>
                 <Text style={styles.trackPillar}>{pillarName[item.pillar].toUpperCase()}</Text>
@@ -412,11 +437,10 @@ export function DesafiosExperience({
             </Pressable>
           ))}
           <View style={styles.actionRow}>
-            <Square icon="pencil" label={'EDITAR\nDESAFIOS'} onPress={() => setReplaceOpen(true)} />
-            <Square icon="torn" label={'VER MEU\nCONTRATO'} onPress={() => onOpenDocument(active.id)} />
-            <Square icon="trophy" label={'HISTÓRICO DE\nDESAFIOS'} onPress={() => onView('history')} />
+            <Square icon="pencil" label={'Editar\ndesafios'} onPress={() => setReplaceOpen(true)} />
+            <Square icon="trophy" label={'Conquistas'} onPress={() => onView('history')} />
           </View>
-          <Text style={styles.warning}>Ao não cumprir qualquer compromisso exigível, seu contrato será rescindido automaticamente.</Text>
+          <Text style={styles.warning}>{`* ${active.durationDays} dias, nas condições assinadas. Uma obrigação não cumprida rescinde o contrato.`}</Text>
         </>
       );
     }
@@ -443,6 +467,7 @@ export function DesafiosExperience({
             return (
               <View key={pillar} style={styles.homeCard}>
                 <Figure pillar={pillar} journey={journey} />
+                <Text style={styles.homeName}>{pillarName[pillar].toUpperCase()}</Text>
                 {text ? <Text style={styles.homeText}>{text}</Text> : null}
               </View>
             );
@@ -450,11 +475,24 @@ export function DesafiosExperience({
         </View>
         <View style={styles.sectionRow}><Mark name="calendar" size={16} /><Text style={styles.section}>DURAÇÃO DO DESAFIO</Text></View>
         <DurationRow value={duration} disabled={Boolean(active)} onChange={(value) => onDraft({ ...draft, durationDays: value })} />
-        <View style={styles.rule}><Mark name="flag" size={16} /><Text style={styles.ruleText}>REGRA DO DESAFIO / Crie um desafio baseado nos três pilares.</Text></View>
-        <Pressable accessibilityRole="button" onPress={() => onView(active ? 'track' : 'edit')} style={({ pressed }) => [styles.goldButton, styles.playButton, pressed && styles.pressed]}>
-          <Mark name="play" size={16} color={ink} />
+        <View style={styles.rule}><Mark name="flag" size={14} /><Text style={styles.ruleText}>REGRA DO DESAFIO | 3 pilares, 3 metas, até o fim do prazo.</Text></View>
+        <Pressable accessibilityRole="button" onPress={() => {
+          if (active) {
+            onView('track');
+            return;
+          }
+          const problem = missingSetup();
+          if (problem) {
+            setFormNotice(problem);
+            onView('edit');
+            return;
+          }
+          setFormNotice('');
+          onView('contract');
+        }} style={({ pressed }) => [styles.goldButton, pressed && styles.pressed]}>
           <Text style={styles.goldLabel}>INICIAR / ACOMPANHAR DESAFIOS</Text>
         </Pressable>
+        {formNotice && !active ? <Text style={styles.warning}>{formNotice}</Text> : null}
       </>
     );
   })();
@@ -462,7 +500,7 @@ export function DesafiosExperience({
   const editing = draft.commitments.find((item) => item.pillar === editor);
   return (
     <AppScreen tight backgroundColor="#050505" backdrop={<DayPlanet />}>
-      <Header journey={journey} onBack={onBack} />
+      <Header journey={journey} premium={access === 'premium'} onBack={onBack} />
       {view === 'home' || view === 'track' ? <TitleBlock /> : null}
       {body}
       {message ? <Text style={styles.note}>{message}</Text> : null}
@@ -471,8 +509,9 @@ export function DesafiosExperience({
           <View style={styles.overlay}>
           <View style={styles.dialog}>
             <Text style={styles.screenTitle}>{`EDITAR ${pillarName[editor].toUpperCase()}`}</Text>
-            <TextInput accessibilityLabel={`Compromisso de ${pillarName[editor]}`} multiline value={draftText} onChangeText={(value) => setDraftText([...value].slice(0, COMMITMENT_LIMIT).join(''))} style={styles.editor} />
+            <TextInput accessibilityLabel={`Compromisso de ${pillarName[editor]}`} multiline value={draftText} onChangeText={(value) => setDraftText([...value].slice(0, COMMITMENT_LIMIT).join(''))} placeholder={examples[editor]} placeholderTextColor="#8C8882" style={styles.editor} />
             <Text style={styles.counter}>{`${[...draftText].length}/${COMMITMENT_LIMIT}`}</Text>
+            <FrequencyEditor commitment={editing} onChange={(frequency) => updateCommitment(editor, { frequency })} />
             <GoldButton label="GUARDAR TEXTO" onPress={() => { updateCommitment(editor, { text: draftText.trim() }); setEditor(null); }} />
           </View>
           </View>
@@ -609,20 +648,24 @@ const styles = StyleSheet.create({
   title: { color: '#F7F4EF', fontFamily: fonts.display, fontSize: 34, letterSpacing: 0.5 },
   banner: { marginTop: 12, height: 132, borderRadius: 16, overflow: 'hidden', backgroundColor: '#14110E' },
   bannerImage: { width: '100%', height: '100%' },
-  bannerVeil: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.28)' },
+  bannerVeil: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.12)' },
+  dayBadge: { position: 'absolute', right: 10, bottom: 10, borderRadius: 999, backgroundColor: 'rgba(12,11,10,0.72)', borderWidth: 1, borderColor: line, paddingHorizontal: 10, paddingVertical: 4 },
+  dayBadgeText: { color: '#F3EFE8', fontFamily: fonts.text, fontSize: 12 },
+  trackLead: { marginTop: -2, color: '#B7B1A8', fontFamily: fonts.text, fontSize: 13 },
   sectionRow: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
   section: { color: gold, fontFamily: fonts.display, fontSize: 13, letterSpacing: 0.8 },
   homeRow: { marginTop: 10, flexDirection: 'row', gap: 8 },
   homeCard: { flex: 1, minHeight: 148, borderRadius: 16, borderWidth: 1, borderColor: line, backgroundColor: card, alignItems: 'center', padding: 8, gap: 6 },
   figure: { width: 72, height: 78 },
-  homeText: { color: '#F3EFE8', fontFamily: fonts.text, fontSize: 11, lineHeight: 14, textAlign: 'center' },
+  homeName: { color: '#F3EFE8', fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.6 },
+  homeText: { color: '#C8C2B8', fontFamily: fonts.text, fontSize: 11, lineHeight: 14, textAlign: 'center' },
   durationRow: { marginTop: 10, flexDirection: 'row', gap: 8 },
   duration: { flex: 1, minHeight: 34, borderRadius: 999, borderWidth: 1, borderColor: line, alignItems: 'center', justifyContent: 'center' },
   durationOn: { backgroundColor: gold, borderColor: gold },
   durationLabel: { color: gold, fontFamily: fonts.display, fontSize: 12 },
   durationLabelOn: { color: ink },
-  rule: { marginTop: 14, borderRadius: 14, borderWidth: 1, borderColor: line, backgroundColor: card, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', gap: 8, alignItems: 'center' },
-  ruleText: { flex: 1, color: '#F3EFE8', fontFamily: fonts.text, fontSize: 12, lineHeight: 16 },
+  rule: { marginTop: 12, minHeight: 36, borderRadius: 12, borderWidth: 1, borderColor: line, backgroundColor: card, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  ruleText: { flex: 1, color: '#F3EFE8', fontFamily: fonts.text, fontSize: 11, lineHeight: 14 },
   goldButton: { marginTop: 14, minHeight: 52, borderRadius: 999, backgroundColor: gold, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   playButton: { flexDirection: 'row', gap: 8 },
   goldLabel: { color: ink, fontFamily: fonts.display, fontSize: 14, letterSpacing: 0.6 },
@@ -643,15 +686,17 @@ const styles = StyleSheet.create({
   freqLabel: { color: gold, fontFamily: fonts.text, fontSize: 10 },
   dayChip: { width: 24, height: 24, borderRadius: 12, borderWidth: 1, borderColor: line, alignItems: 'center', justifyContent: 'center' },
   dayChipOn: { backgroundColor: gold },
-  paper: { marginTop: 10, borderRadius: 16, borderWidth: 1, borderColor: line, backgroundColor: card, padding: 14, gap: 6 },
-  clauseTitle: { marginTop: 8, color: gold, fontFamily: fonts.display, fontSize: 13, letterSpacing: 0.4 },
-  clause: { color: '#E7E1D8', fontFamily: fonts.text, fontSize: 13, lineHeight: 18 },
+  paper: { borderRadius: 16, borderWidth: 1, borderColor: line, backgroundColor: card, paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
+  clauseTitle: { marginTop: 6, color: gold, fontFamily: fonts.display, fontSize: 11, letterSpacing: 0.5 },
+  clause: { color: '#E7E1D8', fontFamily: fonts.text, fontSize: 12, lineHeight: 16 },
+  attention: { marginTop: 8, color: red, fontFamily: fonts.text, fontSize: 12, lineHeight: 16 },
   modeRow: { flexDirection: 'row', gap: 8 },
   mode: { flex: 1, minHeight: 36, borderRadius: 999, borderWidth: 1, borderColor: line, alignItems: 'center', justifyContent: 'center' },
   modeOn: { backgroundColor: gold },
   modeLabel: { color: '#F3EFE8', fontFamily: fonts.display, fontSize: 12 },
   modeLabelOn: { color: ink },
-  pad: { height: 120, borderRadius: 12, borderWidth: 1, borderColor: line, backgroundColor: '#080807', overflow: 'hidden' },
+  pad: { height: 96, marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: line, backgroundColor: '#080807', overflow: 'hidden' },
+  padWeb: { touchAction: 'none' },
   padNote: { color: '#8C8882', fontFamily: fonts.text, textAlign: 'center', marginTop: 48 },
   input: { minHeight: 42, borderRadius: 12, borderWidth: 1, borderColor: line, color: '#F3EFE8', fontFamily: fonts.text, paddingHorizontal: 12 },
   signatureText: { color: gold, fontFamily: fonts.text, fontSize: 20, lineHeight: 26 },
@@ -669,7 +714,7 @@ const styles = StyleSheet.create({
   trackPillar: { color: gold, fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.6 },
   trackText: { color: '#F3EFE8', fontFamily: fonts.text, fontSize: 13, lineHeight: 17 },
   dots: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  dot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(243,239,232,0.45)' },
+  dot: { width: 9, height: 9, borderRadius: 5, borderWidth: 1, borderColor: 'rgba(243,239,232,0.45)' },
   dotOn: { backgroundColor: green, borderColor: green },
   actionRow: { marginTop: 12, flexDirection: 'row', gap: 8 },
   square: { flex: 1, minHeight: 92, borderRadius: 16, borderWidth: 1, borderColor: line, backgroundColor: card, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 6 },

@@ -8,6 +8,7 @@ import {
   dayMarks,
   emptyCommitments,
   settleContract,
+  appendSignaturePoint,
   signatureIsValid,
   type ChallengeCommitment,
   type ChallengeObligation,
@@ -78,6 +79,12 @@ assertEqual(buildObligations([{ pillar: 'mente', text: 'Ler', frequency: { kind:
 
 assertEqual(signatureIsValid('typed', 'Tiago Souza', []), true, 'nome digitado');
 assertEqual(signatureIsValid('typed', 'A', []), false, 'nome curto demais');
+const started = appendSignaturePoint([[{ x: 0.2, y: 0.2 }, { x: 0.3, y: 0.3 }]], { x: 0.4, y: 0.5 }, 'start');
+assertEqual(started.length, 2, 'novo traço preserva o anterior');
+const moved = appendSignaturePoint(started, { x: 0.6, y: 0.7 }, 'move');
+assertEqual(moved.length, 2, 'o movimento continua no traço atual');
+assertEqual(moved[0]?.length, 2, 'o traço anterior permanece inteiro');
+assertEqual(moved[1]?.length, 2, 'o traço atual ganha o ponto');
 assertEqual(signatureIsValid('touch', '', [[{ x: 0.1, y: 0.2 }, { x: 0.4, y: 0.5 }]]), true, 'toque com traço');
 assertEqual(signatureIsValid('touch', '', [[{ x: 0.1, y: 0.2 }]]), false, 'toque sem traço');
 assertEqual(signatureIsValid('touch', '', [[{ x: -0.1, y: 0.2 }, { x: 0.2, y: 0.2 }]]), false, 'toque fora da área');

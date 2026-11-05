@@ -230,6 +230,7 @@ export default function CircleScreen() {
           onBindLoadMore={(next) => {
             loadMore.current = next;
           }}
+          plan={access.plan === 'premium' ? 'premium' : 'free'}
         />
       ) : null}
       <CircleDialog

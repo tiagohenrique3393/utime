@@ -64,6 +64,7 @@ export function CircleBoard({
   onLeave,
   onRetry,
   onBindLoadMore,
+  plan,
 }: {
   userId: string;
   state: CircleState;
@@ -81,6 +82,7 @@ export function CircleBoard({
   onLeave: () => void;
   onRetry?: () => void;
   onBindLoadMore?: (loadMore: () => void) => void;
+  plan: 'free' | 'premium';
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [limit, setLimit] = useState(20);
@@ -126,8 +128,8 @@ export function CircleBoard({
           </Text>
           <Text style={styles.subtitle}>DISCIPLINA CONECTA PESSOAS</Text>
         </View>
-        <View accessibilityLabel="Plano Premium" style={styles.premium}>
-          <Text style={styles.premiumLabel}>PREMIUM</Text>
+        <View accessibilityLabel={plan === 'premium' ? 'Plano Premium' : 'Plano Gratuito'} style={styles.premium}>
+          <Text style={styles.premiumLabel}>{plan === 'premium' ? 'PREMIUM' : 'GRATUITO'}</Text>
         </View>
       </View>
 
@@ -323,7 +325,7 @@ const styles = StyleSheet.create({
   premium: {
     minHeight: 28,
     borderRadius: 999,
-    backgroundColor: palette.champagne,
+    backgroundColor: '#E6D2AE',
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',

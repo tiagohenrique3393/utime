@@ -81,7 +81,7 @@ export default function CircleHistoryScreen() {
           <Text accessibilityRole="header" style={styles.title}>HISTÓRICO DE CONQUISTAS</Text>
           <Text style={styles.subtitle}>RESULTADOS DEFINITIVOS</Text>
         </View>
-        <View style={styles.back} />
+        <View accessibilityLabel="Plano Premium" style={styles.premium}><Text style={styles.premiumLabel}>PREMIUM</Text></View>
       </View>
       <View style={styles.segments}>
         {kinds.map((item) => {
@@ -136,6 +136,8 @@ const styles = StyleSheet.create({
   blocked: { flex: 1, backgroundColor: page },
   head: { flexDirection: 'row', alignItems: 'flex-start' },
   back: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  premium: { minHeight: 26, borderRadius: 999, backgroundColor: '#E6D2AE', paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  premiumLabel: { color: '#161412', fontFamily: fonts.display, fontSize: 11, letterSpacing: 0.6 },
   headCopy: { flex: 1, alignItems: 'center' },
   title: { color: palette.text, fontFamily: fonts.display, fontSize: 18, lineHeight: 22, letterSpacing: 0.6, textAlign: 'center' },
   subtitle: { marginTop: 4, color: palette.textChampagne, fontFamily: fonts.display, fontSize: 11, letterSpacing: 1.1, textAlign: 'center' },

@@ -164,6 +164,18 @@ export function emptyCommitments(): ChallengeCommitment[] {
 
 export type SignatureStroke = { x: number; y: number }[];
 
+export function appendSignaturePoint(strokes: readonly SignatureStroke[], point: { x: number; y: number }, phase: 'start' | 'move'): SignatureStroke[] {
+  const next = {
+    x: Math.round(Math.max(0, Math.min(1, point.x)) * 1000) / 1000,
+    y: Math.round(Math.max(0, Math.min(1, point.y)) * 1000) / 1000,
+  };
+  if (phase === 'start' || strokes.length === 0) {
+    return [...strokes, [next]];
+  }
+  const last = strokes[strokes.length - 1] ?? [];
+  return [...strokes.slice(0, -1), [...last, next]];
+}
+
 export function signatureIsValid(mode: 'touch' | 'typed', name: string, strokes: readonly SignatureStroke[]) {
   if (mode === 'typed') {
     const text = name.trim();
