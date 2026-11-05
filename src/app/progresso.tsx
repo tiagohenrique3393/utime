@@ -8,6 +8,7 @@ import { ProgressPlanet } from '@/components/progress-planet';
 import { PercentRing } from '@/components/progress-charts';
 import { fonts, ui } from '@/constants/theme';
 import { useAccountPlan } from '@/lib/account-plan';
+import { progressPeriodOnPress, visibleProgressPeriod } from '@/lib/progress-access';
 import { getProgressColor, type ProgressBand } from '@/lib/progress-color';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { getSessionCreatedAt, getSessionUserId } from '@/lib/accounts';
@@ -364,7 +365,7 @@ export default function ProgressScreen() {
   const { width, height } = useWindowDimensions();
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const [period, setPeriod] = useState<ProgressPeriod>('semana');
-  const visiblePeriod = access.plan === 'premium' ? period : 'dia';
+  const visiblePeriod = visibleProgressPeriod(access.plan, period);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [notice, setNotice] = useState('');
   const [waterNotice, setWaterNotice] = useState('');
@@ -444,16 +445,18 @@ export default function ProgressScreen() {
       <View style={[styles.segmentTrack, dense && styles.segmentTrackDense]}>
         {periods.map((item) => {
           const selected = item.id === visiblePeriod;
+          const locked = item.premium && access.plan !== 'premium';
           return (
             <Pressable
               key={item.id}
               accessibilityRole="button"
-              accessibilityState={{ selected }}
+              accessibilityState={{ selected, disabled: locked }}
+              disabled={locked}
               onPress={() => {
-                if (item.premium && access.plan !== 'premium') {
-                  return;
+                const next = progressPeriodOnPress(access.plan, item.id);
+                if (next) {
+                  setPeriod(next);
                 }
-                setPeriod(item.id);
               }}
               style={[styles.segment, selected && styles.segmentOn]}>
               <Text numberOfLines={1} style={[styles.segmentLabel, compact && styles.segmentLabelCompact, selected && styles.segmentLabelOn]}>
@@ -468,7 +471,6 @@ export default function ProgressScreen() {
           );
         })}
       </View>
-      {access.plan === 'free' ? <Text style={styles.note}>Semana, mês e ano fazem parte do Premium.</Text> : null}
       {access.plan === 'unknown' && access.notice ? <Text style={styles.note}>{access.notice}</Text> : null}
 
       {phase === 'loading' ? <Text style={styles.note}>Carregando o seu progresso.</Text> : null}
