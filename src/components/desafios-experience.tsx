@@ -229,6 +229,8 @@ function SignaturePad({ strokes, onChange }: { strokes: SignatureStroke[]; onCha
 
 export function DesafiosExperience({
   snapshot,
+  access,
+  notice = '',
   journey,
   view,
   document,
@@ -246,6 +248,8 @@ export function DesafiosExperience({
   onOpenDocument,
 }: {
   snapshot: ChallengeSnapshot;
+  access: 'unknown' | 'free' | 'premium';
+  notice?: string;
   journey: JourneyId | null;
   view: DesafiosScreenView;
   document: ActiveChallenge | null;
@@ -286,6 +290,12 @@ export function DesafiosExperience({
   }
 
   const body = (() => {
+    if (access === 'unknown') {
+      return <Text style={styles.note}>{notice || 'Carregando os desafios.'}</Text>;
+    }
+    if (access !== 'premium') {
+      return <Text style={styles.note}>Desafios é uma função Premium. A aba permanece visível, mas o contrato e os registros ficam bloqueados.</Text>;
+    }
     if (snapshot.plan === 'unavailable') {
       return <Text style={styles.note}>{snapshot.message || 'Desafios ainda não está disponível nesta conta.'}</Text>;
     }

@@ -35,6 +35,9 @@ export function circleFailureMessage(error: CircleError, action: 'load' | 'board
   if (text.includes('no unique or exclusion constraint')) {
     return 'Não foi possível concluir a amizade. Execute o SQL complementar no Supabase.';
   }
+  if (text.includes('função premium') || text.includes('funcao premium')) {
+    return 'O UTime Circle é uma função Premium.';
+  }
   if (text.includes('auth required') || text.includes('jwt') || text.includes('session')) {
     return 'Sua sessão expirou. Entre novamente.';
   }

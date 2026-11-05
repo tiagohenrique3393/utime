@@ -8,6 +8,7 @@ import { CircleMark } from '@/components/circle-icons';
 import { circlePalette as palette } from '@/components/circle-palette';
 import { CirclePlanet } from '@/components/circle-planet';
 import { fonts } from '@/constants/theme';
+import { useAccountPlan } from '@/lib/account-plan';
 import { getSessionUserId } from '@/lib/accounts';
 import { getOwnAvatarPath, isOwnAvatarReady, subscribeOwnAvatar } from '@/lib/avatar';
 import { publicAvatarUrl } from '@/lib/avatar-store';
@@ -101,6 +102,7 @@ function PersonRow({
 
 export default function AddFriendsScreen() {
   const signedIn = useRequireSession();
+  const access = useAccountPlan();
   const [draft, setDraft] = useState('');
   const [people, setPeople] = useState<CirclePerson[]>([]);
   const [found, setFound] = useState<CirclePerson[] | null>(null);
@@ -149,11 +151,18 @@ export default function AddFriendsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (access.plan !== 'premium') {
+        return;
+      }
       void loadFaces();
-    }, [loadFaces]),
+    }, [access.plan, loadFaces]),
   );
 
   async function search() {
+    if (access.plan !== 'premium') {
+      setNotice('O UTime Circle é uma função Premium.');
+      return;
+    }
     const lookup = exactFriendLookup(draft);
     if (lookup.kind === 'invalid') {
       setFound(null);
@@ -223,6 +232,14 @@ export default function AddFriendsScreen() {
 
   if (!signedIn) {
     return <View style={styles.blocked} />;
+  }
+
+  if (access.plan !== 'premium') {
+    return (
+      <AppScreen width="narrow" backgroundColor={page} backdrop={<CirclePlanet />}>
+        <Text style={styles.notice}>{access.notice || (access.plan === 'free' ? 'O UTime Circle é uma função Premium.' : 'Carregando o Círculo.')}</Text>
+      </AppScreen>
+    );
   }
 
   const received = people.filter((person) => person.relation === 'received');

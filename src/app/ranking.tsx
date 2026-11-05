@@ -8,6 +8,7 @@ import { CircleDialog } from '@/components/circle-dialog';
 import { CirclePlanet } from '@/components/circle-planet';
 import { LegacyRanking } from '@/components/legacy-ranking';
 import { fonts, ui } from '@/constants/theme';
+import { useAccountPlan } from '@/lib/account-plan';
 import { getSessionUserId } from '@/lib/accounts';
 import { periodStart, preferOfficialBoard, shiftPeriod, type CirclePeriod } from '@/lib/circle';
 import {
@@ -31,6 +32,7 @@ const page = '#050505';
 
 export default function CircleScreen() {
   const signedIn = useRequireSession();
+  const access = useAccountPlan();
   const [mode, setMode] = useState<'loading' | 'legacy' | 'circle'>('loading');
   const [state, setState] = useState<CircleState>({ enrolled: false, handle: '', joinedAt: null, alta: 0, media: 0, baixa: 0, ready: false, returning: false });
   const [kind, setKind] = useState<CirclePeriod>('semana');
@@ -128,6 +130,11 @@ export default function CircleScreen() {
           void load(kind, start || periodStart(kind, todayKey()), scope);
         }
       };
+      if (access.plan !== 'premium') {
+        return () => {
+          stopped = true;
+        };
+      }
       refresh();
       const timer = setInterval(refresh, 20000);
       const appState = AppState.addEventListener('change', (next) => {
@@ -147,7 +154,7 @@ export default function CircleScreen() {
           window.removeEventListener('online', onOnline);
         }
       };
-    }, [kind, load, scope, start]),
+    }, [access, kind, load, scope, start]),
   );
 
   async function enroll() {
@@ -192,8 +199,9 @@ export default function CircleScreen() {
 
   return (
     <AppScreen width="narrow" backgroundColor={page} backdrop={<CirclePlanet footing={scope === 'amigos'} />} onNearEnd={() => loadMore.current()}>
-      {mode === 'loading' ? <Text style={{ marginTop: 28, color: ui.muted, fontFamily: fonts.text }}>Carregando o Círculo.</Text> : null}
-      {mode === 'circle' && start ? (
+      {access.plan === 'free' ? <Text style={{ marginTop: 28, color: ui.muted, fontFamily: fonts.text }}>O UTime Circle é uma função Premium.</Text> : null}
+      {access.plan === 'unknown' || (access.plan === 'premium' && mode === 'loading') ? <Text style={{ marginTop: 28, color: ui.muted, fontFamily: fonts.text }}>{access.notice || 'Carregando o Círculo.'}</Text> : null}
+      {access.plan === 'premium' && mode === 'circle' && start ? (
         <CircleBoard
           userId={getSessionUserId() ?? ''}
           state={state}

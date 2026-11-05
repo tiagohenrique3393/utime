@@ -7,6 +7,7 @@ import { AppScreen } from '@/components/app-screen';
 import { ProgressPlanet } from '@/components/progress-planet';
 import { PercentRing } from '@/components/progress-charts';
 import { fonts, ui } from '@/constants/theme';
+import { useAccountPlan } from '@/lib/account-plan';
 import { getProgressColor, type ProgressBand } from '@/lib/progress-color';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { getSessionCreatedAt, getSessionUserId } from '@/lib/accounts';
@@ -359,9 +360,11 @@ function habitKind(habit: PracticedHabit): GoldKind {
 
 export default function ProgressScreen() {
   const signedIn = useRequireSession();
+  const access = useAccountPlan();
   const { width, height } = useWindowDimensions();
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const [period, setPeriod] = useState<ProgressPeriod>('semana');
+  const visiblePeriod = access.plan === 'premium' ? period : 'dia';
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [notice, setNotice] = useState('');
   const [waterNotice, setWaterNotice] = useState('');
@@ -415,7 +418,7 @@ export default function ProgressScreen() {
   const report = snapshot
     ? progressReport({
         today: liveToday ? board.dateKey : snapshot.today,
-        period,
+        period: visiblePeriod,
         logs: snapshot.logs,
         hydration: snapshot.hydration,
         todayRoutine: liveToday?.routine ?? snapshot.routine,
@@ -429,7 +432,7 @@ export default function ProgressScreen() {
     return <View style={styles.blank} />;
   }
 
-  const focused = period !== 'dia';
+  const focused = visiblePeriod !== 'dia';
 
   return (
       <AppScreen tight backgroundColor={page} backdrop={<ProgressPlanet bright={focused} />}>
@@ -440,13 +443,18 @@ export default function ProgressScreen() {
       <Text style={styles.subtitle}>Disciplina hoje. Liberdade sempre.</Text>
       <View style={[styles.segmentTrack, dense && styles.segmentTrackDense]}>
         {periods.map((item) => {
-          const selected = item.id === period;
+          const selected = item.id === visiblePeriod;
           return (
             <Pressable
               key={item.id}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              onPress={() => setPeriod(item.id)}
+              onPress={() => {
+                if (item.premium && access.plan !== 'premium') {
+                  return;
+                }
+                setPeriod(item.id);
+              }}
               style={[styles.segment, selected && styles.segmentOn]}>
               <Text numberOfLines={1} style={[styles.segmentLabel, compact && styles.segmentLabelCompact, selected && styles.segmentLabelOn]}>
                 {item.label}
@@ -460,11 +468,13 @@ export default function ProgressScreen() {
           );
         })}
       </View>
+      {access.plan === 'free' ? <Text style={styles.note}>Semana, mês e ano fazem parte do Premium.</Text> : null}
+      {access.plan === 'unknown' && access.notice ? <Text style={styles.note}>{access.notice}</Text> : null}
 
       {phase === 'loading' ? <Text style={styles.note}>Carregando o seu progresso.</Text> : null}
       {notice ? <Text style={styles.note}>{notice}</Text> : null}
       {report ? (
-        <ProgressBody period={period} report={report} waterNotice={waterNotice} ringSize={ringSize} feminine={feminine} dense={dense} />
+        <ProgressBody period={visiblePeriod} report={report} waterNotice={waterNotice} ringSize={ringSize} feminine={feminine} dense={dense} />
       ) : null}
     </AppScreen>
   );

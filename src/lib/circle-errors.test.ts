@@ -17,6 +17,7 @@ assertEqual(circleFailureMessage({ message: 'friend request missing' }, 'friend'
 assertEqual(circleFailureMessage({ message: 'self lookup' }, 'friends'), 'Não é possível adicionar a própria conta.', 'busca da própria conta');
 assertEqual(circleFailureMessage({ message: 'canceling statement due to statement timeout' }, 'board'), 'A conexão falhou. Tente de novo.', 'timeout do ranking');
 assertEqual(circleFailureMessage({ message: 'invalid period' }, 'board'), 'Não foi possível abrir este período do ranking.', 'período');
+assertEqual(circleFailureMessage({ message: 'O UTime Circle é uma função Premium.' }, 'load'), 'O UTime Circle é uma função Premium.', 'plano');
 assertEqual(circleFailureMessage({ message: 'permission denied for table circle_friends' }, 'friends'), 'Não foi possível carregar os amigos.', 'amigos isolados');
 assertEqual(circleFailureMessage({ message: 'permission denied for table circle_results' }, 'board'), 'Não foi possível carregar o ranking.', 'ranking isolado');
 

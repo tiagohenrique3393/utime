@@ -6,6 +6,7 @@ import { supabase } from '../../utils/supabase';
 import { clearOwnAvatar } from '@/lib/avatar';
 import { establishSessionFromUrl } from '@/lib/session';
 import { setHabitOwner } from '@/lib/habit-catalog';
+import { clearAccountPlan } from '@/lib/account-plan';
 import { setProfileOwner } from '@/lib/profile';
 import { resetNextHabitEntry } from '@/lib/next-habit-entry';
 import { setSessionUserId } from '@/lib/session-user';
@@ -89,6 +90,7 @@ export function applySessionOwner(userId: string | null) {
   setHabitOwner(userId);
   if (!userId) {
     hydration = null;
+    clearAccountPlan();
     clearOwnAvatar();
     return Promise.resolve();
   }

@@ -1,9 +1,9 @@
+import { loadAccountPlan } from '@/lib/account-plan';
 import { supabase } from '../../utils/supabase';
 import { loadOwnAvatar } from '@/lib/avatar-store';
 import {
   getProfileOwner,
   getProfileRevision,
-  profileHasContent,
   pushProfile,
   replaceProfile,
   type GoalId,
@@ -101,11 +101,12 @@ export async function hydrateAccount(userId: string) {
     const hasRemoteProfile = remoteProfile !== null;
     const hasRemoteJourney = remoteDays.length > 0 || remoteState !== null;
 
-    if (!hasRemoteProfile && profileRevision === getProfileRevision() && profileHasContent()) {
+    if (!hasRemoteProfile && profileRevision === getProfileRevision()) {
       await pushProfile(userId);
     } else if (hasRemoteProfile && profileRevision === getProfileRevision()) {
       replaceProfile(userId, profileFromRow(remoteProfile));
     }
+    await loadAccountPlan(userId);
     await loadOwnAvatar(userId);
 
     if (!hasRemoteJourney && journeyRevision === getJourneyRevision() && journeyHasContent()) {

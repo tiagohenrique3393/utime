@@ -126,8 +126,8 @@ export function CircleBoard({
           </Text>
           <Text style={styles.subtitle}>DISCIPLINA CONECTA PESSOAS</Text>
         </View>
-        <View accessibilityLabel="Plano Gratuito" style={styles.premium}>
-          <Text style={styles.premiumLabel}>GRATUITO</Text>
+        <View accessibilityLabel="Plano Premium" style={styles.premium}>
+          <Text style={styles.premiumLabel}>PREMIUM</Text>
         </View>
       </View>
 

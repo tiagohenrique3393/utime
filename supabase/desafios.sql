@@ -181,12 +181,23 @@ drop policy if exists challenge_rescissions_select_own on public.challenge_resci
 create policy challenge_rescissions_select_own on public.challenge_rescissions
 for select to authenticated using (auth.uid() = user_id);
 
--- Qualquer conta autenticada grava o próprio rascunho. profiles.plan continua reservado para uma etapa futura.
 drop policy if exists challenge_drafts_own on public.challenge_drafts;
 create policy challenge_drafts_own on public.challenge_drafts
 for all to authenticated
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
+using (
+  auth.uid() = user_id
+  and exists (
+    select 1 from public.profiles profile
+    where profile.user_id = auth.uid() and profile.plan = 'premium'
+  )
+)
+with check (
+  auth.uid() = user_id
+  and exists (
+    select 1 from public.profiles profile
+    where profile.user_id = auth.uid() and profile.plan = 'premium'
+  )
+);
 
 create or replace function public.challenge_sao_paulo_date(moment timestamptz)
 returns date
@@ -423,6 +434,9 @@ begin
   if actor is null then
     raise exception 'Entre na sua conta para assinar.';
   end if;
+  if not public.challenge_is_premium(actor) then
+    raise exception 'Desafios é uma função Premium.';
+  end if;
   if accepted is not true then
     raise exception 'Confirme que leu e aceitou o contrato.';
   end if;
@@ -540,8 +554,8 @@ declare
   today date;
   contract public.challenge_contracts%rowtype;
 begin
-  if actor is null then
-    raise exception 'Entre na sua conta para continuar.';
+  if actor is null or not public.challenge_is_premium(actor) then
+    raise exception 'Desafios é uma função Premium.';
   end if;
   if pillar not in ('corpo', 'mente', 'espirito') then
     raise exception 'Pilar inválido.';
@@ -587,8 +601,8 @@ as $$
 declare
   actor uuid := auth.uid();
 begin
-  if actor is null then
-    raise exception 'Entre na sua conta para continuar.';
+  if actor is null or not public.challenge_is_premium(actor) then
+    raise exception 'Desafios é uma função Premium.';
   end if;
   update public.challenge_contracts
   set notice_seen_at = now()
@@ -608,8 +622,8 @@ as $$
 declare
   actor uuid := auth.uid();
 begin
-  if actor is null then
-    raise exception 'Entre na sua conta para continuar.';
+  if actor is null or not public.challenge_is_premium(actor) then
+    raise exception 'Desafios é uma função Premium.';
   end if;
   update public.challenge_contracts
   set status = 'replaced'
@@ -654,6 +668,9 @@ declare
 begin
   if actor is null then
     raise exception 'Entre na sua conta para ver os desafios.';
+  end if;
+  if not public.challenge_is_premium(actor) then
+    return jsonb_build_object('plan', 'free');
   end if;
   perform public.settle_challenge_contracts();
   today := public.challenge_sao_paulo_date(now());
@@ -729,7 +746,7 @@ begin
     order by coalesce(item.concluded_at, item.rescinded_at, item.signed_at) desc
   ) entry;
   return jsonb_build_object(
-    'plan', case when public.challenge_is_premium(actor) then 'premium' else 'free' end,
+    'plan', 'premium',
     'today', today,
     'firstName', coalesce(first_name, ''),
     'draft', draft,
@@ -751,8 +768,8 @@ declare
   actor uuid := auth.uid();
   payload jsonb;
 begin
-  if actor is null then
-    raise exception 'Entre na sua conta para continuar.';
+  if actor is null or not public.challenge_is_premium(actor) then
+    raise exception 'Desafios é uma função Premium.';
   end if;
   select jsonb_build_object(
     'id', item.id,

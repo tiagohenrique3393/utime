@@ -6,6 +6,7 @@ import { AppScreen } from '@/components/app-screen';
 import { CircleAvatar } from '@/components/circle-avatar';
 import { ProfilePlanet } from '@/components/profile-planet';
 import { fonts, ui } from '@/constants/theme';
+import { useAccountPlan } from '@/lib/account-plan';
 import { getSessionUserId } from '@/lib/accounts';
 import { publicAvatarUrl } from '@/lib/avatar-store';
 import { acceptCircleFriend, addCircleFriend, circleFailureMessage, declineCircleFriend, removeCircleFriend } from '@/lib/circle-api';
@@ -95,6 +96,7 @@ function Mark({ name }: { name: 'back' | 'more' | 'trophy' | 'star' | 'people' |
 
 export default function PublicProfileScreen() {
   const signedIn = useRequireSession();
+  const access = useAccountPlan();
   const params = useLocalSearchParams<{ id?: string }>();
   const userId = typeof params.id === 'string' ? params.id : '';
   const { width } = useWindowDimensions();
@@ -131,8 +133,11 @@ export default function PublicProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (access.plan !== 'premium') {
+        return;
+      }
       void load();
-    }, [load]),
+    }, [access.plan, load]),
   );
 
   async function act(action: 'add' | 'accept' | 'decline' | 'remove') {
@@ -166,6 +171,14 @@ export default function PublicProfileScreen() {
 
   if (!signedIn) {
     return <View style={styles.blank} />;
+  }
+
+  if (access.plan !== 'premium') {
+    return (
+      <AppScreen width="narrow" showNav={false} backgroundColor={page} backdrop={<ProfilePlanet placement="photo" />}>
+        <Text style={styles.notice}>{access.notice || (access.plan === 'free' ? 'O UTime Circle é uma função Premium.' : 'Carregando o Círculo.')}</Text>
+      </AppScreen>
+    );
   }
 
   const self = profile?.relation === 'self' || (profile?.userId !== undefined && profile.userId === getSessionUserId());

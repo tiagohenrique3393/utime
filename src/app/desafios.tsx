@@ -15,6 +15,7 @@ import {
   type ChallengeSnapshot,
 } from '@/lib/desafios-api';
 import { emptyCommitments, type ChallengeDraft, type ChallengePillar, type SignatureStroke } from '@/lib/desafios';
+import { useAccountPlan } from '@/lib/account-plan';
 import { todayKey } from '@/lib/habit-day';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
@@ -46,6 +47,7 @@ function newKey() {
 
 export default function DesafiosScreen() {
   const signedIn = useRequireSession();
+  const access = useAccountPlan();
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const [snapshot, setSnapshot] = useState<ChallengeSnapshot>(blank);
   const [view, setView] = useState<DesafiosScreenView>('home');
@@ -65,12 +67,12 @@ export default function DesafiosScreen() {
   }, [profile.firstName]);
 
   useFocusEffect(useCallback(() => {
-    if (!signedIn) {
+    if (!signedIn || access.plan !== 'premium') {
       return;
     }
     setNoticeHidden(false);
     void load();
-  }, [signedIn, load]));
+  }, [signedIn, access, load]));
 
   function open(next: DesafiosScreenView) {
     if (next === 'contract') {
@@ -190,6 +192,8 @@ export default function DesafiosScreen() {
   return (
     <DesafiosExperience
       snapshot={snapshot}
+      access={access.plan}
+      notice={access.notice}
       journey={profile.journey}
       view={view}
       document={document}

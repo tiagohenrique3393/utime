@@ -6,6 +6,7 @@ import { AppScreen } from '@/components/app-screen';
 import { ProfilePhoto } from '@/components/profile-photo';
 import { ProfilePlanet } from '@/components/profile-planet';
 import { colors, fonts, ui } from '@/constants/theme';
+import { useAccountPlan } from '@/lib/account-plan';
 import { getSessionEmail, getSessionUserId, signOut } from '@/lib/accounts';
 import { loadOwnIdentity } from '@/lib/public-profile';
 import { getProfileSnapshot, subscribeProfile, updateProfileName, type JourneyId } from '@/lib/profile';
@@ -122,6 +123,7 @@ function Mark({ name, size = 18 }: { name: 'user' | 'mail' | 'layers' | 'chevron
 
 export default function ProfileScreen() {
   const signedIn = getSessionUserId() !== null;
+  const access = useAccountPlan();
   const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const { width } = useWindowDimensions();
   const photoSize = Math.round(Math.min(164, Math.max(150, width * 0.42)));
@@ -385,7 +387,7 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.copy}>
               <Text style={styles.rowLabel}>Plano</Text>
-              <Text style={styles.rowValue}>Gratuito</Text>
+              <Text style={styles.rowValue}>{access.plan === 'premium' ? 'Premium' : access.plan === 'unknown' ? 'Carregando' : 'Gratuito'}</Text>
             </View>
           </View>
         </View>

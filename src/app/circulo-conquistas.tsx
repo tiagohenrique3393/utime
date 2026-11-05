@@ -7,6 +7,7 @@ import { CircleMark } from '@/components/circle-icons';
 import { circlePalette as palette } from '@/components/circle-palette';
 import { CirclePlanet } from '@/components/circle-planet';
 import { fonts } from '@/constants/theme';
+import { useAccountPlan } from '@/lib/account-plan';
 import { achievementTotals, formatCirclePoints, periodLabel, type CirclePeriod } from '@/lib/circle';
 import { circleErrorMessage, fetchCircleHistory, type CircleHonor } from '@/lib/circle-api';
 import { useRequireSession } from '@/lib/require-session';
@@ -28,6 +29,7 @@ function closedLabel(iso: string) {
 
 export default function CircleHistoryScreen() {
   const signedIn = useRequireSession();
+  const access = useAccountPlan();
   const [kind, setKind] = useState<CirclePeriod>('mes');
   const [rows, setRows] = useState<CircleHonor[]>([]);
   const [notice, setNotice] = useState('');
@@ -48,12 +50,23 @@ export default function CircleHistoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (access.plan !== 'premium') {
+        return;
+      }
       void load(kind);
-    }, [kind, load]),
+    }, [access.plan, kind, load]),
   );
 
   if (!signedIn) {
     return <View style={styles.blocked} />;
+  }
+
+  if (access.plan !== 'premium') {
+    return (
+      <AppScreen width="narrow" backgroundColor={page} backdrop={<CirclePlanet />}>
+        <Text style={styles.subtitle}>{access.notice || (access.plan === 'free' ? 'O UTime Circle é uma função Premium.' : 'Carregando o Círculo.')}</Text>
+      </AppScreen>
+    );
   }
 
   const totals = achievementTotals(rows.map((row) => ({ rank: row.position, score: row.score })));
