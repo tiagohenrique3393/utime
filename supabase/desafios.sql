@@ -419,6 +419,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+<<sign_fn>>
 declare
   actor uuid := auth.uid();
   today date;
@@ -431,34 +432,34 @@ declare
   point jsonb;
   usable boolean := false;
 begin
-  if actor is null then
+  if sign_fn.actor is null then
     raise exception 'Entre na sua conta para assinar.';
   end if;
-  if not public.challenge_is_premium(actor) then
+  if not public.challenge_is_premium(sign_fn.actor) then
     raise exception 'Desafios é uma função Premium.';
   end if;
-  if accepted is not true then
+  if sign_fn.accepted is not true then
     raise exception 'Confirme que leu e aceitou o contrato.';
   end if;
-  select item.id into existing
-  from public.challenge_contracts item
-  where item.user_id = actor and item.client_key = client_key;
+  select contract.id into existing
+  from public.challenge_contracts contract
+  where contract.user_id = sign_fn.actor and contract.client_key = sign_fn.client_key;
   if existing is not null then
     return existing;
   end if;
   perform public.settle_challenge_contracts();
-  if exists (select 1 from public.challenge_contracts item where item.user_id = actor and item.status = 'active') then
+  if exists (select 1 from public.challenge_contracts contract where contract.user_id = sign_fn.actor and contract.status = 'active') then
     raise exception 'Encerre o contrato ativo antes de assinar outro.';
   end if;
-  if signature_mode = 'typed' then
-    if signature_strokes is not null or char_length(btrim(coalesce(signature_text, ''))) < 2 or char_length(btrim(signature_text)) > 80 then
+  if sign_fn.signature_mode = 'typed' then
+    if sign_fn.signature_strokes is not null or char_length(btrim(coalesce(sign_fn.signature_text, ''))) < 2 or char_length(btrim(sign_fn.signature_text)) > 80 then
       raise exception 'Digite o nome completo para assinar.';
     end if;
-  elsif signature_mode = 'touch' then
-    if signature_text is not null or jsonb_typeof(signature_strokes) <> 'array' then
+  elsif sign_fn.signature_mode = 'touch' then
+    if sign_fn.signature_text is not null or jsonb_typeof(sign_fn.signature_strokes) <> 'array' then
       raise exception 'Desenhe a assinatura na tela.';
     end if;
-    for stroke in select value from jsonb_array_elements(signature_strokes) loop
+    for stroke in select value from jsonb_array_elements(sign_fn.signature_strokes) loop
       if jsonb_typeof(stroke) <> 'array' then
         raise exception 'Desenhe a assinatura na tela.';
       end if;
@@ -484,23 +485,23 @@ begin
     raise exception 'Escolha assinar na tela ou digitar o nome.';
   end if;
   today := public.challenge_sao_paulo_date(now());
-  obligations := public.challenge_build_obligations(today, duration_days, commitments);
+  obligations := public.challenge_build_obligations(today, sign_fn.duration_days, sign_fn.commitments);
   insert into public.challenge_contracts (
     user_id, client_key, status, duration_days, starts_on, ends_on, clause_version,
     signature_mode, signature_text, signature_strokes, accepted
   ) values (
-    actor, client_key, 'active', duration_days, today, today + (duration_days - 1), 'desafios-1',
-    signature_mode,
-    case when signature_mode = 'typed' then btrim(signature_text) else null end,
-    case when signature_mode = 'touch' then signature_strokes else null end,
+    sign_fn.actor, sign_fn.client_key, 'active', sign_fn.duration_days, today, today + (sign_fn.duration_days - 1), 'desafios-1',
+    sign_fn.signature_mode,
+    case when sign_fn.signature_mode = 'typed' then btrim(sign_fn.signature_text) else null end,
+    case when sign_fn.signature_mode = 'touch' then sign_fn.signature_strokes else null end,
     true
   ) returning id into created;
-  for item in select value from jsonb_array_elements(commitments) loop
+  for item in select value from jsonb_array_elements(sign_fn.commitments) loop
     insert into public.challenge_commitments (
       contract_id, user_id, pillar, body, frequency_kind, weekdays, weekly_times, deadline_on
     ) values (
       created,
-      actor,
+      sign_fn.actor,
       item->>'pillar',
       btrim(item->>'text'),
       item#>>'{frequency,kind}',
@@ -521,7 +522,7 @@ begin
       contract_id, user_id, pillar, due_on, window_start, window_end, required_count
     ) values (
       created,
-      actor,
+      sign_fn.actor,
       item->>'pillar',
       (item->>'dueOn')::date,
       (item->>'windowStart')::date,
@@ -529,13 +530,13 @@ begin
       (item->>'requiredCount')::int
     );
   end loop;
-  delete from public.challenge_drafts where user_id = actor;
+  delete from public.challenge_drafts draft where draft.user_id = sign_fn.actor;
   return created;
 exception
   when unique_violation then
-    select item.id into existing
-    from public.challenge_contracts item
-    where item.user_id = actor and item.client_key = client_key;
+    select contract.id into existing
+    from public.challenge_contracts contract
+    where contract.user_id = sign_fn.actor and contract.client_key = sign_fn.client_key;
     if existing is not null then
       return existing;
     end if;

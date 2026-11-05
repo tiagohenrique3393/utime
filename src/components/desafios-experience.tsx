@@ -15,6 +15,7 @@ import {
   contractDayNumber,
   contractSpan,
   dayMarks,
+  dueReminders,
   formatChallengeDate,
   obligationSummary,
   signatureIsValid,
@@ -282,6 +283,7 @@ export function DesafiosExperience({
   const [detail, setDetail] = useState<ChallengePillar | null>(null);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [formNotice, setFormNotice] = useState('');
+  const [fullTerms, setFullTerms] = useState(false);
   const frame = useWindowDimensions();
   const today = snapshot.today;
   function missingSetup() {
@@ -374,7 +376,9 @@ export function DesafiosExperience({
             <Text style={styles.clauseTitle}>DESCUMPRIMENTO</Text>
             <Text style={styles.clause}>O não cumprimento de uma obrigação exigível rescinde o contrato automaticamente.</Text>
             <Text style={styles.clauseTitle}>CONCORDÂNCIA</Text>
-            <Text style={styles.clause}>Declaro que li e aceito este compromisso.</Text>
+            <Text style={styles.clause}>Declaro que li e aceito este compromisso. Versão desafios-1.</Text>
+            {fullTerms ? <Text style={styles.clause}>O primeiro dia é a data da assinatura. O último dia se encerra à meia-noite seguinte, no horário de Brasília. Uma obrigação exigível não cumprida até o fim da janela rescinde o contrato inteiro. Dias sem obrigação não contam como falha. Este registro é um compromisso pessoal no aplicativo.</Text> : null}
+            <Pressable accessibilityRole="button" onPress={() => setFullTerms((value) => !value)}><Text style={styles.clearLabel}>{fullTerms ? 'Ocultar texto completo' : 'Ver texto completo'}</Text></Pressable>
           </ScrollView>
           {reading ? (
             <Text style={styles.signatureText}>{reading.signatureMode === 'typed' ? reading.signatureText : 'Assinatura desenhada na tela'}</Text>
@@ -420,6 +424,7 @@ export function DesafiosExperience({
     }
     if (view === 'track' && active) {
       const day = contractDayNumber(active.startsOn, active.endsOn, today);
+      const pendingToday = dueReminders({ status: active.status, obligations: active.obligations, checkins: active.checkins, today });
       return (
         <>
           <Text style={styles.trackLead}>Meus desafios em andamento</Text>
@@ -441,6 +446,7 @@ export function DesafiosExperience({
             <Square icon="trophy" label={'Conquistas'} onPress={() => onView('history')} />
           </View>
           <Text style={styles.warning}>{`* ${active.durationDays} dias, nas condições assinadas. Uma obrigação não cumprida rescinde o contrato.`}</Text>
+          {pendingToday.length > 0 ? <Text style={styles.note}>{`Pendente hoje: ${pendingToday.map((pillar) => pillarName[pillar]).join(', ')}.`}</Text> : null}
         </>
       );
     }
@@ -548,7 +554,7 @@ export function DesafiosExperience({
             <Pressable accessibilityRole="button" accessibilityLabel="Fechar aviso" onPress={onHideNotice} style={styles.noticeClose}><Text style={styles.clearLabel}>×</Text></Pressable>
             <Mark name="torn" size={28} color="#F4F1EA" />
             <Text style={styles.rescindedTitle}>SEU CONTRATO{'\n'}FOI RESCINDIDO.</Text>
-            <Text style={styles.rescindedCopy}>Você não cumpriu com o que assinou.{'\n'}O desafio foi cancelado.</Text>
+            <Text style={styles.rescindedCopy}>{`A meta de ${pillarName[snapshot.notice.pillar]} não foi cumprida até ${formatChallengeDate(snapshot.notice.failedOn)}. O contrato foi encerrado e o histórico permanece.`}</Text>
             <GoldButton label="ENTENDI" disabled={pending} onPress={onAcknowledge} />
           </View>
           </View>

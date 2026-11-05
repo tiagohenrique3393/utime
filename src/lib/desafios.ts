@@ -254,6 +254,26 @@ export function canCheckIn(input: {
   return '';
 }
 
+export function dueReminders(input: {
+  status: ChallengeStatus;
+  obligations: readonly ChallengeObligation[];
+  checkins: readonly ChallengeCheckin[];
+  today: string;
+}): ChallengePillar[] {
+  if (input.status !== 'active') {
+    return [];
+  }
+  return PILLARS.filter((pillar) => input.obligations.some((item) => {
+    if (item.pillar !== pillar || item.windowStart > input.today || item.windowEnd < input.today) {
+      return false;
+    }
+    if (input.checkins.some((checkin) => checkin.pillar === pillar && checkin.date === input.today)) {
+      return false;
+    }
+    return checkinsInWindow(input.checkins, pillar, item.windowStart, item.windowEnd) < item.requiredCount;
+  }));
+}
+
 export function contractDayNumber(startsOn: string, endsOn: string, today: string) {
   const total = dayDistance(startsOn, endsOn) + 1;
   if (today <= startsOn) {

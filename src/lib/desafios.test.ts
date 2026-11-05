@@ -6,6 +6,7 @@ import {
   contractDayNumber,
   contractSpan,
   dayMarks,
+  dueReminders,
   emptyCommitments,
   settleContract,
   appendSignaturePoint,
@@ -151,6 +152,22 @@ const weekdayObligations = obligationsOf(weekdayPlan);
 assertEqual(canCheckIn({ status: 'active', startsOn: span7.startsOn, endsOn: span7.endsOn, pillar: 'corpo', obligations: weekdayObligations, checkins: [], today: '2026-11-05' }).includes('exigível'), true, 'terça sem obrigação não é falha nem check-in');
 assertEqual(contractDayNumber('2026-11-04', '2026-11-24', '2026-11-04'), 1, 'dia 1 é a assinatura');
 assertEqual(contractDayNumber('2026-11-04', '2026-11-24', '2026-11-24'), 21, 'dia 21 é o último');
+assertEqual(dueReminders({
+  status: 'active',
+  today: '2026-11-04',
+  obligations: [
+    { pillar: 'corpo', dueOn: '2026-11-04', windowStart: '2026-11-04', windowEnd: '2026-11-04', requiredCount: 1 },
+    { pillar: 'mente', dueOn: '2026-11-04', windowStart: '2026-11-04', windowEnd: '2026-11-04', requiredCount: 1 },
+    { pillar: 'espirito', dueOn: '2026-11-05', windowStart: '2026-11-05', windowEnd: '2026-11-05', requiredCount: 1 },
+  ],
+  checkins: [{ pillar: 'mente', date: '2026-11-04' }],
+}).join(','), 'corpo', 'lembrete só da meta exigível e ainda aberta');
+assertEqual(dueReminders({
+  status: 'rescinded',
+  today: '2026-11-04',
+  obligations: [{ pillar: 'corpo', dueOn: '2026-11-04', windowStart: '2026-11-04', windowEnd: '2026-11-04', requiredCount: 1 }],
+  checkins: [],
+}).length, 0, 'contrato encerrado não gera lembrete');
 assertEqual(dayMarks('2026-11-04', 7, 'corpo', [{ pillar: 'corpo', date: '2026-11-04' }]).filter(Boolean).length, 1, 'círculo verde só no dia cumprido');
 assertEqual(dayMarks('2026-11-04', 30, 'mente', []).length, 30, 'trinta círculos');
 assertEqual(addDays('2026-11-04', 0), '2026-11-04', 'data estável');
