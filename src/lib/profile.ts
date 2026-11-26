@@ -73,17 +73,20 @@ function writeProfileLocal() {
 }
 
 async function upsertProfile(userId: string, next: Profile) {
-  const { error } = await supabase.from('profiles').upsert(
-    {
-      user_id: userId,
-      first_name: next.firstName,
-      journey: next.journey,
-      goals: next.goals,
-      onboarding_completed: next.completed,
-    },
-    { onConflict: 'user_id' },
-  );
-  return !error;
+  const payload = {
+    first_name: next.firstName,
+    journey: next.journey,
+    goals: next.goals,
+    onboarding_completed: next.completed,
+  };
+  // Atualiza só campos de perfil. Nunca envia `plan`, para não brigar com o
+  // Premium vitalício nem com futuras assinaturas (o trigger também trava isso).
+  const updated = await supabase.from('profiles').update(payload).eq('user_id', userId).select('user_id').maybeSingle();
+  if (!updated.error && updated.data) {
+    return true;
+  }
+  const inserted = await supabase.from('profiles').insert({ user_id: userId, ...payload });
+  return !inserted.error;
 }
 
 function scheduleProfilePush() {

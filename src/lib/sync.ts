@@ -71,6 +71,14 @@ export async function hydrateAccount(userId: string) {
   const profileRevision = getProfileRevision();
   const journeyRevision = getJourneyRevision();
 
+  // O plano Premium não depende do restante da hidratação: carrega sempre,
+  // mesmo se journey_days/journey_state falharem ou o timeout estourar.
+  try {
+    await loadAccountPlan(userId);
+  } catch {
+    // Mantém o snapshot atual; useAccountPlan tenta de novo ao focar a tela.
+  }
+
   try {
     const [profileResult, daysResult, stateResult] = await withTimeout(
       Promise.all([
@@ -103,10 +111,10 @@ export async function hydrateAccount(userId: string) {
 
     if (!hasRemoteProfile && profileRevision === getProfileRevision()) {
       await pushProfile(userId);
+      await loadAccountPlan(userId);
     } else if (hasRemoteProfile && profileRevision === getProfileRevision()) {
       replaceProfile(userId, profileFromRow(remoteProfile));
     }
-    await loadAccountPlan(userId);
     await loadOwnAvatar(userId);
 
     if (!hasRemoteJourney && journeyRevision === getJourneyRevision() && journeyHasContent()) {

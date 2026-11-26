@@ -61,7 +61,15 @@ export default function RootLayout() {
       if (event === 'INITIAL_SESSION') {
         return;
       }
-      applySessionOwner(session?.user.id ?? null);
+      // TOKEN_REFRESHED / USER_UPDATED mantêm a mesma conta; SIGNED_OUT limpa.
+      // Evita aplicar null em eventos transitórios sem sessão.
+      if (event === 'SIGNED_OUT') {
+        applySessionOwner(null);
+        return;
+      }
+      if (session?.user.id) {
+        applySessionOwner(session.user.id);
+      }
     });
     return () => {
       active = false;

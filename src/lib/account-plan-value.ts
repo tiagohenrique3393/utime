@@ -1,7 +1,10 @@
 export type AccountPlan = 'unknown' | 'free' | 'premium';
 
 export function accountPlanFromValue(value: unknown): Exclude<AccountPlan, 'unknown'> {
-  return value === 'premium' ? 'premium' : 'free';
+  if (typeof value !== 'string') {
+    return 'free';
+  }
+  return value.trim().toLowerCase() === 'premium' ? 'premium' : 'free';
 }
 
 export function isPremiumPlan(value: AccountPlan) {
