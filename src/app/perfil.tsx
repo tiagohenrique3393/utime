@@ -391,6 +391,63 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+
+        {access.plan === 'free' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Seja Premium"
+            onPress={() => router.push('/premium?voltar=/perfil' as Href)}
+            style={({ pressed }) => [styles.card, styles.premiumRow, pressed && styles.pressed]}>
+            <View style={styles.row}>
+              <View style={styles.iconWell}>
+                <Mark name="crown" />
+              </View>
+              <View style={styles.copy}>
+                <Text style={styles.premiumLabel}>SEJA PREMIUM</Text>
+                <Text style={styles.rowHint}>Desbloqueie progresso, Círculo e desafios.</Text>
+              </View>
+              <Mark name="chevron" />
+            </View>
+          </Pressable>
+        ) : null}
+
+        {access.plan === 'premium' ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/assinatura' as Href)}
+            style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+            <View style={styles.row}>
+              <View style={styles.iconWell}>
+                <Mark name="crown" />
+              </View>
+              <View style={styles.copy}>
+                <Text style={styles.rowLabel}>Assinatura</Text>
+                <Text style={styles.rowHint}>Gerenciar acesso Premium</Text>
+              </View>
+              <Mark name="chevron" />
+            </View>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.card}>
+          {(
+            [
+              ['Termos de uso', '/termos'],
+              ['Política de privacidade', '/privacidade'],
+              ['Assinatura', '/assinatura'],
+              ['Suporte', '/suporte'],
+            ] as const
+          ).map(([label, href], index) => (
+            <Pressable
+              key={href}
+              accessibilityRole="button"
+              onPress={() => router.push(href as Href)}
+              style={({ pressed }) => [styles.legalRow, index > 0 && styles.legalRowBorder, pressed && styles.pressed]}>
+              <Text style={styles.legalLabel}>{label}</Text>
+              <Mark name="chevron" />
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
@@ -553,6 +610,41 @@ const styles = StyleSheet.create({
     fontFamily: fonts.text,
     fontSize: 16,
     lineHeight: 22,
+  },
+  rowHint: {
+    marginTop: 3,
+    color: ui.muted,
+    fontFamily: fonts.text,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  premiumRow: {
+    borderColor: 'rgba(196, 165, 116, 0.55)',
+  },
+  premiumLabel: {
+    color: ui.textChampagne,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+  },
+  legalRow: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  legalRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: ui.lineSoft,
+  },
+  legalLabel: {
+    color: ui.text,
+    fontFamily: fonts.text,
+    fontSize: 15,
+    lineHeight: 20,
   },
   divider: {
     height: 1,

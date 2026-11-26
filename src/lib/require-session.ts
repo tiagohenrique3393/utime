@@ -21,7 +21,18 @@ const privatePaths = new Set([
 
 export function isPrivatePath(pathname: string) {
   const path = pathname.split('?')[0].split('#')[0];
-  if (path.startsWith('/pilar/') || path === '/consulta-dia' || path === '/circulo-amigos' || path === '/nome-usuario' || path === '/configuracoes' || path === '/perfil-publico') {
+  if (
+    path.startsWith('/pilar/') ||
+    path === '/consulta-dia' ||
+    path === '/circulo-amigos' ||
+    path === '/circulo-conquistas' ||
+    path === '/nome-usuario' ||
+    path === '/configuracoes' ||
+    path === '/perfil-publico' ||
+    path === '/premium' ||
+    path === '/assinatura' ||
+    path === '/suporte'
+  ) {
     return true;
   }
   return privatePaths.has(path);

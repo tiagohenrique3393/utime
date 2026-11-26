@@ -1,5 +1,5 @@
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -7,6 +7,7 @@ import { CircleBoard } from '@/components/circle-board';
 import { CircleDialog } from '@/components/circle-dialog';
 import { CirclePlanet } from '@/components/circle-planet';
 import { LegacyRanking } from '@/components/legacy-ranking';
+import { PremiumExperience } from '@/components/premium-experience';
 import { fonts, ui } from '@/constants/theme';
 import { useAccountPlan } from '@/lib/account-plan';
 import { getSessionUserId } from '@/lib/accounts';
@@ -26,6 +27,7 @@ import {
   type CircleState,
 } from '@/lib/circle-api';
 import { todayKey } from '@/lib/habit-day';
+import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
 
 const page = '#050505';
@@ -33,6 +35,7 @@ const page = '#050505';
 export default function CircleScreen() {
   const signedIn = useRequireSession();
   const access = useAccountPlan();
+  const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const [mode, setMode] = useState<'loading' | 'legacy' | 'circle'>('loading');
   const [state, setState] = useState<CircleState>({ enrolled: false, handle: '', joinedAt: null, alta: 0, media: 0, baixa: 0, ready: false, returning: false });
   const [kind, setKind] = useState<CirclePeriod>('semana');
@@ -194,12 +197,15 @@ export default function CircleScreen() {
     return mode === 'legacy' ? <LegacyRanking /> : <View style={{ flex: 1, backgroundColor: page }} />;
   }
 
+  if (access.plan === 'free') {
+    return <PremiumExperience journey={profile.journey} onBack={() => router.navigate('/inicio')} />;
+  }
+
   const today = todayKey();
   const todayStart = start ? periodStart(kind, today) : '';
 
   return (
     <AppScreen width="narrow" backgroundColor={page} backdrop={<CirclePlanet footing={scope === 'amigos'} />} onNearEnd={() => loadMore.current()}>
-      {access.plan === 'free' ? <Text style={{ marginTop: 28, color: ui.muted, fontFamily: fonts.text }}>O UTime Circle é uma função Premium.</Text> : null}
       {access.plan === 'unknown' || (access.plan === 'premium' && mode === 'loading') ? <Text style={{ marginTop: 28, color: ui.muted, fontFamily: fonts.text }}>{access.notice || 'Carregando o Círculo.'}</Text> : null}
       {access.plan === 'premium' && mode === 'circle' && start ? (
         <CircleBoard

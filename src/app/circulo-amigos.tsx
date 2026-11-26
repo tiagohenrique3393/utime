@@ -1,5 +1,5 @@
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -7,9 +7,11 @@ import { CircleAvatar } from '@/components/circle-avatar';
 import { CircleMark } from '@/components/circle-icons';
 import { circlePalette as palette } from '@/components/circle-palette';
 import { CirclePlanet } from '@/components/circle-planet';
+import { PremiumExperience } from '@/components/premium-experience';
 import { fonts } from '@/constants/theme';
 import { useAccountPlan } from '@/lib/account-plan';
 import { getSessionUserId } from '@/lib/accounts';
+import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { getOwnAvatarPath, isOwnAvatarReady, subscribeOwnAvatar } from '@/lib/avatar';
 import { publicAvatarUrl } from '@/lib/avatar-store';
 import { friendNotice } from '@/lib/circle';
@@ -103,6 +105,7 @@ function PersonRow({
 export default function AddFriendsScreen() {
   const signedIn = useRequireSession();
   const access = useAccountPlan();
+  const profile = useSyncExternalStore(subscribeProfile, getProfileSnapshot, getProfileSnapshot);
   const [draft, setDraft] = useState('');
   const [people, setPeople] = useState<CirclePerson[]>([]);
   const [found, setFound] = useState<CirclePerson[] | null>(null);
@@ -234,10 +237,14 @@ export default function AddFriendsScreen() {
     return <View style={styles.blocked} />;
   }
 
+  if (access.plan === 'free') {
+    return <PremiumExperience journey={profile.journey} onBack={() => router.back()} />;
+  }
+
   if (access.plan !== 'premium') {
     return (
       <AppScreen width="narrow" backgroundColor={page} backdrop={<CirclePlanet />}>
-        <Text style={styles.notice}>{access.notice || (access.plan === 'free' ? 'O UTime Circle é uma função Premium.' : 'Carregando o Círculo.')}</Text>
+        <Text style={styles.notice}>{access.notice || 'Carregando o Círculo.'}</Text>
       </AppScreen>
     );
   }

@@ -8,6 +8,7 @@ import { ProgressPlanet } from '@/components/progress-planet';
 import { PercentRing } from '@/components/progress-charts';
 import { fonts, ui } from '@/constants/theme';
 import { useAccountPlan } from '@/lib/account-plan';
+import { openPremiumScreen } from '@/lib/premium-nav';
 import { progressPeriodOnPress, visibleProgressPeriod } from '@/lib/progress-access';
 import { getProgressColor, type ProgressBand } from '@/lib/progress-color';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
@@ -445,14 +446,19 @@ export default function ProgressScreen() {
       <View style={[styles.segmentTrack, dense && styles.segmentTrackDense]}>
         {periods.map((item) => {
           const selected = item.id === visiblePeriod;
-          const locked = item.premium && access.plan !== 'premium';
+          const locked = item.premium && access.plan === 'free';
+          const checking = item.premium && access.plan === 'unknown';
           return (
             <Pressable
               key={item.id}
               accessibilityRole="button"
-              accessibilityState={{ selected, disabled: locked }}
-              disabled={locked}
+              accessibilityState={{ selected, disabled: checking }}
+              disabled={checking}
               onPress={() => {
+                if (locked) {
+                  openPremiumScreen('/progresso');
+                  return;
+                }
                 const next = progressPeriodOnPress(access.plan, item.id);
                 if (next) {
                   setPeriod(next);
