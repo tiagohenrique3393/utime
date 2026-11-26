@@ -29,9 +29,7 @@ export function isPrivatePath(pathname: string) {
     path === '/nome-usuario' ||
     path === '/configuracoes' ||
     path === '/perfil-publico' ||
-    path === '/premium' ||
-    path === '/assinatura' ||
-    path === '/suporte'
+    path === '/premium'
   ) {
     return true;
   }

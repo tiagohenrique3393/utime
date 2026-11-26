@@ -6,6 +6,7 @@ import { LegalScreen } from '@/components/legal-screen';
 import { PremiumChevronIcon, PremiumCrownIcon } from '@/components/premium-icons';
 import { fonts, ui } from '@/constants/theme';
 import { useAccountPlan } from '@/lib/account-plan';
+import { useSessionUserId } from '@/lib/session-user';
 import { getSubscriptionSnapshot, restorePremiumPurchases } from '@/lib/subscription';
 
 type Row = {
@@ -15,7 +16,9 @@ type Row = {
 };
 
 export default function AssinaturaScreen() {
+  const signedIn = useSessionUserId() !== null;
   const access = useAccountPlan();
+  const plan = signedIn ? access.plan : 'free';
   const snapshot = getSubscriptionSnapshot();
   const [message, setMessage] = useState('');
 
@@ -53,14 +56,17 @@ export default function AssinaturaScreen() {
         </View>
         <Text style={styles.price}>{snapshot.product.priceLabel} / ano</Text>
         <Text style={styles.cadence}>Uma cobrança anual.</Text>
-        {access.plan === 'premium' ? (
+        {plan === 'premium' ? (
           <Text style={styles.active}>
             Seu acesso Premium está ativo. Enquanto não houver assinatura de loja vinculada a esta conta, não há cobrança, vencimento anual nem cancelamento de renovação para gerenciar aqui.
           </Text>
-        ) : access.plan === 'unknown' ? (
+        ) : plan === 'unknown' ? (
           <Text style={styles.active}>Confirmando seu plano…</Text>
         ) : (
-          <Pressable accessibilityRole="button" onPress={() => router.push('/premium?voltar=/assinatura' as Href)} style={styles.offer}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push((signedIn ? '/premium?voltar=/assinatura' : '/preview-premium') as Href)}
+            style={styles.offer}>
             <Text style={styles.offerLabel}>Ver UTime Premium</Text>
           </Pressable>
         )}
