@@ -38,3 +38,14 @@ Documento de acompanhamento. Não ativa cobranças nem altera o banco de produç
 
 - Preservar concessões administrativas existentes (servidor / RPC).
 - Assinatura comercial futura é independente das autorizações vitalícias.
+- E-mails vitalícios no servidor: `thsouza00793@gmail.com` e `francinegodinhodossantos@gmail.com`.
+- `protect_profile_plan` impede rebaixamento dessas contas mesmo via webhook/RevenueCat.
+- `challenge_is_premium` e `utime_my_plan` reparam o plano na identidade autenticada.
+- **Ação humana obrigatória:** reexecutar `supabase/premium-plan-rpc.sql` no SQL Editor de produção após este PR (idempotente), depois logout/login da Francine.
+
+## Canais oficiais de loja (quando houver compra)
+
+- Gerenciar / cancelar renovação (Apple): https://apps.apple.com/account/subscriptions
+- Reembolso (Apple): https://reportaproblem.apple.com/
+- Gerenciar / cancelar renovação (Google): https://play.google.com/store/account/subscriptions
+- Reembolso (Google): https://support.google.com/googleplay/answer/2479637

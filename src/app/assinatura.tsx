@@ -1,6 +1,6 @@
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { LegalScreen } from '@/components/legal-screen';
 import { PremiumChevronIcon, PremiumCrownIcon } from '@/components/premium-icons';
@@ -9,11 +9,29 @@ import { useAccountPlan } from '@/lib/account-plan';
 import { useSessionUserId } from '@/lib/session-user';
 import { getSubscriptionSnapshot, restorePremiumPurchases } from '@/lib/subscription';
 
+const APPLE_SUBSCRIPTIONS = 'https://apps.apple.com/account/subscriptions';
+const APPLE_REFUND = 'https://reportaproblem.apple.com/';
+const GOOGLE_SUBSCRIPTIONS = 'https://play.google.com/store/account/subscriptions';
+const GOOGLE_REFUND = 'https://support.google.com/googleplay/answer/2479637';
+
 type Row = {
   title: string;
   description: string;
   onPress: () => void;
 };
+
+async function openOfficial(url: string, fallback: string, setMessage: (value: string) => void) {
+  try {
+    const supported = await Linking.canOpenURL(url);
+    if (!supported) {
+      setMessage(fallback);
+      return;
+    }
+    await Linking.openURL(url);
+  } catch {
+    setMessage(fallback);
+  }
+}
 
 export default function AssinaturaScreen() {
   const signedIn = useSessionUserId() !== null;
@@ -21,12 +39,20 @@ export default function AssinaturaScreen() {
   const plan = signedIn ? access.plan : 'free';
   const snapshot = getSubscriptionSnapshot();
   const [message, setMessage] = useState('');
+  const storeReady = snapshot.availability === 'store_ready';
 
   const rows: Row[] = [
     {
       title: 'GERENCIAR ASSINATURA',
       description: 'Consulte e gerencie sua assinatura na plataforma em que realizou a compra.',
-      onPress: () => setMessage('O gerenciamento pela loja estará disponível quando as assinaturas forem ativadas.'),
+      onPress: () => {
+        if (!storeReady) {
+          setMessage('O gerenciamento pela loja estará disponível quando as assinaturas forem ativadas. Canais oficiais: App Store e Google Play.');
+          return;
+        }
+        const url = Platform.OS === 'android' ? GOOGLE_SUBSCRIPTIONS : APPLE_SUBSCRIPTIONS;
+        void openOfficial(url, 'Abra as assinaturas na App Store ou no Google Play da conta usada na compra.', setMessage);
+      },
     },
     {
       title: 'RESTAURAR COMPRA',
@@ -38,12 +64,31 @@ export default function AssinaturaScreen() {
     {
       title: 'CANCELAR RENOVAÇÃO',
       description: 'Evite a próxima cobrança anual.',
-      onPress: () => setMessage('O cancelamento da renovação será feito na loja de origem, quando houver assinatura ativa.'),
+      onPress: () => {
+        if (!storeReady) {
+          setMessage('O cancelamento da renovação será feito na loja de origem, quando houver assinatura ativa.');
+          return;
+        }
+        const url = Platform.OS === 'android' ? GOOGLE_SUBSCRIPTIONS : APPLE_SUBSCRIPTIONS;
+        void openOfficial(url, 'Cancele a renovação nas assinaturas da App Store ou do Google Play.', setMessage);
+      },
     },
     {
       title: 'SOLICITAR REEMBOLSO',
       description: 'Consulte as opções de reembolso da plataforma em que realizou a compra.',
-      onPress: () => setMessage('Os canais oficiais de reembolso da App Store e do Google Play serão indicados quando as compras estiverem ativas.'),
+      onPress: () => {
+        if (Platform.OS === 'ios') {
+          void openOfficial(APPLE_REFUND, 'Use reportaproblem.apple.com para solicitar reembolso na App Store.', setMessage);
+          return;
+        }
+        if (Platform.OS === 'android') {
+          void openOfficial(GOOGLE_REFUND, 'Use a Ajuda do Google Play para solicitar reembolso.', setMessage);
+          return;
+        }
+        setMessage(
+          'Reembolsos: App Store (reportaproblem.apple.com) ou Ajuda do Google Play. A aprovação depende da loja. Assinaturas do UTime ainda não estão ativas.',
+        );
+      },
     },
   ];
 
