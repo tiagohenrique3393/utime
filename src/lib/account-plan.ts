@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
 import { accountPlanFromValue, type AccountPlan } from '@/lib/account-plan-value';
-import { getSessionUserId, useSessionUserId } from '@/lib/session-user';
+import { getSessionUserId, setSessionUserId, useSessionUserId } from '@/lib/session-user';
 import { supabase } from '../../utils/supabase';
 
 export type { AccountPlan } from '@/lib/account-plan-value';
@@ -57,8 +57,28 @@ function noticeFor(error: { message?: string } | null) {
   return 'Não foi possível confirmar o plano agora.';
 }
 
-function planFromRow(value: unknown): Exclude<AccountPlan, 'unknown'> {
-  return accountPlanFromValue(value);
+function planFromRpcData(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value && typeof value === 'object' && 'utime_my_plan' in value) {
+    const nested = (value as { utime_my_plan?: unknown }).utime_my_plan;
+    return typeof nested === 'string' ? nested : null;
+  }
+  return null;
+}
+
+async function resolveActorUserId(expectedUserId: string) {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user?.id) {
+    return { userId: null as string | null, error };
+  }
+  const jwtUserId = data.user.id;
+  if (jwtUserId !== expectedUserId) {
+    // O store local ficou dessincronizado do JWT — o token é a fonte da verdade.
+    setSessionUserId(jwtUserId);
+  }
+  return { userId: jwtUserId, error: null };
 }
 
 async function readPlanFromRpc() {
@@ -66,10 +86,7 @@ async function readPlanFromRpc() {
   if (error) {
     return { plan: null as string | null, error };
   }
-  if (typeof data === 'string') {
-    return { plan: data, error: null };
-  }
-  return { plan: null as string | null, error: null };
+  return { plan: planFromRpcData(data), error: null };
 }
 
 async function readPlanFromTable(userId: string) {
@@ -85,31 +102,43 @@ export async function loadAccountPlan(userId: string) {
     return getAccountPlanSnapshot().plan;
   }
 
-  const rpc = await readPlanFromRpc();
-  if (getSessionUserId() !== userId) {
+  const actor = await resolveActorUserId(userId);
+  if (actor.error || !actor.userId) {
+    replaceSnapshot({
+      plan: ownerId === userId ? snapshot.plan : 'unknown',
+      notice: noticeFor(actor.error),
+    });
     return getAccountPlanSnapshot().plan;
   }
-  if (!rpc.error && rpc.plan != null) {
-    ownerId = userId;
-    replaceSnapshot({ plan: planFromRow(rpc.plan), notice: '' });
+  const activeUserId = actor.userId;
+  if (getSessionUserId() !== activeUserId) {
     return getAccountPlanSnapshot().plan;
   }
 
-  const table = await readPlanFromTable(userId);
-  if (getSessionUserId() !== userId) {
+  const rpc = await readPlanFromRpc();
+  if (getSessionUserId() !== activeUserId) {
+    return getAccountPlanSnapshot().plan;
+  }
+  if (!rpc.error && rpc.plan != null) {
+    ownerId = activeUserId;
+    replaceSnapshot({ plan: accountPlanFromValue(rpc.plan), notice: '' });
+    return getAccountPlanSnapshot().plan;
+  }
+
+  const table = await readPlanFromTable(activeUserId);
+  if (getSessionUserId() !== activeUserId) {
     return getAccountPlanSnapshot().plan;
   }
   if (table.error) {
     replaceSnapshot({
-      plan: ownerId === userId ? snapshot.plan : 'unknown',
+      plan: ownerId === activeUserId ? snapshot.plan : 'unknown',
       notice: noticeFor(table.error ?? rpc.error),
     });
     return getAccountPlanSnapshot().plan;
   }
 
-  ownerId = userId;
-  // Sem linha visível, assume gratuito até o perfil existir — não inventa Premium.
-  replaceSnapshot({ plan: planFromRow(table.plan), notice: '' });
+  ownerId = activeUserId;
+  replaceSnapshot({ plan: accountPlanFromValue(table.plan), notice: '' });
   return getAccountPlanSnapshot().plan;
 }
 
