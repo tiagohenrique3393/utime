@@ -3,6 +3,7 @@ import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 
 import { DesafiosExperience, type DesafiosScreenView } from '@/components/desafios-experience';
+import { PremiumExperience } from '@/components/premium-experience';
 import {
   acknowledgeChallenge,
   checkInChallenge,
@@ -187,6 +188,10 @@ export default function DesafiosScreen() {
 
   if (!signedIn) {
     return <View style={{ flex: 1, backgroundColor: '#050505' }} />;
+  }
+
+  if (access.plan === 'free') {
+    return <PremiumExperience journey={profile.journey} onBack={() => router.navigate('/inicio')} />;
   }
 
   return (
