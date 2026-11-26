@@ -13,7 +13,7 @@ import { setSessionUserId } from '@/lib/session-user';
 import { hydrateAccount } from '@/lib/sync';
 import { setTaskOwner } from '@/lib/tasks';
 
-export { getSessionUserId } from '@/lib/session-user';
+export { getSessionUserId, useSessionUserId } from '@/lib/session-user';
 
 WebBrowser.maybeCompleteAuthSession();
 

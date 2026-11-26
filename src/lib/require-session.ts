@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect } from 'react';
 
 import { getSessionUserId } from '@/lib/accounts';
+import { useSessionUserId } from '@/lib/session-user';
 
 const privatePaths = new Set([
   '/inicio',
@@ -27,13 +28,14 @@ export function isPrivatePath(pathname: string) {
 }
 
 export function useRequireSession() {
-  const signedIn = getSessionUserId() !== null;
+  const userId = useSessionUserId();
+  const signedIn = userId !== null;
 
   useEffect(() => {
     if (!getSessionUserId()) {
       router.replace('/');
     }
-  }, []);
+  }, [userId]);
 
   return signedIn;
 }

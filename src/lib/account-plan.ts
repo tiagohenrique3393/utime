@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
 import { accountPlanFromValue, type AccountPlan } from '@/lib/account-plan-value';
-import { getSessionUserId } from '@/lib/session-user';
+import { getSessionUserId, useSessionUserId } from '@/lib/session-user';
 import { supabase } from '../../utils/supabase';
 
 export type { AccountPlan } from '@/lib/account-plan-value';
@@ -57,20 +57,59 @@ function noticeFor(error: { message?: string } | null) {
   return 'Não foi possível confirmar o plano agora.';
 }
 
-export async function loadAccountPlan(userId: string) {
+function planFromRow(value: unknown): Exclude<AccountPlan, 'unknown'> {
+  return accountPlanFromValue(value);
+}
+
+async function readPlanFromRpc() {
+  const { data, error } = await supabase.rpc('utime_my_plan');
+  if (error) {
+    return { plan: null as string | null, error };
+  }
+  if (typeof data === 'string') {
+    return { plan: data, error: null };
+  }
+  return { plan: null as string | null, error: null };
+}
+
+async function readPlanFromTable(userId: string) {
   const { data, error } = await supabase.from('profiles').select('plan').eq('user_id', userId).maybeSingle();
+  if (error) {
+    return { plan: null as string | null, error };
+  }
+  return { plan: data?.plan ?? null, error: null };
+}
+
+export async function loadAccountPlan(userId: string) {
+  if (!userId || getSessionUserId() !== userId) {
+    return getAccountPlanSnapshot().plan;
+  }
+
+  const rpc = await readPlanFromRpc();
   if (getSessionUserId() !== userId) {
     return getAccountPlanSnapshot().plan;
   }
-  if (error) {
+  if (!rpc.error && rpc.plan != null) {
+    ownerId = userId;
+    replaceSnapshot({ plan: planFromRow(rpc.plan), notice: '' });
+    return getAccountPlanSnapshot().plan;
+  }
+
+  const table = await readPlanFromTable(userId);
+  if (getSessionUserId() !== userId) {
+    return getAccountPlanSnapshot().plan;
+  }
+  if (table.error) {
     replaceSnapshot({
       plan: ownerId === userId ? snapshot.plan : 'unknown',
-      notice: noticeFor(error),
+      notice: noticeFor(table.error ?? rpc.error),
     });
     return getAccountPlanSnapshot().plan;
   }
+
   ownerId = userId;
-  replaceSnapshot({ plan: accountPlanFromValue(data?.plan), notice: '' });
+  // Sem linha visível, assume gratuito até o perfil existir — não inventa Premium.
+  replaceSnapshot({ plan: planFromRow(table.plan), notice: '' });
   return getAccountPlanSnapshot().plan;
 }
 
@@ -84,7 +123,7 @@ function rememberOwner(userId: string) {
 
 export function useAccountPlan() {
   const current = useSyncExternalStore(subscribeAccountPlan, getAccountPlanSnapshot, () => serverSnapshot);
-  const userId = getSessionUserId();
+  const userId = useSessionUserId();
   useEffect(() => {
     if (!userId) {
       clearAccountPlan();
@@ -103,9 +142,16 @@ export function useAccountPlan() {
         refresh();
       }
     });
+    const onOnline = () => refresh();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', onOnline);
+    }
     return () => {
       active = false;
       appState.remove();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', onOnline);
+      }
     };
   }, [userId]);
   return current;
