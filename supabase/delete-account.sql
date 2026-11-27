@@ -204,6 +204,15 @@ begin
   if to_regclass('public.hydration_days') is not null then
     delete from public.hydration_days where user_id = uid;
   end if;
+  if to_regclass('public.sleep_checkins') is not null then
+    delete from public.sleep_checkins where user_id = uid;
+  end if;
+  if to_regclass('public.mood_checkins') is not null then
+    delete from public.mood_checkins where user_id = uid;
+  end if;
+  if to_regclass('public.checkin_prompt_state') is not null then
+    delete from public.checkin_prompt_state where user_id = uid;
+  end if;
   if to_regclass('public.day_celebrations') is not null then
     delete from public.day_celebrations where user_id = uid;
   end if;
