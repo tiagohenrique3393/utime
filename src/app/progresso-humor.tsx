@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { InsightCard } from '@/components/insight-card';
+import { MoodCheckinModal } from '@/components/mood-checkin-modal';
 import { PercentRing } from '@/components/progress-charts';
 import { ProgressPlanet } from '@/components/progress-planet';
 import { WellbeingChart } from '@/components/wellbeing-chart';
@@ -36,15 +37,16 @@ import {
   type MoodPoint,
 } from '@/lib/progress-wellbeing';
 import { useRequireSession } from '@/lib/require-session';
-import { loadMoodUntil } from '@/lib/mood-store';
+import { moodPeriodAt, type MoodPeriod } from '@/lib/mood-score';
+import { loadMoodUntil, saveMoodCheckin } from '@/lib/mood-store';
 
-const faceGlyph: Record<number, string> = {
-  1: '☹',
-  2: '😕',
-  3: '😐',
-  4: '🙂',
-  5: '☺',
-};
+function faceForLevel(level: number) {
+  if (level <= 2) return '☹';
+  if (level <= 4) return '😕';
+  if (level <= 6) return '😐';
+  if (level <= 8) return '🙂';
+  return '☺';
+}
 
 const periodTitle = {
   manha: 'Manhã',
@@ -70,6 +72,10 @@ export default function ProgressoHumorScreen() {
   const [habitScore, setHabitScore] = useState<number | null>(null);
   const [series, setSeries] = useState<ReturnType<typeof wellbeingSeries> | null>(null);
   const [notice, setNotice] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [editPeriod, setEditPeriod] = useState<MoodPeriod>(moodPeriodAt());
 
   useFocusEffect(
     useCallback(() => {
@@ -79,6 +85,7 @@ export default function ProgressoHumorScreen() {
       }
       let active = true;
       const today = todayKey();
+      void reloadKey;
       void (async () => {
         await refreshDailyBoard(userId, today);
         const [moodLoad, logs] = await Promise.all([loadMoodUntil(userId, today), loadHabitLogsUntil(userId, today)]);
@@ -144,7 +151,7 @@ export default function ProgressoHumorScreen() {
       return () => {
         active = false;
       };
-    }, [period]),
+    }, [period, reloadKey]),
   );
 
   if (!signedIn) {
@@ -182,17 +189,25 @@ export default function ProgressoHumorScreen() {
       {period === 'dia' ? (
         <View style={styles.slots}>
           {breakdown.map((item) => (
-            <View key={item.period} style={styles.slot}>
+            <Pressable
+              key={item.period}
+              accessibilityRole="button"
+              onPress={() => {
+                setEditPeriod(item.period);
+                setModalOpen(true);
+              }}
+              style={styles.slot}>
               <Text style={styles.slotTitle}>{periodTitle[item.period]}</Text>
               {item.level != null ? (
                 <>
-                  <Text style={styles.slotFace}>{faceGlyph[item.level] ?? '·'}</Text>
+                  <Text style={styles.slotFace}>{faceForLevel(item.level)}</Text>
+                  <Text style={styles.slotScore}>{item.level}/10</Text>
                   <Text style={styles.slotScore}>{formatDailyPercent(item.score ?? 0)}</Text>
                 </>
               ) : (
                 <Text style={styles.slotEmpty}>Sem registro</Text>
               )}
-            </View>
+            </Pressable>
           ))}
         </View>
       ) : null}
@@ -215,11 +230,47 @@ export default function ProgressoHumorScreen() {
 
       <Pressable
         accessibilityRole="button"
+        onPress={() => {
+          setEditPeriod(moodPeriodAt());
+          setModalOpen(true);
+        }}
+        style={styles.register}>
+        <Text style={styles.registerLabel}>Registrar / atualizar humor</Text>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
         onPress={() => router.push(`/progresso?period=${period}` as Href)}
         style={styles.link}>
         <Text style={styles.linkLabel}>Voltar ao progresso</Text>
       </Pressable>
       {currentPeriodDates(today, period).length ? null : null}
+
+      <MoodCheckinModal
+        visible={modalOpen}
+        period={editPeriod}
+        busy={busy}
+        notice={notice}
+        allowPeriodPick
+        onSave={(level, nextPeriod, note) => {
+          const userId = getSessionUserId();
+          if (!userId) {
+            return;
+          }
+          setBusy(true);
+          void saveMoodCheckin(userId, { period: nextPeriod, level, note }).then((result) => {
+            setBusy(false);
+            if (!result.ok) {
+              setNotice(result.message);
+              return;
+            }
+            setModalOpen(false);
+            setNotice('');
+            setReloadKey((key) => key + 1);
+          });
+        }}
+        onDismiss={() => setModalOpen(false)}
+      />
     </AppScreen>
   );
 }
@@ -288,6 +339,21 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   note: { marginTop: 10, color: ui.muted, fontFamily: fonts.text, fontSize: 13 },
+  register: {
+    marginTop: 14,
+    minHeight: 48,
+    borderRadius: 999,
+    backgroundColor: '#E8C99B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  registerLabel: {
+    color: '#141210',
+    fontFamily: fonts.display,
+    fontSize: 14,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
   link: { marginTop: 16, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   linkLabel: { color: ui.champagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
 });

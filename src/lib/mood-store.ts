@@ -3,6 +3,7 @@ import { todayKey } from '@/lib/habit-day';
 import {
   MOOD_PERIODS,
   canEditMoodPeriod,
+  clampMoodLevel,
   dailyMoodAverage,
   moodLevelScore,
   moodPeriodAt,
@@ -15,6 +16,7 @@ export type MoodCheckin = {
   period: MoodPeriod;
   level: MoodLevel;
   score: number;
+  note?: string | null;
 };
 
 type MoodRow = {
@@ -23,6 +25,7 @@ type MoodRow = {
   period?: string | null;
   level?: number | null;
   score?: number | null;
+  note?: string | null;
 };
 
 const cache = new Map<string, MoodCheckin>();
@@ -78,9 +81,15 @@ function fromRow(row: MoodRow | null, userId: string): MoodCheckin | null {
     return null;
   }
   const period = asPeriod(row.period);
-  const level = Math.round(Number(row.level)) as MoodLevel;
-  const score = moodLevelScore(level);
-  if (!period || score == null) {
+  const level = clampMoodLevel(Number(row.level));
+  const storedScore = Number(row.score);
+  const score =
+    level == null
+      ? null
+      : Number.isFinite(storedScore)
+        ? storedScore
+        : moodLevelScore(level);
+  if (!period || level == null || score == null) {
     return null;
   }
   return {
@@ -88,6 +97,7 @@ function fromRow(row: MoodRow | null, userId: string): MoodCheckin | null {
     period,
     level,
     score,
+    note: typeof row.note === 'string' ? row.note : null,
   };
 }
 
@@ -166,7 +176,7 @@ export async function loadMoodUntil(userId: string, through: string) {
 
 export async function saveMoodCheckin(
   userId: string,
-  input: { localDate?: string; period?: MoodPeriod; level: number },
+  input: { localDate?: string; period?: MoodPeriod; level: number; note?: string | null },
   now = new Date(),
 ) {
   const localDate = input.localDate ?? todayKey(now);
@@ -175,32 +185,57 @@ export async function saveMoodCheckin(
   if (!canEditMoodPeriod(period, localDate, today, now)) {
     return { ok: false as const, message: 'Não é possível registrar humor futuro.', row: null };
   }
-  const level = Math.round(input.level) as MoodLevel;
-  const score = moodLevelScore(level);
-  if (score == null) {
+  const level = clampMoodLevel(input.level);
+  const score = level == null ? null : moodLevelScore(level);
+  if (level == null || score == null) {
     return { ok: false as const, message: 'Nível de humor inválido.', row: null };
   }
+  const note = typeof input.note === 'string' && input.note.trim() ? input.note.trim().slice(0, 500) : null;
   const payload = {
     user_id: userId,
     local_date: localDate,
     period,
     level,
     score,
+    note,
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await supabase
     .from('mood_checkins')
     .upsert(payload, { onConflict: 'user_id,local_date,period' })
-    .select('user_id, local_date, period, level, score')
+    .select('user_id, local_date, period, level, score, note')
     .maybeSingle();
   if (error) {
+    if (`${error.message ?? ''}`.toLowerCase().includes('note')) {
+      const retry = await supabase
+        .from('mood_checkins')
+        .upsert(
+          {
+            user_id: userId,
+            local_date: localDate,
+            period,
+            level,
+            score,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,local_date,period' },
+        )
+        .select('user_id, local_date, period, level, score')
+        .maybeSingle();
+      if (!retry.error) {
+        const row = fromRow(retry.data as MoodRow | null, userId) ?? { localDate, period, level, score, note: null };
+        cache.set(cacheKey(userId, localDate, period), row);
+        emit();
+        return { ok: true as const, message: '', row };
+      }
+    }
     return {
       ok: false as const,
       message: missingTable(error) ? 'Ainda não foi possível salvar o humor.' : 'Não foi possível salvar o humor.',
       row: null,
     };
   }
-  const row = fromRow(data as MoodRow | null, userId) ?? { localDate, period, level, score };
+  const row = fromRow(data as MoodRow | null, userId) ?? { localDate, period, level, score, note };
   cache.set(cacheKey(userId, localDate, period), row);
   emit();
   return { ok: true as const, message: '', row };

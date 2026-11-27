@@ -9,7 +9,7 @@ const colors = {
   mood: '#E6C14A',
 };
 
-const yMarks = [100, 75, 50, 25, 0] as const;
+const yMarks = [100, 80, 60, 40, 20, 0] as const;
 
 type ChartPoint = { x: number; y: number; value: number; index: number };
 
@@ -233,6 +233,18 @@ export function WellbeingChart({
   const habitArea =
     showHabits && lineStyle === 'step' ? stepAreaPath(habitPts, height, padY) : showHabits ? areaPath(habitPts, height, padY) : null;
 
+  /** Referência visual 0% → primeiro ponto (não é registro real). */
+  function ghostLead(pts: (ChartPoint | null)[]) {
+    const solid = pts.filter((point): point is ChartPoint => point != null);
+    if (solid.length !== 1) {
+      return null;
+    }
+    const baseY = height - padY;
+    return `M ${padX} ${baseY} L ${solid[0].x} ${solid[0].y}`;
+  }
+  const sleepGhost = showSleep ? ghostLead(sleepPts) : null;
+  const moodGhost = showMood ? ghostLead(moodPts) : null;
+
   type Hit = { key: string; x: number; y: number; color: string; title: string; lines: string[] };
   const hits: Hit[] = [];
 
@@ -414,6 +426,28 @@ export function WellbeingChart({
                 })
               : null,
           ),
+          sleepGhost
+            ? node('path', {
+                key: 'sleep-ghost',
+                d: sleepGhost,
+                fill: 'none',
+                stroke: colors.sleep,
+                strokeWidth: 1.4,
+                strokeDasharray: '4 4',
+                opacity: 0.45,
+              })
+            : null,
+          moodGhost
+            ? node('path', {
+                key: 'mood-ghost',
+                d: moodGhost,
+                fill: 'none',
+                stroke: colors.mood,
+                strokeWidth: 1.4,
+                strokeDasharray: '4 4',
+                opacity: 0.45,
+              })
+            : null,
           ...sleepPaths.map((d, index) =>
             showSleep
               ? node('path', {

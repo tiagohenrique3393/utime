@@ -329,12 +329,12 @@ export function SmartCheckinHost() {
     }
   }
 
-  async function saveSleep(hours: number, quality: number) {
+  async function saveSleep(hours: number, quality: number, note: string) {
     if (!userId || busy) {
       return;
     }
     setBusy(true);
-    const result = await saveSleepCheckin(userId, { hours, quality });
+    const result = await saveSleepCheckin(userId, { hours, quality, note });
     if (!result.ok) {
       setBusy(false);
       setNotice(result.message);
@@ -355,13 +355,12 @@ export function SmartCheckinHost() {
     queueMicrotask(() => void resolveNext());
   }
 
-  async function saveMood(level: number) {
+  async function saveMood(level: number, period: typeof moodPeriod, note: string) {
     if (!userId || busy) {
       return;
     }
     setBusy(true);
-    const period = moodPeriod;
-    const result = await saveMoodCheckin(userId, { period, level });
+    const result = await saveMoodCheckin(userId, { period, level, note });
     if (!result.ok) {
       setBusy(false);
       setNotice(result.message);
@@ -416,7 +415,7 @@ export function SmartCheckinHost() {
         visible={step?.kind === 'sleep'}
         busy={busy}
         notice={notice}
-        onSave={(hours, quality) => void saveSleep(hours, quality)}
+        onSave={(hours, quality, note) => void saveSleep(hours, quality, note)}
         onDismiss={() => void dismissSleep()}
       />
 
@@ -425,7 +424,7 @@ export function SmartCheckinHost() {
         period={moodPeriod}
         busy={busy}
         notice={notice}
-        onSave={(level) => void saveMood(level)}
+        onSave={(level, period, note) => void saveMood(level, period, note)}
         onDismiss={() => void dismissMood()}
       />
 

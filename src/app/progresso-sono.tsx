@@ -1,11 +1,12 @@
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { InsightCard } from '@/components/insight-card';
 import { PercentRing } from '@/components/progress-charts';
 import { ProgressPlanet } from '@/components/progress-planet';
+import { SleepCheckinModal } from '@/components/sleep-checkin-modal';
 import { WellbeingChart } from '@/components/wellbeing-chart';
 import { fonts, ui } from '@/constants/theme';
 import { useAccountPlan } from '@/lib/account-plan';
@@ -37,7 +38,8 @@ import {
   type SleepPoint,
 } from '@/lib/progress-wellbeing';
 import { useRequireSession } from '@/lib/require-session';
-import { loadSleepUntil } from '@/lib/sleep-store';
+import { DEFAULT_SLEEP_GOAL_HOURS } from '@/lib/sleep-score';
+import { loadSleepGoal, loadSleepUntil, saveSleepCheckin, saveSleepGoal } from '@/lib/sleep-store';
 
 function asPeriod(value: string | string[] | undefined): ProgressPeriod {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -64,6 +66,10 @@ export default function ProgressoSonoScreen() {
   const [habitScore, setHabitScore] = useState<number | null>(null);
   const [series, setSeries] = useState<ReturnType<typeof wellbeingSeries> | null>(null);
   const [notice, setNotice] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [goalHours, setGoalHours] = useState(DEFAULT_SLEEP_GOAL_HOURS);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -73,12 +79,18 @@ export default function ProgressoSonoScreen() {
       }
       let active = true;
       const today = todayKey();
+      void reloadKey;
       void (async () => {
         await refreshDailyBoard(userId, today);
-        const [sleepLoad, logs] = await Promise.all([loadSleepUntil(userId, today), loadHabitLogsUntil(userId, today)]);
+        const [sleepLoad, logs, goal] = await Promise.all([
+          loadSleepUntil(userId, today),
+          loadHabitLogsUntil(userId, today),
+          loadSleepGoal(userId),
+        ]);
         if (!active) {
           return;
         }
+        setGoalHours(goal);
         if (!sleepLoad.ok) {
           setNotice(sleepLoad.message);
         }
@@ -139,7 +151,7 @@ export default function ProgressoSonoScreen() {
       return () => {
         active = false;
       };
-    }, [period]),
+    }, [period, reloadKey]),
   );
 
   if (!signedIn) {
@@ -153,7 +165,7 @@ export default function ProgressoSonoScreen() {
   const insight = sleepDetailInsight(series?.sleepScore ?? null, habitScore);
   const avgHours = averageSleepHours(dates, sleep);
   const avgQuality = averageSleepQuality(dates, sleep);
-  const goal = sleep.find((row) => row.localDate === today)?.goalHours ?? 8;
+  const goal = sleep.find((row) => row.localDate === today)?.goalHours ?? goalHours;
   const records = dates.filter((key) => sleep.some((row) => row.localDate === key)).length;
 
   return (
@@ -173,7 +185,7 @@ export default function ProgressoSonoScreen() {
           <Text style={styles.metaCompare}>{compareVsLabel(period, compare)}</Text>
           <Text style={styles.metaLine}>Média de horas: {formatHours(avgHours)}</Text>
           <Text style={styles.metaLine}>
-            Qualidade: {avgQuality == null ? '—' : `${avgQuality.toFixed(1).replace('.', ',')} / 5`}
+            Qualidade: {avgQuality == null ? '—' : `${avgQuality.toFixed(1).replace('.', ',')} / 10`}
           </Text>
           <Text style={styles.metaLine}>Registros: {records}</Text>
         </View>
@@ -199,12 +211,60 @@ export default function ProgressoSonoScreen() {
 
       <InsightCard message={insight} />
 
+      <Pressable accessibilityRole="button" onPress={() => setModalOpen(true)} style={styles.register}>
+        <Text style={styles.registerLabel}>Registrar / atualizar sono</Text>
+      </Pressable>
+
       <Pressable
         accessibilityRole="button"
         onPress={() => router.push(`/progresso?period=${period}` as Href)}
         style={styles.link}>
         <Text style={styles.linkLabel}>Voltar ao progresso</Text>
       </Pressable>
+
+      <SleepCheckinModal
+        visible={modalOpen}
+        busy={busy}
+        notice={notice}
+        goalHours={goalHours}
+        onEditGoal={() => {
+          const raw =
+            Platform.OS === 'web' && typeof window !== 'undefined'
+              ? window.prompt('Meta de sono (horas)', String(goalHours))
+              : null;
+          if (!raw) {
+            return;
+          }
+          const userId = getSessionUserId();
+          if (!userId) {
+            return;
+          }
+          const next = Number(String(raw).replace(',', '.'));
+          void saveSleepGoal(userId, next).then((saved) => {
+            if (saved.ok) {
+              setGoalHours(saved.goalHours);
+            }
+          });
+        }}
+        onSave={(hours, quality, note) => {
+          const userId = getSessionUserId();
+          if (!userId) {
+            return;
+          }
+          setBusy(true);
+          void saveSleepCheckin(userId, { hours, quality, note, goalHours }).then((result) => {
+            setBusy(false);
+            if (!result.ok) {
+              setNotice(result.message);
+              return;
+            }
+            setModalOpen(false);
+            setNotice('');
+            setReloadKey((key) => key + 1);
+          });
+        }}
+        onDismiss={() => setModalOpen(false)}
+      />
     </AppScreen>
   );
 }
@@ -256,6 +316,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   note: { marginTop: 10, color: ui.muted, fontFamily: fonts.text, fontSize: 13 },
+  register: {
+    marginTop: 14,
+    minHeight: 48,
+    borderRadius: 999,
+    backgroundColor: '#E8C99B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  registerLabel: {
+    color: '#141210',
+    fontFamily: fonts.display,
+    fontSize: 14,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
   link: { marginTop: 16, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   linkLabel: { color: ui.champagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
 });

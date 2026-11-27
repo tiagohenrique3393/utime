@@ -20,12 +20,12 @@ function assert(condition: boolean, label: string) {
 }
 
 const sleep = [
-  { localDate: '2026-11-26', score: 70, hours: 7, quality: 3 },
-  { localDate: '2026-11-27', score: 90, hours: 8, quality: 5 },
+  { localDate: '2026-11-26', score: 70, hours: 7, quality: 6 },
+  { localDate: '2026-11-27', score: 90, hours: 8, quality: 10 },
 ];
 const mood = [
-  { localDate: '2026-11-27', period: 'manha' as const, score: 80, level: 4 },
-  { localDate: '2026-11-27', period: 'tarde' as const, score: 100, level: 5 },
+  { localDate: '2026-11-27', period: 'manha' as const, score: 80, level: 8 },
+  { localDate: '2026-11-27', period: 'tarde' as const, score: 100, level: 10 },
 ];
 
 assertEqual(sleepAverage(['2026-11-27'], sleep), 90, 'sono dia');

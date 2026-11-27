@@ -1,9 +1,11 @@
 import { zonedHour } from '@/lib/habit-day';
 
 export type MoodPeriod = 'manha' | 'tarde' | 'noite';
-export type MoodLevel = 1 | 2 | 3 | 4 | 5;
+export type MoodLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 export const MOOD_PERIODS: readonly MoodPeriod[] = ['manha', 'tarde', 'noite'];
+export const MOOD_LEVEL_MIN = 0;
+export const MOOD_LEVEL_MAX = 10;
 
 export const moodPeriodLabel: Record<MoodPeriod, string> = {
   manha: 'Manhã',
@@ -34,16 +36,37 @@ export function moodPeriodIndex(period: MoodPeriod): 1 | 2 | 3 {
 }
 
 export function moodPeriodOrdinal(period: MoodPeriod) {
-  return `${moodPeriodIndex(period)} DE 3`;
+  const title = period === 'manha' ? 'MANHÃ' : period === 'tarde' ? 'TARDE' : 'NOITE';
+  return `${title} • ${moodPeriodIndex(period)} DE 3`;
 }
 
-/** Níveis 1–5 → 20/40/60/80/100. */
-export function moodLevelScore(level: number): number | null {
-  const value = Math.round(level);
-  if (value < 1 || value > 5) {
+export function clampMoodLevel(level: number): MoodLevel | null {
+  if (!Number.isFinite(level)) {
     return null;
   }
-  return value * 20;
+  const value = Math.round(level);
+  if (value < MOOD_LEVEL_MIN || value > MOOD_LEVEL_MAX) {
+    return null;
+  }
+  return value as MoodLevel;
+}
+
+/** Converte nível legado 1–5 → 0–10 (1→2 … 5→10). */
+export function migrateLegacyMoodLevel(level: number) {
+  const value = Math.round(level);
+  if (value >= 1 && value <= 5) {
+    return (value * 2) as MoodLevel;
+  }
+  return clampMoodLevel(value);
+}
+
+/** Níveis 0–10 → 0%–100%. */
+export function moodLevelScore(level: number): number | null {
+  const value = clampMoodLevel(level);
+  if (value == null) {
+    return null;
+  }
+  return value * 10;
 }
 
 /** Média só dos períodos respondidos; ausência nunca conta como 0. */
@@ -61,8 +84,12 @@ export function isMoodPeriodPastOrCurrent(period: MoodPeriod, now = new Date()) 
 }
 
 export function canEditMoodPeriod(period: MoodPeriod, localDate: string, today: string, now = new Date()) {
-  if (localDate !== today) {
+  if (localDate > today) {
     return false;
+  }
+  if (localDate < today) {
+    // Períodos de dias anteriores elegíveis (registro esquecido).
+    return true;
   }
   return isMoodPeriodPastOrCurrent(period, now);
 }
