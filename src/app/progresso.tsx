@@ -246,9 +246,22 @@ export default function ProgressScreen() {
           today,
           logs: logs.ok ? logs.rows : [],
           hydration: water.ok ? water.rows : [],
-          sleep: sleep.ok ? sleep.rows.map((row) => ({ localDate: row.localDate, score: row.score })) : [],
+          sleep: sleep.ok
+            ? sleep.rows.map((row) => ({
+                localDate: row.localDate,
+                score: row.score,
+                hours: row.hours,
+                quality: row.quality,
+                goalHours: row.goalHours,
+              }))
+            : [],
           mood: mood.ok
-            ? mood.rows.map((row) => ({ localDate: row.localDate, period: row.period, score: row.score }))
+            ? mood.rows.map((row) => ({
+                localDate: row.localDate,
+                period: row.period,
+                score: row.score,
+                level: row.level,
+              }))
             : [],
           routine: captured.routine,
           habits: captured.habits,
@@ -455,7 +468,24 @@ function ProgressBody({
       </View>
 
       <View style={styles.chartCard}>
-        <WellbeingChart labels={series.labels} habits={series.habit} sleep={series.sleep} mood={series.mood} />
+        {period === 'dia' ? (
+          <WellbeingChart
+            labels={series.labels}
+            habits={series.habit}
+            sleep={[]}
+            mood={[]}
+            highlight="habits"
+            timed={series.timed ? { habits: series.timed.habits } : undefined}
+          />
+        ) : (
+          <WellbeingChart
+            labels={series.labels}
+            habits={series.habit}
+            sleep={series.sleep}
+            mood={series.mood}
+            timed={series.timed}
+          />
+        )}
       </View>
 
       <View style={styles.metricsRow}>
@@ -473,13 +503,18 @@ function ProgressBody({
           compare={compareVsLabel(period, moodCompare)}
           onPress={() => router.push(`/progresso-humor?period=${period}` as Href)}
         />
-        <MetricCard
-          title="Hábitos"
-          color={habitGreen}
-          percent={habitScore}
-          compare={compareVsLabel(period, habitCompare)}
-          onPress={() => undefined}
-        />
+        <View style={styles.metricCard} accessibilityRole="summary">
+          <Text style={[styles.metricTitle, { color: habitGreen }]}>Hábitos</Text>
+          <Text style={styles.metricValue}>{habitScore == null ? '—' : formatDailyPercent(habitScore)}</Text>
+          <Text
+            style={[
+              styles.metricCompare,
+              habitCompare.kind === 'delta' && habitCompare.delta > 0 && styles.up,
+              habitCompare.kind === 'delta' && habitCompare.delta < 0 && styles.down,
+            ]}>
+            {compareVsLabel(period, habitCompare)}
+          </Text>
+        </View>
       </View>
 
       <Text style={styles.section}>Desempenho por pilar</Text>
@@ -523,6 +558,7 @@ function ProgressBody({
       </View>
 
       <View style={styles.insight}>
+        <Text style={styles.insightKicker}>Insight</Text>
         <Text style={styles.insightText}>{insight}</Text>
       </View>
     </>
@@ -746,6 +782,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,10,10,0.85)',
     paddingHorizontal: 12,
     paddingVertical: 10,
+    gap: 4,
+  },
+  insightKicker: {
+    color: ui.champagne,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   insightText: {
     color: ui.text,

@@ -10,19 +10,46 @@ import { fonts, ui } from '@/constants/theme';
 import { useAccountPlan } from '@/lib/account-plan';
 import { moodDetailInsight } from '@/lib/checkin-insights';
 import { getSessionUserId } from '@/lib/accounts';
-import { todayKey } from '@/lib/habit-day';
+import { formatDailyPercent, loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
 import { compareVsLabel, relativePercentDelta } from '@/lib/progress-compare';
 import { visibleProgressPeriod } from '@/lib/progress-access';
-import type { ProgressPeriod } from '@/lib/progress-view';
+import {
+  getDailyBoard,
+  isDailyHabitDone,
+  refreshDailyBoard,
+  scoreDailyHabits,
+} from '@/lib/daily-board';
+import { isOfficialHydration } from '@/lib/daily-score';
+import {
+  progressReport,
+  type HabitLog,
+  type ProgressPeriod,
+  type TodayRoutine,
+} from '@/lib/progress-view';
 import {
   currentPeriodDates,
   moodAverage,
+  moodPeriodBreakdown,
   previousPeriodDates,
   wellbeingSeries,
   type MoodPoint,
 } from '@/lib/progress-wellbeing';
 import { useRequireSession } from '@/lib/require-session';
 import { loadMoodUntil } from '@/lib/mood-store';
+
+const faceGlyph: Record<number, string> = {
+  1: '☹',
+  2: '😕',
+  3: '😐',
+  4: '🙂',
+  5: '☺',
+};
+
+const periodTitle = {
+  manha: 'Manhã',
+  tarde: 'Tarde',
+  noite: 'Noite',
+} as const;
 
 function asPeriod(value: string | string[] | undefined): ProgressPeriod {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -39,6 +66,7 @@ export default function ProgressoHumorScreen() {
   const requested = asPeriod(params.period);
   const period = visibleProgressPeriod(access.plan, requested);
   const [mood, setMood] = useState<MoodPoint[]>([]);
+  const [habitScore, setHabitScore] = useState<number | null>(null);
   const [series, setSeries] = useState<ReturnType<typeof wellbeingSeries> | null>(null);
   const [notice, setNotice] = useState('');
 
@@ -51,24 +79,65 @@ export default function ProgressoHumorScreen() {
       let active = true;
       const today = todayKey();
       void (async () => {
-        const moodLoad = await loadMoodUntil(userId, today);
+        await refreshDailyBoard(userId, today);
+        const [moodLoad, logs] = await Promise.all([loadMoodUntil(userId, today), loadHabitLogsUntil(userId, today)]);
         if (!active) {
           return;
         }
         if (!moodLoad.ok) {
           setNotice(moodLoad.message);
         }
+        const board = getDailyBoard();
+        let routine: TodayRoutine | null = null;
+        if (board.ready && board.dateKey === today) {
+          const score = scoreDailyHabits(board.habits, board.completed);
+          routine = { total: score.total, completed: score.done };
+        }
+        const habitLogs: HabitLog[] = logs.ok ? logs.rows : [];
+        const todayHabits =
+          board.ready && board.dateKey === today
+            ? board.habits
+                .filter((habit) => !isOfficialHydration(habit.catalogHabitId))
+                .map((habit) => ({
+                  id: habit.userHabitId ?? habit.id,
+                  label: habit.label,
+                  pillar: habit.pillar,
+                  catalogHabitId: habit.catalogHabitId,
+                  done: isDailyHabitDone(habit, board.completed),
+                }))
+            : null;
+        const report = progressReport({
+          today,
+          period,
+          logs: habitLogs,
+          hydration: [],
+          todayRoutine: routine,
+          habits: (todayHabits ?? []).map((habit) => ({
+            id: habit.id,
+            label: habit.label,
+            pillar: habit.pillar,
+            catalogHabitId: habit.catalogHabitId,
+          })),
+          todayHabits,
+          activatedOn: null,
+        });
         const rows = moodLoad.ok
-          ? moodLoad.rows.map((row) => ({ localDate: row.localDate, period: row.period, score: row.score }))
+          ? moodLoad.rows.map((row) => ({
+              localDate: row.localDate,
+              period: row.period,
+              score: row.score,
+              level: row.level,
+            }))
           : [];
         const wellbeing = wellbeingSeries({
           today,
           period,
           sleep: [],
           mood: rows,
-          habits: [],
+          habits: report.habitPoints,
         });
         setMood(rows);
+        setHabitScore(report[period]);
         setSeries(wellbeing);
       })();
       return () => {
@@ -81,9 +150,12 @@ export default function ProgressoHumorScreen() {
     return <View style={styles.blank} />;
   }
 
-  const prev = previousPeriodDates(todayKey(), period);
+  const today = todayKey();
+  const prev = previousPeriodDates(today, period);
   const compare = relativePercentDelta(series?.moodScore ?? null, moodAverage(prev, mood));
   const insight = moodDetailInsight(series?.moodScore ?? null);
+  const breakdown = moodPeriodBreakdown(today, mood);
+  const answered = breakdown.filter((item) => item.score != null).length;
 
   return (
     <AppScreen tight backgroundColor="#050505" backdrop={<ProgressPlanet />}>
@@ -98,15 +170,43 @@ export default function ProgressoHumorScreen() {
       <View style={styles.hero}>
         <PercentRing percent={series?.moodScore ?? null} size={132} caption="Score de humor" />
         <View style={styles.meta}>
-          <Text style={styles.metaLabel}>Média dos períodos respondidos</Text>
+          <Text style={styles.metaLabel}>
+            {period === 'dia' ? `${answered} de 3 registros` : 'Média dos dias respondidos'}
+          </Text>
           <Text style={styles.metaCompare}>{compareVsLabel(period, compare)}</Text>
+          {habitScore != null ? <Text style={styles.metaLine}>Hábitos: {formatDailyPercent(habitScore)}</Text> : null}
         </View>
       </View>
+
+      {period === 'dia' ? (
+        <View style={styles.slots}>
+          {breakdown.map((item) => (
+            <View key={item.period} style={styles.slot}>
+              <Text style={styles.slotTitle}>{periodTitle[item.period]}</Text>
+              {item.level != null ? (
+                <>
+                  <Text style={styles.slotFace}>{faceGlyph[item.level] ?? '·'}</Text>
+                  <Text style={styles.slotScore}>{formatDailyPercent(item.score ?? 0)}</Text>
+                </>
+              ) : (
+                <Text style={styles.slotEmpty}>Sem registro</Text>
+              )}
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {notice ? <Text style={styles.note}>{notice}</Text> : null}
 
       <View style={styles.chart}>
-        <WellbeingChart labels={series?.labels ?? []} habits={[]} sleep={[]} mood={series?.mood ?? []} />
+        <WellbeingChart
+          labels={series?.labels ?? []}
+          habits={series?.habit ?? []}
+          sleep={series?.sleep ?? []}
+          mood={series?.mood ?? []}
+          highlight="mood"
+          timed={series?.timed}
+        />
       </View>
 
       <View style={styles.insight}>
@@ -119,7 +219,7 @@ export default function ProgressoHumorScreen() {
         style={styles.link}>
         <Text style={styles.linkLabel}>Voltar ao progresso</Text>
       </Pressable>
-      {currentPeriodDates(todayKey(), period).length ? null : null}
+      {currentPeriodDates(today, period).length ? null : null}
     </AppScreen>
   );
 }
@@ -155,6 +255,30 @@ const styles = StyleSheet.create({
   },
   metaLabel: { color: ui.muted, fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
   metaCompare: { color: ui.text, fontFamily: fonts.textMedium, fontSize: 15 },
+  metaLine: { color: ui.muted, fontFamily: fonts.text, fontSize: 12 },
+  slots: { marginTop: 14, flexDirection: 'row', gap: 8 },
+  slot: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(230,193,74,0.28)',
+    backgroundColor: '#0A0A0A',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    gap: 4,
+  },
+  slotTitle: {
+    color: ui.champagne,
+    fontFamily: fonts.display,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  slotFace: { fontSize: 22, lineHeight: 26 },
+  slotScore: { color: ui.text, fontFamily: fonts.textMedium, fontSize: 13 },
+  slotEmpty: { color: ui.muted, fontFamily: fonts.text, fontSize: 11, textAlign: 'center' },
   chart: {
     marginTop: 16,
     borderRadius: 14,

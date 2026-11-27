@@ -53,7 +53,12 @@ export function MoodCheckinModal({
                 accessibilityLabel={`Humor ${face.level}`}
                 accessibilityState={{ selected: level === face.level }}
                 onPress={() => setLevel(face.level)}
-                style={[styles.face, level === face.level && styles.faceOn, { borderColor: face.color }]}>
+                style={[
+                  styles.face,
+                  level === face.level && styles.faceOn,
+                  { borderColor: face.color },
+                  level === face.level ? { shadowColor: face.color, shadowOpacity: 0.7, shadowRadius: 10 } : null,
+                ]}>
                 <Text style={[styles.faceGlyph, { color: face.color }]}>{face.glyph}</Text>
               </Pressable>
             ))}

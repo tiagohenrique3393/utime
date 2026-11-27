@@ -8,11 +8,19 @@ import { formatHydrationAmount } from '@/lib/hydration-volume';
 import { reminderArt, type ReminderArt } from '@/lib/reminder-art';
 import type { HabitPillar } from '@/lib/habit-catalog';
 
+const bubbles = require('@/assets/hydration-bubbles.jpg');
+
 const pillarArt: Record<ReminderArt, number> = {
   mantime: require('@/assets/pillars/corpo-mantime.png'),
   womantime: require('@/assets/pillars/corpo-womantime.png'),
   mente: require('@/assets/pillars/mente.png'),
   espirito: require('@/assets/pillars/espirito.png'),
+};
+
+const pillarLabel: Record<HabitPillar, string> = {
+  corpo: 'Corpo',
+  mente: 'Mente',
+  espirito: 'Espírito',
 };
 
 export function HomeActionBlock({
@@ -40,10 +48,12 @@ export function HomeActionBlock({
 
   return (
     <View style={styles.row}>
-      <View style={styles.half} accessibilityRole="summary">
-        <Text style={styles.kicker}>Hidratação</Text>
+      <View style={styles.hydroHalf} accessibilityRole="summary">
+        <Image source={bubbles} contentFit="cover" style={styles.hydroBg} />
+        <View style={styles.hydroWash} />
+        <Text style={styles.hydroKicker}>Hidratação</Text>
         <View style={styles.hydroBody}>
-          <HydrationDrop progress={fill} size={40} />
+          <HydrationDrop progress={fill} size={52} />
           <View style={styles.hydroCopy}>
             <Text style={styles.percent}>{goal == null ? '—' : formatHydrationPercent(percent)}</Text>
             <Text style={styles.volume}>
@@ -51,6 +61,13 @@ export function HomeActionBlock({
                 ? formatHydrationAmount(consumed)
                 : `${formatHydrationAmount(consumed)} / ${formatHydrationAmount(goal)}`}
             </Text>
+            <View
+              accessibilityRole="progressbar"
+              accessibilityValue={{ min: 0, max: 100, now: Math.round(fill) }}
+              style={styles.rail}>
+              {fill > 0 ? <View style={[styles.fill, { width: `${fill}%` }]} /> : null}
+              <View style={styles.railShine} pointerEvents="none" />
+            </View>
           </View>
         </View>
       </View>
@@ -61,17 +78,19 @@ export function HomeActionBlock({
         accessibilityRole="button"
         accessibilityLabel={habitTitle || 'Próximo hábito'}
         onPress={onOpenHabit}
-        style={({ pressed }) => [styles.half, styles.habitHalf, pressed && styles.pressed]}>
-        <Text style={styles.kicker}>Próximo hábito</Text>
+        style={({ pressed }) => [styles.habitHalf, pressed && styles.pressed]}>
+        <Text style={styles.habitKicker}>Próximo hábito</Text>
         <View style={styles.habitBody}>
           {art ? (
             <View style={styles.thumb}>
               <Image source={pillarArt[art]} contentFit="cover" style={styles.thumbImage} />
+              <View style={styles.thumbGlow} />
             </View>
           ) : (
             <View style={[styles.thumb, styles.thumbEmpty]} />
           )}
           <View style={styles.habitCopy}>
+            {habitPillar ? <Text style={styles.pillarName}>{pillarLabel[habitPillar]}</Text> : null}
             <Text numberOfLines={2} style={[styles.habitTitle, completed && styles.habitDone]}>
               {habitTitle}
             </Text>
@@ -87,31 +106,55 @@ export function HomeActionBlock({
 const styles = StyleSheet.create({
   row: {
     marginTop: 14,
-    minHeight: 88,
-    borderRadius: 16,
+    minHeight: 108,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(225, 180, 95, 0.28)',
-    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+    borderColor: 'rgba(225, 180, 95, 0.34)',
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
     flexDirection: 'row',
     alignItems: 'stretch',
     overflow: 'hidden',
   },
-  half: {
+  hydroHalf: {
+    flex: 1.05,
+    minWidth: 0,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    gap: 8,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(12, 42, 72, 0.72)',
+  },
+  hydroBg: {
+    ...StyleSheet.absoluteFill,
+    opacity: 0.42,
+  },
+  hydroWash: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(8, 40, 72, 0.55)',
+  },
+  habitHalf: {
     flex: 1,
     minWidth: 0,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 11,
     gap: 8,
-  },
-  habitHalf: {
     justifyContent: 'center',
   },
   divider: {
-    width: StyleSheet.hairlineWidth,
-    marginVertical: 12,
-    backgroundColor: 'rgba(230, 193, 74, 0.55)',
+    width: 1,
+    marginVertical: 14,
+    backgroundColor: 'rgba(230, 193, 74, 0.62)',
   },
-  kicker: {
+  hydroKicker: {
+    color: '#9AD4FF',
+    fontFamily: fonts.display,
+    fontSize: 10,
+    lineHeight: 12,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+    zIndex: 1,
+  },
+  habitKicker: {
     color: ui.champagne,
     fontFamily: fonts.display,
     fontSize: 10,
@@ -123,23 +166,48 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    zIndex: 1,
   },
   hydroCopy: {
     flex: 1,
     minWidth: 0,
-    gap: 2,
+    gap: 3,
   },
   percent: {
-    color: ui.text,
-    fontFamily: fonts.textMedium,
-    fontSize: 18,
+    color: '#B7E4FF',
+    fontFamily: fonts.display,
+    fontSize: 20,
     lineHeight: 22,
+    letterSpacing: 0.4,
   },
   volume: {
-    color: ui.muted,
+    color: '#D6ECFA',
     fontFamily: fonts.text,
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 15,
+  },
+  rail: {
+    marginTop: 4,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(8, 28, 48, 0.85)',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(154, 212, 255, 0.35)',
+  },
+  fill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#4AA8E8',
+  },
+  railShine: {
+    position: 'absolute',
+    top: 1,
+    left: 4,
+    right: 4,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.28)',
   },
   habitBody: {
     flexDirection: 'row',
@@ -147,12 +215,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   thumb: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(232, 201, 155, 0.45)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(232, 201, 155, 0.55)',
     backgroundColor: '#0A0A0A',
   },
   thumbEmpty: {
@@ -162,10 +230,24 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  thumbGlow: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 201, 74, 0.18)',
+  },
   habitCopy: {
     flex: 1,
     minWidth: 0,
     gap: 2,
+  },
+  pillarName: {
+    color: ui.champagne,
+    fontFamily: fonts.display,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   habitTitle: {
     color: ui.text,
