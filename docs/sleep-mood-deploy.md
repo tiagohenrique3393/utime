@@ -1,22 +1,21 @@
 # Sono / Humor / Progresso — deploy
 
 ## Ambiente oficial
-- App: UTime
-- Domínio: https://utime.app.br
-- Repo: tiagohenrique3393/utime
-- Branch produção: `main`
-- Auth/DB: Supabase projeto existente (`svsxqpejzqejcvlshost`)
-- Hosting: Cloudflare Workers/Pages via GitHub
+- App: UTime | Domínio: https://utime.app.br
+- Repo: tiagohenrique3393/utime | Produção: `main`
+- Auth/DB: Supabase projeto existente | Hosting: Cloudflare Workers Builds
 
-## SQL a executar no SQL Editor (produção), nesta ordem
-1. `supabase/sleep-mood-checkins.sql` — tabelas RLS de sono/humor/prompts
-2. `supabase/delete-account.sql` — reaplicar (inclui cascade das novas tabelas)
-3. `supabase/premium-plan-rpc.sql` — se ainda parcial
-4. `supabase/premium-lifetime-uuid-pin.sql` — pin UUID vitalício sem rebaixar pagos
+## Pacote SQL único (preferido)
+Cole no SQL Editor de produção:
 
-Não há service_role no cliente. Migrações são incrementais (`create if not exists`).
+1. **`supabase/APPLY-PROD-sleep-mood.sql`** (tabelas RLS + pin vitalício UUID)
+2. **`supabase/delete-account.sql`** (reaplicar — cascade sleep/mood/prompts)
+3. Se Premium vitalício ainda parcial: **`supabase/premium-plan-rpc.sql`** *antes* do passo 1
+
+## Validação
+- REST sem PGRST205 em `sleep_checkins` / `mood_checkins`
+- Contas vitalícias permanecem `premium`; novos usuários `free`
 
 ## Bloqueador de automação
-O agente não possui chave `service_role` / Management API token no ambiente.
-Aplicação SQL em produção exige execução autorizada no SQL Editor do projeto Supabase
-ou um pipeline privilegiado ainda não configurado neste ambiente.
+Sem `service_role` / Management API token neste ambiente de agent.
+Não há MCP/CLI autenticado para DDL. Aplicação = SQL Editor do owner.
