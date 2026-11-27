@@ -7,7 +7,7 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
-import { NextHabitPrompt } from '@/components/next-habit-prompt';
+import { SmartCheckinHost } from '@/components/smart-checkin-host';
 import { colors } from '@/constants/theme';
 import { applySessionOwner, getSessionUserId } from '@/lib/accounts';
 import { noteHumanActivity } from '@/lib/next-habit-entry';
@@ -109,7 +109,7 @@ export default function RootLayout() {
           }}
         />
       </View>
-      <NextHabitPrompt />
+      <SmartCheckinHost />
     </ThemeProvider>
   );
 }

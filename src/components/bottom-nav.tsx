@@ -15,7 +15,7 @@ const tabs: { label: string; href: Href; match: (path: string) => boolean }[] = 
   {
     label: 'Progresso',
     href: '/progresso',
-    match: (path) => path === '/progresso',
+    match: (path) => path === '/progresso' || path.startsWith('/progresso-'),
   },
   {
     label: '3 Pilares',

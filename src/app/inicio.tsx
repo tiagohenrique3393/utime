@@ -1,19 +1,19 @@
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View, type TextStyle } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { DayProgress } from '@/components/day-progress';
-import { HabitGlyph } from '@/components/habit-glyph';
+import { HomeActionBlock } from '@/components/home-action-block';
 import { HojePlanet } from '@/components/hoje-planet';
-import { HomeHydration } from '@/components/home-hydration';
 import { PillarCard } from '@/components/pillar-card';
 import { fonts, ui } from '@/constants/theme';
 import { habitsForScore, isDailyHabitDone, scoreDailyHabits } from '@/lib/daily-board';
 import { useDailyBoard } from '@/lib/use-daily-board';
 import { formatDailyPercent, todayKey } from '@/lib/habit-day';
 import { greetingParts, homeDateParts } from '@/lib/home-copy';
-import { habitIconFor, periodCopy } from '@/lib/habit-visual';
+import { periodCopy } from '@/lib/habit-visual';
+import { hydrationDaySnapshot, loadHydration, subscribeHydrationDay } from '@/lib/hydration';
 import { nextScheduledHabit } from '@/lib/next-habit';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { useRequireSession } from '@/lib/require-session';
@@ -31,12 +31,24 @@ export default function TodayScreen() {
   const board = useDailyBoard();
   const [now, setNow] = useState<Date | null>(null);
   const userId = getSessionUserId();
+  const phraseKey = board.dateKey || (now ? todayKey(now) : '');
+  const hydration = useSyncExternalStore(
+    subscribeHydrationDay,
+    () => (userId && phraseKey ? hydrationDaySnapshot(userId, phraseKey) : null),
+    () => (userId && phraseKey ? hydrationDaySnapshot(userId, phraseKey) : null),
+  );
 
   useFocusEffect(
     useCallback(() => {
       setNow(new Date());
     }, []),
   );
+
+  useEffect(() => {
+    if (userId && phraseKey) {
+      void loadHydration(userId, phraseKey);
+    }
+  }, [phraseKey, userId]);
 
   const scored = habitsForScore(board.habits);
   const score = scoreDailyHabits(board.habits, board.completed);
@@ -47,7 +59,6 @@ export default function TodayScreen() {
     percent: pillar.percent,
   }));
   const hello = now ? greetingParts(now, profile.firstName) : { hello: '', name: '' };
-  const phraseKey = board.dateKey || (now ? todayKey(now) : '');
   const dateParts = phraseKey ? homeDateParts(phraseKey) : { dayMonth: '', weekday: '' };
   const phrase = phraseKey ? weeklyPhrase(phraseKey) : '';
   const feminine = profile.journey === 'womantime';
@@ -67,18 +78,18 @@ export default function TodayScreen() {
   }
 
   const habitTitle = allDone
-    ? 'Todos os hábitos concluídos'
+    ? 'Todos concluídos'
     : noneScheduled
-      ? 'Nenhum hábito programado hoje'
+      ? 'Nenhum hábito hoje'
       : nextHabit?.label ?? '';
   const habitDetail = nextHabit
     ? [periodCopy[nextHabit.period].title, nextHabit.minutes ? `${nextHabit.minutes} min` : '']
         .filter(Boolean)
         .join(' · ')
-    : '';
-  const habitIcon = nextHabit
-    ? habitIconFor(nextHabit.label, board.habits.find((habit) => habit.id === nextHabit.id)?.catalogHabitId)
-    : 'spark';
+    : allDone
+      ? 'Excelência do dia'
+      : '';
+  const habitPillar = nextHabit ? board.habits.find((habit) => habit.id === nextHabit.id)?.pillar ?? null : null;
 
   return (
     <AppScreen width="stage" backdrop={<HojePlanet />} navVariant="hoje">
@@ -121,22 +132,15 @@ export default function TodayScreen() {
         ))}
       </View>
 
-      <View style={styles.habit} accessibilityRole="text">
-        <View style={styles.habitCopy}>
-          <Text style={styles.habitKicker}>Próximo hábito</Text>
-          {habitTitle ? (
-            <Text style={styles.habitTitle} numberOfLines={2}>
-              {habitTitle}
-            </Text>
-          ) : null}
-          {habitDetail ? <Text style={styles.habitDetail}>{habitDetail}</Text> : null}
-        </View>
-        <View style={styles.habitIcon}>
-          <HabitGlyph name={habitIcon} color={ui.champagne} size={22} />
-        </View>
-      </View>
-
-      <HomeHydration userId={userId} dateKey={phraseKey} />
+      <HomeActionBlock
+        hydration={hydration}
+        habitTitle={habitTitle}
+        habitDetail={habitDetail}
+        habitPillar={habitPillar}
+        journey={profile.journey}
+        completed={allDone}
+        onOpenHabit={() => router.push('/meu-dia' as Href)}
+      />
 
       {phrase ? (
         <View style={styles.quote}>
@@ -261,60 +265,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: 10,
-  },
-  habit: {
-    marginTop: 14,
-    minHeight: 84,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(225, 180, 95, 0.35)',
-    backgroundColor: 'rgba(0, 0, 0, 0.62)',
-    boxShadow: '0 0 14px rgba(225, 180, 95, 0.10)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: 16,
-    paddingRight: 12,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  habitCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 3,
-  },
-  habitKicker: {
-    color: ui.champagne,
-    fontFamily: fonts.display,
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 1.3,
-    textTransform: 'uppercase',
-  },
-  habitTitle: {
-    color: ui.text,
-    fontFamily: fonts.display,
-    fontSize: 18,
-    lineHeight: 22,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  habitDetail: {
-    color: ui.muted,
-    fontFamily: fonts.text,
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  habitIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(232, 201, 155, 0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(232, 201, 155, 0.06)',
   },
   quote: {
     marginTop: 18,
