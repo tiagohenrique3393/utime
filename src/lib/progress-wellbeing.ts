@@ -12,16 +12,34 @@ import {
 export type SleepPoint = {
   localDate: string;
   score: number;
+  hours?: number;
+  quality?: number;
+  goalHours?: number;
 };
 
 export type MoodPoint = {
   localDate: string;
   period: MoodPeriod;
   score: number;
+  level?: number;
+};
+
+export type TimedChartPoint = {
+  fraction: number;
+  value: number | null;
 };
 
 const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const weekDayLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const dayHourLabels = ['00h', '06h', '12h', '18h', '23:59'];
+
+/** Frações do dia para posicionar check-ins sem inventar histórico artificial. */
+const moodHourFraction: Record<MoodPeriod, number> = {
+  manha: 6 / 24,
+  tarde: 15 / 24,
+  noite: 21 / 24,
+};
+const sleepHourFraction = 7 / 24;
 
 function dateParts(key: string) {
   const [year, month, day] = key.split('-').map(Number);
@@ -32,33 +50,47 @@ function dateKey(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+/** Doze meses do ano civil; meses futuros ficam com datas vazias (sem pontuação fictícia). */
 function yearMonthKeys(today: string) {
   const { year } = dateParts(today);
-  const { month: currentMonth } = dateParts(today);
   const keys: { key: string; label: string; dates: string[] }[] = [];
-  for (let month = 1; month <= currentMonth; month += 1) {
+  for (let month = 1; month <= 12; month += 1) {
     const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const dates: string[] = [];
     for (let day = 1; day <= last; day += 1) {
       const key = dateKey(year, month, day);
-      if (key > today) {
-        break;
+      if (key <= today) {
+        dates.push(key);
       }
-      dates.push(key);
     }
     keys.push({ key: dateKey(year, month, 1), label: monthLabels[month - 1], dates });
   }
   return keys;
 }
 
-function monthWeekBuckets(today: string) {
-  const dates = monthDateKeys(today).filter((key) => key <= today);
+/** Semanas de calendário (seg–dom) que intersectam o mês, incluindo semanas extras. */
+export function monthCalendarWeeks(today: string) {
+  const monthDates = monthDateKeys(today);
+  const first = monthDates[0];
+  const last = monthDates[monthDates.length - 1];
+  const mondayOffset = (weekdayIndex(first) + 6) % 7;
+  let cursor = shiftDateKey(first, -mondayOffset);
   const buckets: { key: string; label: string; dates: string[] }[] = [];
   let index = 0;
-  for (let start = 0; start < dates.length; start += 7) {
+  while (cursor <= last) {
     index += 1;
-    const slice = dates.slice(start, start + 7);
-    buckets.push({ key: slice[0], label: `Sem ${index}`, dates: slice });
+    const weekDates: string[] = [];
+    for (let day = 0; day < 7; day += 1) {
+      const key = shiftDateKey(cursor, day);
+      if (key >= first && key <= last && key <= today) {
+        weekDates.push(key);
+      }
+    }
+    buckets.push({ key: cursor, label: `${index}ª SEM`, dates: weekDates });
+    cursor = shiftDateKey(cursor, 7);
+    if (index > 6) {
+      break;
+    }
   }
   return buckets;
 }
@@ -67,6 +99,15 @@ function sleepOn(rows: readonly SleepPoint[], key: string) {
   for (let i = rows.length - 1; i >= 0; i -= 1) {
     if (rows[i]?.localDate === key) {
       return rows[i]?.score ?? null;
+    }
+  }
+  return null;
+}
+
+function sleepRowOn(rows: readonly SleepPoint[], key: string) {
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    if (rows[i]?.localDate === key) {
+      return rows[i] ?? null;
     }
   }
   return null;
@@ -85,6 +126,38 @@ export function moodAverage(dates: readonly string[], rows: readonly MoodPoint[]
   return averagePercent(dates.map((key) => moodOnDay(rows, key)));
 }
 
+export function averageSleepHours(dates: readonly string[], rows: readonly SleepPoint[]) {
+  const values = dates
+    .map((key) => sleepRowOn(rows, key)?.hours)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  if (values.length === 0) {
+    return null;
+  }
+  return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10;
+}
+
+export function averageSleepQuality(dates: readonly string[], rows: readonly SleepPoint[]) {
+  const values = dates
+    .map((key) => sleepRowOn(rows, key)?.quality)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  if (values.length === 0) {
+    return null;
+  }
+  return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10;
+}
+
+export function moodPeriodBreakdown(today: string, rows: readonly MoodPoint[]) {
+  const periods: MoodPeriod[] = ['manha', 'tarde', 'noite'];
+  return periods.map((period) => {
+    const row = rows.find((item) => item.localDate === today && item.period === period);
+    return {
+      period,
+      score: row?.score ?? null,
+      level: row?.level ?? null,
+    };
+  });
+}
+
 export function wellbeingSeries(options: {
   today: string;
   period: ProgressPeriod;
@@ -98,6 +171,11 @@ export function wellbeingSeries(options: {
   mood: (number | null)[];
   sleepScore: number | null;
   moodScore: number | null;
+  timed?: {
+    habits: TimedChartPoint[];
+    sleep: TimedChartPoint[];
+    mood: TimedChartPoint[];
+  };
 } {
   const { today, period, sleep, mood, habits } = options;
 
@@ -105,13 +183,26 @@ export function wellbeingSeries(options: {
     const habit = habits[0]?.value ?? null;
     const sleepScore = sleepOn(sleep, today);
     const moodScore = moodOnDay(mood, today);
+    const moodRows = mood.filter((row) => row.localDate === today);
     return {
-      labels: ['Hoje'],
-      habit: [habit],
-      sleep: [sleepScore],
-      mood: [moodScore],
+      labels: [...dayHourLabels],
+      // Séries indexadas acompanham as 5 marcas do eixo; valores só nos slots conhecidos.
+      habit: [null, null, null, null, habit],
+      sleep: [null, sleepScore, null, null, null],
+      mood: [
+        null,
+        moodRows.find((row) => row.period === 'manha')?.score ?? null,
+        moodRows.find((row) => row.period === 'tarde')?.score ?? null,
+        moodRows.find((row) => row.period === 'noite')?.score ?? null,
+        null,
+      ],
       sleepScore,
       moodScore,
+      timed: {
+        habits: habit == null ? [] : [{ fraction: 0.92, value: habit }],
+        sleep: sleepScore == null ? [] : [{ fraction: sleepHourFraction, value: sleepScore }],
+        mood: moodRows.map((row) => ({ fraction: moodHourFraction[row.period], value: row.score })),
+      },
     };
   }
 
@@ -136,16 +227,19 @@ export function wellbeingSeries(options: {
   }
 
   if (period === 'mes') {
-    const buckets = monthWeekBuckets(today);
+    const buckets = monthCalendarWeeks(today);
     const habitMap = new Map(habits.map((point) => [point.key, point.value]));
     return {
       labels: buckets.map((bucket) => bucket.label),
       habit: buckets.map((bucket) => {
+        if (bucket.dates.length === 0) {
+          return null;
+        }
         const values = bucket.dates.map((key) => habitMap.get(key) ?? null);
         return averagePercent(values);
       }),
-      sleep: buckets.map((bucket) => sleepAverage(bucket.dates, sleep)),
-      mood: buckets.map((bucket) => moodAverage(bucket.dates, mood)),
+      sleep: buckets.map((bucket) => (bucket.dates.length === 0 ? null : sleepAverage(bucket.dates, sleep))),
+      mood: buckets.map((bucket) => (bucket.dates.length === 0 ? null : moodAverage(bucket.dates, mood))),
       sleepScore: sleepAverage(
         monthDateKeys(today).filter((key) => key <= today),
         sleep,
@@ -161,16 +255,21 @@ export function wellbeingSeries(options: {
   return {
     labels: months.map((month) => month.label),
     habit: months.map((month) => {
+      if (month.dates.length === 0) {
+        return null;
+      }
+      const monthly = habits.find((item) => item.label === month.label);
+      if (monthly) {
+        return monthly.value;
+      }
       const values = month.dates.map((key) => {
         const point = habits.find((item) => item.key === key || item.key.startsWith(key.slice(0, 7)));
         return point?.value ?? null;
       });
-      // Prefer monthly habit points already aggregated in progress-view for ano.
-      const monthly = habits.find((item) => item.label === month.label);
-      return monthly?.value ?? averagePercent(values);
+      return averagePercent(values);
     }),
-    sleep: months.map((month) => sleepAverage(month.dates, sleep)),
-    mood: months.map((month) => moodAverage(month.dates, mood)),
+    sleep: months.map((month) => (month.dates.length === 0 ? null : sleepAverage(month.dates, sleep))),
+    mood: months.map((month) => (month.dates.length === 0 ? null : moodAverage(month.dates, mood))),
     sleepScore: sleepAverage(
       months.flatMap((month) => month.dates),
       sleep,

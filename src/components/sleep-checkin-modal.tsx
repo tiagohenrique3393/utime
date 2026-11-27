@@ -54,14 +54,21 @@ export function SleepCheckinModal({
             <Pressable accessibilityRole="button" onPress={() => bump(-SLEEP_HOURS_STEP)} style={styles.step}>
               <Text style={styles.stepLabel}>−</Text>
             </Pressable>
-            <Text style={styles.hoursValue}>{formatSleepHours(hours)} h</Text>
+            <View style={styles.hoursBubble}>
+              <Text style={styles.hoursValue}>{formatSleepHours(hours)} h</Text>
+            </View>
             <Pressable accessibilityRole="button" onPress={() => bump(SLEEP_HOURS_STEP)} style={styles.step}>
               <Text style={styles.stepLabel}>+</Text>
             </Pressable>
           </View>
-          <Text style={styles.hint}>
-            Meta {DEFAULT_SLEEP_GOAL_HOURS}h · {SLEEP_HOURS_MIN}–{SLEEP_HOURS_MAX}h
-          </Text>
+          <View style={styles.sliderRail}>
+            <View style={[styles.sliderFill, { width: `${(hours / SLEEP_HOURS_MAX) * 100}%` }]} />
+          </View>
+          <View style={styles.sliderEnds}>
+            <Text style={styles.hint}>{SLEEP_HOURS_MIN}h</Text>
+            <Text style={styles.hint}>Meta {DEFAULT_SLEEP_GOAL_HOURS}h</Text>
+            <Text style={styles.hint}>{SLEEP_HOURS_MAX}h</Text>
+          </View>
 
           <Text style={[styles.label, styles.labelGap]}>Como foi seu sono?</Text>
           <View style={styles.qualityRow}>
@@ -157,7 +164,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepLabel: { color: ui.champagne, fontFamily: fonts.display, fontSize: 22 },
-  hoursValue: { color: ui.champagne, fontFamily: fonts.display, fontSize: 28, minWidth: 96, textAlign: 'center' },
+  hoursBubble: {
+    minWidth: 120,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E6C14A',
+    backgroundColor: 'rgba(230,193,74,0.12)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  hoursValue: { color: '#F5E6B8', fontFamily: fonts.display, fontSize: 26, textAlign: 'center' },
+  sliderRail: {
+    marginTop: 10,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#1A1917',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(230,193,74,0.28)',
+  },
+  sliderFill: { height: '100%', borderRadius: 999, backgroundColor: '#E6C14A' },
+  sliderEnds: { marginTop: 6, flexDirection: 'row', justifyContent: 'space-between' },
   hint: { marginTop: 6, color: ui.muted, fontFamily: fonts.text, fontSize: 12, textAlign: 'center' },
   qualityRow: { marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   quality: {

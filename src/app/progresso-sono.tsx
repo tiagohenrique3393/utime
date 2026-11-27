@@ -10,7 +10,7 @@ import { fonts, ui } from '@/constants/theme';
 import { useAccountPlan } from '@/lib/account-plan';
 import { sleepDetailInsight } from '@/lib/checkin-insights';
 import { getSessionUserId } from '@/lib/accounts';
-import { loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
+import { formatDailyPercent, loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
 import { compareVsLabel, relativePercentDelta } from '@/lib/progress-compare';
 import { visibleProgressPeriod } from '@/lib/progress-access';
 import {
@@ -27,6 +27,8 @@ import {
   type TodayRoutine,
 } from '@/lib/progress-view';
 import {
+  averageSleepHours,
+  averageSleepQuality,
   currentPeriodDates,
   previousPeriodDates,
   sleepAverage,
@@ -42,6 +44,13 @@ function asPeriod(value: string | string[] | undefined): ProgressPeriod {
     return raw;
   }
   return 'dia';
+}
+
+function formatHours(value: number | null) {
+  if (value == null) {
+    return '—';
+  }
+  return `${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)} h`;
 }
 
 export default function ProgressoSonoScreen() {
@@ -106,7 +115,15 @@ export default function ProgressoSonoScreen() {
           todayHabits,
           activatedOn: null,
         });
-        const sleepRows = sleepLoad.ok ? sleepLoad.rows.map((row) => ({ localDate: row.localDate, score: row.score })) : [];
+        const sleepRows = sleepLoad.ok
+          ? sleepLoad.rows.map((row) => ({
+              localDate: row.localDate,
+              score: row.score,
+              hours: row.hours,
+              quality: row.quality,
+              goalHours: row.goalHours,
+            }))
+          : [];
         const wellbeing = wellbeingSeries({
           today,
           period,
@@ -128,15 +145,15 @@ export default function ProgressoSonoScreen() {
     return <View style={styles.blank} />;
   }
 
-  const prev = previousPeriodDates(todayKey(), period);
-  const compare = relativePercentDelta(
-    series?.sleepScore ?? null,
-    sleepAverage(
-      prev,
-      sleep,
-    ),
-  );
+  const today = todayKey();
+  const dates = currentPeriodDates(today, period);
+  const prev = previousPeriodDates(today, period);
+  const compare = relativePercentDelta(series?.sleepScore ?? null, sleepAverage(prev, sleep));
   const insight = sleepDetailInsight(series?.sleepScore ?? null, habitScore);
+  const avgHours = averageSleepHours(dates, sleep);
+  const avgQuality = averageSleepQuality(dates, sleep);
+  const goal = sleep.find((row) => row.localDate === today)?.goalHours ?? 8;
+  const records = dates.filter((key) => sleep.some((row) => row.localDate === key)).length;
 
   return (
     <AppScreen tight backgroundColor="#050505" backdrop={<ProgressPlanet />}>
@@ -151,8 +168,13 @@ export default function ProgressoSonoScreen() {
       <View style={styles.hero}>
         <PercentRing percent={series?.sleepScore ?? null} size={132} caption="Score de sono" />
         <View style={styles.meta}>
-          <Text style={styles.metaLabel}>Meta de sono: 8h</Text>
+          <Text style={styles.metaLabel}>Meta de sono: {goal}h</Text>
           <Text style={styles.metaCompare}>{compareVsLabel(period, compare)}</Text>
+          <Text style={styles.metaLine}>Média de horas: {formatHours(avgHours)}</Text>
+          <Text style={styles.metaLine}>
+            Qualidade: {avgQuality == null ? '—' : `${avgQuality.toFixed(1).replace('.', ',')} / 5`}
+          </Text>
+          <Text style={styles.metaLine}>Registros: {records}</Text>
         </View>
       </View>
 
@@ -161,11 +183,17 @@ export default function ProgressoSonoScreen() {
       <View style={styles.chart}>
         <WellbeingChart
           labels={series?.labels ?? []}
-          habits={[]}
+          habits={series?.habit ?? []}
           sleep={series?.sleep ?? []}
-          mood={[]}
+          mood={series?.mood ?? []}
+          highlight="sleep"
+          timed={series?.timed}
         />
       </View>
+
+      {habitScore != null ? (
+        <Text style={styles.side}>Hábitos no período: {formatDailyPercent(habitScore)}</Text>
+      ) : null}
 
       <View style={styles.insight}>
         <Text style={styles.insightText}>{insight}</Text>
@@ -177,7 +205,6 @@ export default function ProgressoSonoScreen() {
         style={styles.link}>
         <Text style={styles.linkLabel}>Voltar ao progresso</Text>
       </Pressable>
-      {currentPeriodDates(todayKey(), period).length ? null : null}
     </AppScreen>
   );
 }
@@ -209,10 +236,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(110,182,242,0.35)',
     backgroundColor: '#071018',
     padding: 12,
-    gap: 8,
+    gap: 6,
   },
   metaLabel: { color: '#8FB4D4', fontFamily: fonts.display, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
   metaCompare: { color: ui.text, fontFamily: fonts.textMedium, fontSize: 15 },
+  metaLine: { color: '#B7D4EA', fontFamily: fonts.text, fontSize: 12, lineHeight: 16 },
   chart: {
     marginTop: 16,
     borderRadius: 14,
@@ -220,6 +248,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(110,182,242,0.2)',
     backgroundColor: 'rgba(8,8,8,0.72)',
     padding: 12,
+  },
+  side: {
+    marginTop: 10,
+    color: ui.muted,
+    fontFamily: fonts.text,
+    fontSize: 12,
   },
   insight: {
     marginTop: 14,
