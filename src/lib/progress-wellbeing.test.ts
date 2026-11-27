@@ -40,10 +40,30 @@ const series = wellbeingSeries({
   habits: [{ key: '2026-11-27', label: 'Hoje', value: 36.36 }],
 });
 assertEqual(series.labels, ['00h', '06h', '12h', '18h', '23:59'], 'eixo dia');
+assertEqual(series.lineStyle, 'step', 'dia em degrau');
 assertEqual(series.sleepScore, 90, 'sono score');
 assertEqual(series.moodScore, 90, 'humor score');
 assert(series.timed?.sleep?.[0]?.value === 90, 'sono timed');
 assert(series.timed?.mood?.length === 2, 'humor timed slots');
+assertEqual(series.timed?.habits?.[0], { fraction: 0, value: 0 }, 'hábitos começam em 0');
+
+const steppedDay = wellbeingSeries({
+  today: '2026-11-27',
+  period: 'dia',
+  sleep: [],
+  mood: [],
+  habits: [{ key: '2026-11-27', label: 'Hoje', value: 50 }],
+  dayPlanned: 4,
+  dayCompletedIds: ['a', 'b'],
+  dayEvents: [
+    { habitId: 'a', completed: true, recordedAt: '2026-11-27T09:00:00.000Z' },
+    { habitId: 'b', completed: true, recordedAt: '2026-11-27T15:00:00.000Z' },
+  ],
+  now: new Date('2026-11-27T18:00:00.000Z'),
+});
+assertEqual(steppedDay.timed?.habits?.[0]?.value, 0, 'step 0');
+assertEqual(steppedDay.timed?.habits?.[steppedDay.timed.habits.length - 1]?.value, 50, 'step = anel');
+assert(steppedDay.timed!.habits.length >= 3, 'vários degraus');
 
 const week = wellbeingSeries({
   today: '2026-11-27',
@@ -58,6 +78,7 @@ const week = wellbeingSeries({
 assertEqual(week.labels.length, 7, 'semana 7 dias');
 assertEqual(week.labels[0], 'Seg', 'semana começa segunda');
 assertEqual(week.labels[6], 'Dom', 'semana termina domingo');
+assertEqual(week.lineStyle, 'curve', 'semana curva');
 
 const year = wellbeingSeries({
   today: '2026-11-27',

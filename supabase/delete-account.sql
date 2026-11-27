@@ -195,6 +195,9 @@ begin
     end;
   end if;
 
+  if to_regclass('public.habit_completion_events') is not null then
+    delete from public.habit_completion_events where user_id = uid;
+  end if;
   if to_regclass('public.habit_day_logs') is not null then
     delete from public.habit_day_logs where user_id = uid;
   end if;

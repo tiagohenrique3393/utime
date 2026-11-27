@@ -11,6 +11,8 @@ const colors = {
 
 const yMarks = [100, 75, 50, 25, 0] as const;
 
+type ChartPoint = { x: number; y: number; value: number; index: number };
+
 function node(type: string, props: Record<string, unknown> | null, ...children: ReactNode[]) {
   return createElement(type, props, ...children);
 }
@@ -18,7 +20,7 @@ function node(type: string, props: Record<string, unknown> | null, ...children: 
 function linePoints(values: readonly (number | null)[], width: number, height: number, padX: number, padY: number) {
   const count = values.length;
   if (count === 0) {
-    return [] as ({ x: number; y: number; value: number } | null)[];
+    return [] as (ChartPoint | null)[];
   }
   return values.map((value, index) => {
     const x = count === 1 ? padX + (width - padX * 2) / 2 : padX + (index * (width - padX * 2)) / (count - 1);
@@ -26,11 +28,10 @@ function linePoints(values: readonly (number | null)[], width: number, height: n
       return null;
     }
     const y = height - padY - (Math.max(0, Math.min(100, value)) / 100) * (height - padY * 2);
-    return { x, y, value };
+    return { x, y, value, index };
   });
 }
 
-/** Pontos posicionados por fração 0–1 no eixo X (ex.: horas do dia). */
 function fractionPoints(
   entries: readonly { fraction: number; value: number | null }[],
   width: number,
@@ -38,34 +39,98 @@ function fractionPoints(
   padX: number,
   padY: number,
 ) {
-  return entries.map((entry) => {
+  return entries.map((entry, index) => {
     if (entry.value == null || !Number.isFinite(entry.value)) {
       return null;
     }
     const fraction = Math.max(0, Math.min(1, entry.fraction));
     const x = padX + fraction * (width - padX * 2);
     const y = height - padY - (Math.max(0, Math.min(100, entry.value)) / 100) * (height - padY * 2);
-    return { x, y, value: entry.value };
+    return { x, y, value: entry.value, index };
   });
 }
 
-function polyline(points: ({ x: number; y: number } | null)[]) {
-  const segments: string[] = [];
-  let current: string[] = [];
+function solidRuns(points: ({ x: number; y: number } | null)[]) {
+  const runs: { x: number; y: number }[][] = [];
+  let current: { x: number; y: number }[] = [];
   for (const point of points) {
     if (!point) {
       if (current.length) {
-        segments.push(current.join(' '));
+        runs.push(current);
         current = [];
       }
       continue;
     }
-    current.push(`${point.x},${point.y}`);
+    current.push(point);
   }
   if (current.length) {
-    segments.push(current.join(' '));
+    runs.push(current);
   }
-  return segments;
+  return runs;
+}
+
+function linearPaths(points: ({ x: number; y: number } | null)[]) {
+  return solidRuns(points).map((run) => {
+    if (run.length === 1) {
+      return `M ${run[0].x} ${run[0].y}`;
+    }
+    return `M ${run[0].x} ${run[0].y} ${run.slice(1).map((p) => `L ${p.x} ${p.y}`).join(' ')}`;
+  });
+}
+
+/** Degrau: mantém o valor até o próximo instante, depois sobe/desce. */
+function stepPaths(points: ({ x: number; y: number } | null)[]) {
+  return solidRuns(points).map((run) => {
+    if (run.length === 1) {
+      return `M ${run[0].x} ${run[0].y}`;
+    }
+    const parts = [`M ${run[0].x} ${run[0].y}`];
+    for (let i = 1; i < run.length; i += 1) {
+      parts.push(`L ${run[i].x} ${run[i - 1].y}`);
+      parts.push(`L ${run[i].x} ${run[i].y}`);
+    }
+    return parts.join(' ');
+  });
+}
+
+function stepAreaPath(points: ({ x: number; y: number } | null)[], height: number, padY: number) {
+  const run = solidRuns(points)[0];
+  if (!run || run.length === 0) {
+    return null;
+  }
+  const base = height - padY;
+  const parts = [`M ${run[0].x} ${base}`, `L ${run[0].x} ${run[0].y}`];
+  for (let i = 1; i < run.length; i += 1) {
+    parts.push(`L ${run[i].x} ${run[i - 1].y}`);
+    parts.push(`L ${run[i].x} ${run[i].y}`);
+  }
+  parts.push(`L ${run[run.length - 1].x} ${base} Z`);
+  return parts.join(' ');
+}
+
+/** Curva suave (Catmull-Rom → cúbica). Lacunas não viram zero. */
+function curvePaths(points: ({ x: number; y: number } | null)[]) {
+  return solidRuns(points).map((run) => {
+    if (run.length === 1) {
+      return `M ${run[0].x} ${run[0].y}`;
+    }
+    if (run.length === 2) {
+      return `M ${run[0].x} ${run[0].y} L ${run[1].x} ${run[1].y}`;
+    }
+    let d = `M ${run[0].x} ${run[0].y}`;
+    for (let i = 0; i < run.length - 1; i += 1) {
+      const p0 = run[Math.max(0, i - 1)];
+      const p1 = run[i];
+      const p2 = run[i + 1];
+      const p3 = run[Math.min(run.length - 1, i + 2)];
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+    }
+    return d;
+  });
 }
 
 function areaPath(points: ({ x: number; y: number } | null)[], height: number, padY: number) {
@@ -75,6 +140,23 @@ function areaPath(points: ({ x: number; y: number } | null)[], height: number, p
   }
   const base = height - padY;
   return `M ${solid[0].x} ${base} L ${solid.map((point) => `${point.x} ${point.y}`).join(' L ')} L ${solid[solid.length - 1].x} ${base} Z`;
+}
+
+function formatPct(value: number) {
+  return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value)}%`;
+}
+
+function fractionLabel(fraction: number) {
+  const total = Math.round(Math.max(0, Math.min(1, fraction)) * 24 * 60);
+  const hour = Math.floor(total / 60);
+  const minute = total % 60;
+  if (hour >= 23 && minute >= 59) {
+    return '23:59';
+  }
+  if (minute === 0) {
+    return `${String(hour).padStart(2, '0')}h`;
+  }
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 type SeriesMode = 'habits' | 'sleep' | 'mood' | 'all';
@@ -87,18 +169,19 @@ export function WellbeingChart({
   mood,
   highlight = 'all',
   timed,
+  lineStyle = 'curve',
 }: {
   labels: readonly string[];
   habits: readonly (number | null)[];
   sleep: readonly (number | null)[];
   mood: readonly (number | null)[];
   highlight?: SeriesMode;
-  /** Quando presente, posiciona pontos pelo horário (0–1) em vez do índice do label. */
   timed?: {
     habits?: readonly { fraction: number; value: number | null }[];
     sleep?: readonly { fraction: number; value: number | null }[];
     mood?: readonly { fraction: number; value: number | null }[];
   };
+  lineStyle?: 'step' | 'curve' | 'linear';
 }) {
   const width = 340;
   const height = 168;
@@ -110,7 +193,7 @@ export function WellbeingChart({
     Boolean(timed?.sleep?.some((entry) => entry.value != null)) ||
     Boolean(timed?.mood?.some((entry) => entry.value != null));
 
-  const [tip, setTip] = useState<string | null>(null);
+  const [tip, setTip] = useState<{ title: string; lines: string[] } | null>(null);
 
   if (!hasAny) {
     return <Text style={styles.empty}>Sem dados suficientes para o gráfico neste período.</Text>;
@@ -133,37 +216,141 @@ export function WellbeingChart({
   const showHabits = highlight === 'all' || highlight === 'habits';
   const showSleep = highlight === 'all' || highlight === 'sleep';
   const showMood = highlight === 'all' || highlight === 'mood';
-  const habitArea = showHabits ? areaPath(habitPts, height, padY) : null;
 
-  const dots: { key: string; x: number; y: number; color: string; label: string }[] = [];
-  if (showHabits) {
-    habitPts.forEach((point, index) => {
-      if (point) {
-        dots.push({ key: `h-${index}`, x: point.x, y: point.y, color: colors.habits, label: `Hábitos ${Math.round(point.value)}%` });
+  const pathFor = (pts: (ChartPoint | null)[], style: 'step' | 'curve' | 'linear') => {
+    if (style === 'step') {
+      return stepPaths(pts);
+    }
+    if (style === 'curve') {
+      return curvePaths(pts);
+    }
+    return linearPaths(pts);
+  };
+
+  const habitPaths = pathFor(habitPts, lineStyle);
+  const sleepPaths = pathFor(sleepPts, lineStyle === 'step' ? 'linear' : lineStyle);
+  const moodPaths = pathFor(moodPts, lineStyle === 'step' ? 'linear' : lineStyle);
+  const habitArea =
+    showHabits && lineStyle === 'step' ? stepAreaPath(habitPts, height, padY) : showHabits ? areaPath(habitPts, height, padY) : null;
+
+  type Hit = { key: string; x: number; y: number; color: string; title: string; lines: string[] };
+  const hits: Hit[] = [];
+
+  if (!timed) {
+    for (let index = 0; index < labels.length; index += 1) {
+      const lines: string[] = [];
+      const hx = habitPts[index];
+      const sx = sleepPts[index];
+      const mx = moodPts[index];
+      if (showHabits && hx) {
+        lines.push(`Hábitos ${formatPct(hx.value)}`);
       }
-    });
-  }
-  if (showSleep) {
-    sleepPts.forEach((point, index) => {
-      if (point) {
-        dots.push({ key: `s-${index}`, x: point.x, y: point.y, color: colors.sleep, label: `Sono ${Math.round(point.value)}%` });
+      if (showSleep && sx) {
+        lines.push(`Sono ${formatPct(sx.value)}`);
       }
-    });
-  }
-  if (showMood) {
-    moodPts.forEach((point, index) => {
-      if (point) {
-        dots.push({ key: `m-${index}`, x: point.x, y: point.y, color: colors.mood, label: `Humor ${Math.round(point.value)}%` });
+      if (showMood && mx) {
+        lines.push(`Humor ${formatPct(mx.value)}`);
       }
-    });
+      if (!lines.length) {
+        continue;
+      }
+      const anchor = hx ?? sx ?? mx;
+      if (!anchor) {
+        continue;
+      }
+      hits.push({
+        key: `col-${index}`,
+        x: anchor.x,
+        y: anchor.y,
+        color: hx ? colors.habits : sx ? colors.sleep : colors.mood,
+        title: labels[index] ?? '',
+        lines,
+      });
+    }
+  } else {
+    if (showHabits) {
+      habitPts.forEach((point, index) => {
+        if (!point) {
+          return;
+        }
+        hits.push({
+          key: `h-${index}`,
+          x: point.x,
+          y: point.y,
+          color: colors.habits,
+          title: fractionLabel(timed.habits?.[index]?.fraction ?? 0),
+          lines: [`Hábitos ${formatPct(point.value)}`],
+        });
+      });
+    }
+    if (showSleep) {
+      sleepPts.forEach((point, index) => {
+        if (!point) {
+          return;
+        }
+        hits.push({
+          key: `s-${index}`,
+          x: point.x,
+          y: point.y,
+          color: colors.sleep,
+          title: fractionLabel(timed.sleep?.[index]?.fraction ?? 0),
+          lines: [`Sono ${formatPct(point.value)}`],
+        });
+      });
+    }
+    if (showMood) {
+      moodPts.forEach((point, index) => {
+        if (!point) {
+          return;
+        }
+        hits.push({
+          key: `m-${index}`,
+          x: point.x,
+          y: point.y,
+          color: colors.mood,
+          title: fractionLabel(timed.mood?.[index]?.fraction ?? 0),
+          lines: [`Humor ${formatPct(point.value)}`],
+        });
+      });
+    }
   }
+
+  const renderDots = (pts: (ChartPoint | null)[], color: string, prefix: string) =>
+    pts.map((point, index) =>
+      point
+        ? node('circle', {
+            key: `${prefix}-${index}`,
+            cx: point.x,
+            cy: point.y,
+            r: 3.2,
+            fill: '#0A0A0A',
+            stroke: color,
+            strokeWidth: 1.8,
+          })
+        : null,
+    );
 
   return (
     <View>
       <View style={styles.legend}>
-        {showHabits ? <Text style={[styles.legendItem, { color: colors.habits }]}>Hábitos</Text> : null}
-        {showSleep ? <Text style={[styles.legendItem, { color: colors.sleep }]}>Sono</Text> : null}
-        {showMood ? <Text style={[styles.legendItem, { color: colors.mood }]}>Humor</Text> : null}
+        {showHabits ? (
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: colors.habits }]} />
+            <Text style={[styles.legendText, { color: colors.habits }]}>Hábitos</Text>
+          </View>
+        ) : null}
+        {showSleep ? (
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: colors.sleep }]} />
+            <Text style={[styles.legendText, { color: colors.sleep }]}>Sono</Text>
+          </View>
+        ) : null}
+        {showMood ? (
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: colors.mood }]} />
+            <Text style={[styles.legendText, { color: colors.mood }]}>Humor</Text>
+          </View>
+        ) : null}
       </View>
       <View style={styles.figure}>
         {node(
@@ -213,11 +400,11 @@ export function WellbeingChart({
                 fill: 'url(#habit-fill)',
               })
             : null,
-          ...polyline(habitPts).map((points, index) =>
+          ...habitPaths.map((d, index) =>
             showHabits
-              ? node('polyline', {
+              ? node('path', {
                   key: `h-${index}`,
-                  points,
+                  d,
                   fill: 'none',
                   stroke: colors.habits,
                   strokeWidth: highlight === 'habits' ? 2.4 : 1.9,
@@ -227,11 +414,11 @@ export function WellbeingChart({
                 })
               : null,
           ),
-          ...polyline(sleepPts).map((points, index) =>
+          ...sleepPaths.map((d, index) =>
             showSleep
-              ? node('polyline', {
+              ? node('path', {
                   key: `s-${index}`,
-                  points,
+                  d,
                   fill: 'none',
                   stroke: colors.sleep,
                   strokeWidth: highlight === 'sleep' ? 2.4 : 1.9,
@@ -241,11 +428,11 @@ export function WellbeingChart({
                 })
               : null,
           ),
-          ...polyline(moodPts).map((points, index) =>
+          ...moodPaths.map((d, index) =>
             showMood
-              ? node('polyline', {
+              ? node('path', {
                   key: `m-${index}`,
-                  points,
+                  d,
                   fill: 'none',
                   stroke: colors.mood,
                   strokeWidth: highlight === 'mood' ? 2.4 : 1.9,
@@ -255,37 +442,36 @@ export function WellbeingChart({
                 })
               : null,
           ),
-          ...dots.map((dot) =>
-            node('circle', {
-              key: dot.key,
-              cx: dot.x,
-              cy: dot.y,
-              r: 3.2,
-              fill: '#0A0A0A',
-              stroke: dot.color,
-              strokeWidth: 1.8,
-            }),
-          ),
+          ...(showHabits ? renderDots(habitPts, colors.habits, 'hd') : []),
+          ...(showSleep ? renderDots(sleepPts, colors.sleep, 'sd') : []),
+          ...(showMood ? renderDots(moodPts, colors.mood, 'md') : []),
         )}
-        {Platform.OS === 'web'
-          ? dots.map((dot) => (
-              <Pressable
-                key={`hit-${dot.key}`}
-                accessibilityRole="button"
-                accessibilityLabel={dot.label}
-                onPress={() => setTip(dot.label)}
-                style={[
-                  styles.hit,
-                  {
-                    left: `${(dot.x / width) * 100}%`,
-                    top: `${(dot.y / height) * 100}%`,
-                  },
-                ]}
-              />
-            ))
-          : null}
+        {hits.map((hit) => (
+          <Pressable
+            key={`hit-${hit.key}`}
+            accessibilityRole="button"
+            accessibilityLabel={`${hit.title}. ${hit.lines.join('. ')}`}
+            onPress={() => setTip({ title: hit.title, lines: hit.lines })}
+            style={[
+              styles.hit,
+              {
+                left: `${(hit.x / width) * 100}%`,
+                top: `${(hit.y / height) * 100}%`,
+              },
+            ]}
+          />
+        ))}
       </View>
-      {tip ? <Text style={styles.tip}>{tip}</Text> : null}
+      {tip ? (
+        <View style={styles.tipBox}>
+          <Text style={styles.tipTitle}>{tip.title}</Text>
+          {tip.lines.map((line) => (
+            <Text key={line} style={styles.tipLine}>
+              {line}
+            </Text>
+          ))}
+        </View>
+      ) : null}
       <View style={styles.axis}>
         {labels.map((label, index) => {
           const show =
@@ -306,7 +492,9 @@ export function WellbeingChart({
 
 const styles = StyleSheet.create({
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 8 },
-  legendItem: { fontFamily: fonts.display, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 7, height: 7, borderRadius: 4 },
+  legendText: { fontFamily: fonts.display, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase' },
   figure: { width: '100%', aspectRatio: 340 / 168, position: 'relative' },
   hit: {
     position: 'absolute',
@@ -316,9 +504,27 @@ const styles = StyleSheet.create({
     marginTop: -9,
     borderRadius: 9,
   },
-  tip: {
-    marginTop: 4,
+  tipBox: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(243,239,232,0.16)',
+    backgroundColor: 'rgba(8,8,8,0.92)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 2,
+  },
+  tipTitle: {
     color: ui.textChampagne,
+    fontFamily: fonts.display,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  tipLine: {
+    color: ui.text,
     fontFamily: fonts.text,
     fontSize: 12,
     lineHeight: 16,

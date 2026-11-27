@@ -1,3 +1,9 @@
+import {
+  cumulativeDayHabitsSeries,
+  dayAxisLabels,
+  type HabitCompletionEvent,
+  type TimedChartPoint,
+} from '@/lib/habit-day-series';
 import { dailyMoodAverage, type MoodPeriod } from '@/lib/mood-score';
 import {
   averagePercent,
@@ -8,6 +14,8 @@ import {
   type PercentPoint,
   type ProgressPeriod,
 } from '@/lib/progress-view';
+
+export type { TimedChartPoint } from '@/lib/habit-day-series';
 
 export type SleepPoint = {
   localDate: string;
@@ -24,14 +32,8 @@ export type MoodPoint = {
   level?: number;
 };
 
-export type TimedChartPoint = {
-  fraction: number;
-  value: number | null;
-};
-
 const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const weekDayLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-const dayHourLabels = ['00h', '06h', '12h', '18h', '23:59'];
 
 /** Frações do dia para posicionar check-ins sem inventar histórico artificial. */
 const moodHourFraction: Record<MoodPeriod, number> = {
@@ -164,6 +166,11 @@ export function wellbeingSeries(options: {
   sleep: readonly SleepPoint[];
   mood: readonly MoodPoint[];
   habits: readonly PercentPoint[];
+  /** Eventos intradía (só DIA). Sem timestamps inventados. */
+  dayEvents?: readonly HabitCompletionEvent[];
+  dayPlanned?: number;
+  dayCompletedIds?: readonly string[];
+  now?: Date;
 }): {
   labels: string[];
   habit: (number | null)[];
@@ -171,6 +178,7 @@ export function wellbeingSeries(options: {
   mood: (number | null)[];
   sleepScore: number | null;
   moodScore: number | null;
+  lineStyle: 'step' | 'curve';
   timed?: {
     habits: TimedChartPoint[];
     sleep: TimedChartPoint[];
@@ -184,10 +192,22 @@ export function wellbeingSeries(options: {
     const sleepScore = sleepOn(sleep, today);
     const moodScore = moodOnDay(mood, today);
     const moodRows = mood.filter((row) => row.localDate === today);
+    const planned = Math.max(0, options.dayPlanned ?? 0);
+    const timedHabits =
+      planned > 0
+        ? cumulativeDayHabitsSeries({
+            dayKey: today,
+            planned,
+            events: options.dayEvents ?? [],
+            currentCompletedIds: options.dayCompletedIds ?? [],
+            now: options.now,
+            ringPercent: habit,
+          })
+        : [{ fraction: 0, value: 0 }];
     return {
-      labels: [...dayHourLabels],
-      // Séries indexadas acompanham as 5 marcas do eixo; valores só nos slots conhecidos.
-      habit: [null, null, null, null, habit],
+      labels: [...dayAxisLabels],
+      // Séries indexadas só para fallback; o gráfico DIA usa `timed` + degraus.
+      habit: [0, null, null, null, habit],
       sleep: [null, sleepScore, null, null, null],
       mood: [
         null,
@@ -198,8 +218,9 @@ export function wellbeingSeries(options: {
       ],
       sleepScore,
       moodScore,
+      lineStyle: 'step',
       timed: {
-        habits: habit == null ? [] : [{ fraction: 0.92, value: habit }],
+        habits: timedHabits,
         sleep: sleepScore == null ? [] : [{ fraction: sleepHourFraction, value: sleepScore }],
         mood: moodRows.map((row) => ({ fraction: moodHourFraction[row.period], value: row.score })),
       },
@@ -223,6 +244,7 @@ export function wellbeingSeries(options: {
         dates.filter((key) => key <= today),
         mood,
       ),
+      lineStyle: 'curve',
     };
   }
 
@@ -248,6 +270,7 @@ export function wellbeingSeries(options: {
         monthDateKeys(today).filter((key) => key <= today),
         mood,
       ),
+      lineStyle: 'curve',
     };
   }
 
@@ -278,6 +301,7 @@ export function wellbeingSeries(options: {
       months.flatMap((month) => month.dates),
       mood,
     ),
+    lineStyle: 'curve',
   };
 }
 

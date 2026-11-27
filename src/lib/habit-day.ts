@@ -107,18 +107,23 @@ export function formatLongDate(dateKey: string) {
   return new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(date);
 }
 
+function isMissingRelation(error: { message?: string; code?: string } | null, table: string) {
+  const text = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
+  return (
+    text.includes(table) ||
+    text.includes('pgrst205') ||
+    text.includes('42p01') ||
+    text.includes('does not exist') ||
+    text.includes('schema cache')
+  );
+}
+
 function completionErrorMessage(error: { message?: string; code?: string } | null, action: 'load' | 'save') {
   const text = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
   if (text.includes('closed day') || text.includes('encerrado')) {
     return 'Este dia já está encerrado.';
   }
-  const missing =
-    text.includes('habit_day_logs') ||
-    text.includes('pgrst205') ||
-    text.includes('42p01') ||
-    text.includes('does not exist') ||
-    text.includes('schema cache');
-  if (missing) {
+  if (isMissingRelation(error, 'habit_day_logs')) {
     return action === 'load'
       ? 'As conclusões de hoje ainda não estão disponíveis. Sua rotina continua visível.'
       : 'Ainda não foi possível salvar esta conclusão. Sua rotina permanece igual.';
@@ -127,6 +132,13 @@ function completionErrorMessage(error: { message?: string; code?: string } | nul
     ? 'Não foi possível carregar as conclusões de hoje.'
     : 'Não foi possível salvar esta conclusão.';
 }
+
+export type HabitCompletionEventRow = {
+  habitId: string;
+  completed: boolean;
+  recordedAt: string;
+  dateKey: string;
+};
 
 type DayLogRow = {
   user_id?: string | null;
@@ -236,10 +248,69 @@ export async function ensureDayPlan(userId: string, day: string, habitIds: reado
   return { ok: true as const, message: '' };
 }
 
+async function recordHabitCompletionEvent(
+  userId: string,
+  habitId: string,
+  day: string,
+  completed: boolean,
+  recordedAt: string,
+) {
+  const { error } = await supabase.from('habit_completion_events').insert({
+    user_id: userId,
+    user_habit_id: habitId,
+    occurred_on: day,
+    completed,
+    recorded_at: recordedAt,
+  });
+  if (error && !isMissingRelation(error, 'habit_completion_events')) {
+    return { ok: false as const, message: completionErrorMessage(error, 'save') };
+  }
+  // Tabela ausente: o log diário já foi gravado; o gráfico intradía passa a funcionar após o SQL.
+  return { ok: true as const, message: '' };
+}
+
+export async function loadHabitCompletionEvents(userId: string, day: string) {
+  const { data, error } = await supabase
+    .from('habit_completion_events')
+    .select('user_id,user_habit_id,occurred_on,completed,recorded_at')
+    .eq('user_id', userId)
+    .eq('occurred_on', day)
+    .order('recorded_at', { ascending: true });
+  if (error) {
+    if (isMissingRelation(error, 'habit_completion_events')) {
+      return { ok: true as const, rows: [] as HabitCompletionEventRow[], message: '' };
+    }
+    return { ok: false as const, rows: [] as HabitCompletionEventRow[], message: completionErrorMessage(error, 'load') };
+  }
+  const rows: HabitCompletionEventRow[] = [];
+  for (const row of (data ?? []) as {
+    user_id?: string | null;
+    user_habit_id?: string | null;
+    occurred_on?: string | null;
+    completed?: boolean | null;
+    recorded_at?: string | null;
+  }[]) {
+    if (row.user_id !== userId || typeof row.user_habit_id !== 'string' || typeof row.recorded_at !== 'string') {
+      continue;
+    }
+    if (!sameDay(row.occurred_on, day)) {
+      continue;
+    }
+    rows.push({
+      habitId: row.user_habit_id,
+      completed: row.completed === true,
+      recordedAt: row.recorded_at,
+      dateKey: day,
+    });
+  }
+  return { ok: true as const, rows, message: '' };
+}
+
 export async function setHabitCompleted(userId: string, habitId: string, day: string, completed: boolean) {
   if (!isWritableDay(day)) {
     return { ok: false as const, message: 'Este dia já está encerrado.' };
   }
+  const recordedAt = new Date().toISOString();
   const { data, error } = await supabase
     .from('habit_day_logs')
     .upsert(
@@ -264,5 +335,6 @@ export async function setHabitCompleted(userId: string, habitId: string, day: st
   ) {
     return { ok: false as const, message: completionErrorMessage(error, 'save') };
   }
+  await recordHabitCompletionEvent(userId, habitId, day, completed, recordedAt);
   return { ok: true as const, message: '' };
 }

@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { createElement, useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createElement, useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
+import { InsightCard } from '@/components/insight-card';
 import { ProgressPlanet } from '@/components/progress-planet';
 import { PercentRing } from '@/components/progress-charts';
 import { WellbeingChart } from '@/components/wellbeing-chart';
@@ -19,7 +20,13 @@ import { getSessionCreatedAt, getSessionUserId } from '@/lib/accounts';
 import { getDailyBoard, isDailyHabitDone, refreshDailyBoard, scoreDailyHabits, subscribeDailyBoard } from '@/lib/daily-board';
 import { isOfficialHydration } from '@/lib/daily-score';
 import { getCatalogHabits, getUserHabits, habitTitle } from '@/lib/habit-catalog';
-import { formatDailyPercent, loadHabitLogsUntil, todayKey } from '@/lib/habit-day';
+import {
+  formatDailyPercent,
+  loadHabitCompletionEvents,
+  loadHabitLogsUntil,
+  todayKey,
+  type HabitCompletionEventRow,
+} from '@/lib/habit-day';
 import { formatHydrationPercent, hydrationFill, hydrationPercent, loadHydrationUntil } from '@/lib/hydration';
 import { loadMoodUntil } from '@/lib/mood-store';
 import {
@@ -81,6 +88,7 @@ type Snapshot = {
   hydration: HydrationLog[];
   sleep: SleepPoint[];
   mood: MoodPoint[];
+  dayEvents: HabitCompletionEventRow[];
   routine: TodayRoutine | null;
   habits: ProgressHabit[];
   todayHabits: TodayProgressHabit[] | null;
@@ -228,12 +236,13 @@ export default function ProgressScreen() {
       const today = todayKey();
       const horizon = hydrationLoadThrough(today);
       void (async () => {
-        const [, logs, water, sleep, mood, createdAt] = await Promise.all([
+        const [, logs, water, sleep, mood, dayEvents, createdAt] = await Promise.all([
           refreshDailyBoard(userId, today),
           loadHabitLogsUntil(userId, today),
           loadHydrationUntil(userId, horizon),
           loadSleepUntil(userId, today),
           loadMoodUntil(userId, today),
+          loadHabitCompletionEvents(userId, today),
           getSessionCreatedAt(),
         ]);
         if (!active) {
@@ -263,6 +272,7 @@ export default function ProgressScreen() {
                 level: row.level,
               }))
             : [],
+          dayEvents: dayEvents.ok ? dayEvents.rows : [],
           routine: captured.routine,
           habits: captured.habits,
           todayHabits: captured.todayHabits,
@@ -277,6 +287,28 @@ export default function ProgressScreen() {
   );
 
   const liveToday = board.ready && board.dateKey === todayKey() ? captureHabits(board.dateKey) : null;
+  const completedSignature = board.ready
+    ? [...board.completed].sort().join('|')
+    : '';
+
+  const eventsDay = snapshot?.today ?? null;
+  useEffect(() => {
+    const userId = getSessionUserId();
+    if (!userId || !eventsDay) {
+      return;
+    }
+    let active = true;
+    void loadHabitCompletionEvents(userId, eventsDay).then((events) => {
+      if (!active || !events.ok) {
+        return;
+      }
+      setSnapshot((current) => (current ? { ...current, dayEvents: events.rows } : current));
+    });
+    return () => {
+      active = false;
+    };
+  }, [completedSignature, eventsDay]);
+
   const report = snapshot
     ? progressReport({
         today: liveToday ? board.dateKey : snapshot.today,
@@ -344,6 +376,8 @@ export default function ProgressScreen() {
           report={report}
           logs={snapshot.logs}
           routine={liveToday?.routine ?? snapshot.routine}
+          todayHabits={liveToday?.todayHabits ?? snapshot.todayHabits}
+          dayEvents={snapshot.dayEvents}
           sleep={snapshot.sleep}
           mood={snapshot.mood}
           waterNotice={waterNotice}
@@ -386,6 +420,8 @@ function ProgressBody({
   report,
   logs,
   routine,
+  todayHabits,
+  dayEvents,
   sleep,
   mood,
   waterNotice,
@@ -398,6 +434,8 @@ function ProgressBody({
   report: ProgressReport;
   logs: readonly HabitLog[];
   routine: TodayRoutine | null;
+  todayHabits: readonly TodayProgressHabit[] | null;
+  dayEvents: readonly HabitCompletionEventRow[];
   sleep: readonly SleepPoint[];
   mood: readonly MoodPoint[];
   waterNotice: string;
@@ -407,12 +445,20 @@ function ProgressBody({
   today: string;
 }) {
   const habitScore = report[period];
+  const dayCompletedIds = (todayHabits ?? []).filter((habit) => habit.done).map((habit) => habit.id);
   const series = wellbeingSeries({
     today,
     period,
     sleep,
     mood,
     habits: report.habitPoints,
+    dayEvents: dayEvents.map((event) => ({
+      habitId: event.habitId,
+      completed: event.completed,
+      recordedAt: event.recordedAt,
+    })),
+    dayPlanned: routine?.total ?? todayHabits?.length ?? 0,
+    dayCompletedIds,
   });
   const prevDates = previousPeriodDates(today, period);
   const previousHabit = averagePercent(prevDates.map((key) => habitPercentOn(key, today, logs, routine)));
@@ -475,6 +521,7 @@ function ProgressBody({
             sleep={[]}
             mood={[]}
             highlight="habits"
+            lineStyle="step"
             timed={series.timed ? { habits: series.timed.habits } : undefined}
           />
         ) : (
@@ -483,6 +530,7 @@ function ProgressBody({
             habits={series.habit}
             sleep={series.sleep}
             mood={series.mood}
+            lineStyle={series.lineStyle}
             timed={series.timed}
           />
         )}
@@ -557,10 +605,7 @@ function ProgressBody({
         ) : null}
       </View>
 
-      <View style={styles.insight}>
-        <Text style={styles.insightKicker}>Insight</Text>
-        <Text style={styles.insightText}>{insight}</Text>
-      </View>
+      <InsightCard message={insight} />
     </>
   );
 }
@@ -773,32 +818,6 @@ const styles = StyleSheet.create({
   waterRail: { height: 8, borderRadius: 4, backgroundColor: 'rgba(110,182,242,0.18)', overflow: 'hidden' },
   waterFill: { height: '100%', borderRadius: 4, backgroundColor: waterBlue },
   waterNote: { color: '#8FB4D4', fontFamily: fonts.text, fontSize: 12, lineHeight: 16, textTransform: 'uppercase' },
-  insight: {
-    marginTop: 12,
-    marginBottom: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(230,193,74,0.4)',
-    backgroundColor: 'rgba(10,10,10,0.85)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 4,
-  },
-  insightKicker: {
-    color: ui.champagne,
-    fontFamily: fonts.display,
-    fontSize: 11,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  insightText: {
-    color: ui.text,
-    fontFamily: fonts.text,
-    fontSize: 12,
-    lineHeight: 17,
-    letterSpacing: 0.2,
-    textTransform: 'uppercase',
-  },
   note: {
     marginTop: 12,
     color: ui.muted,

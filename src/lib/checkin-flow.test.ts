@@ -37,11 +37,19 @@ assertEqual(
   progressInsight(
     { habitPercent: 80, sleepPercent: 85, moodPercent: 70, habitDelta: 5, sleepDelta: 2, moodDelta: 1 },
     'semana',
-  ).includes('dormindo'),
+  ).toLowerCase().includes('ritmo'),
   true,
   'insight sono+hábitos',
 );
-assertEqual(sleepDetailInsight(null, null).includes('sem registro'), true, 'sono vazio');
-assertEqual(moodDetailInsight(90).includes('elevado'), true, 'humor alto');
+assertEqual(
+  progressInsight(
+    { habitPercent: 80, sleepPercent: 85, moodPercent: 70, habitDelta: 5, sleepDelta: 2, moodDelta: 1 },
+    'semana',
+  ).startsWith('INSIGHT:'),
+  false,
+  'sem prefixo duplicado',
+);
+assertEqual(sleepDetailInsight(null, null).toLowerCase().includes('sem registro'), true, 'sono vazio');
+assertEqual(moodDetailInsight(90).toLowerCase().includes('elevado'), true, 'humor alto');
 
 console.log('checkin-flow-ok');

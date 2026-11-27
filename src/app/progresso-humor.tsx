@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
+import { InsightCard } from '@/components/insight-card';
 import { PercentRing } from '@/components/progress-charts';
 import { ProgressPlanet } from '@/components/progress-planet';
 import { WellbeingChart } from '@/components/wellbeing-chart';
@@ -205,13 +206,12 @@ export default function ProgressoHumorScreen() {
           sleep={series?.sleep ?? []}
           mood={series?.mood ?? []}
           highlight="mood"
+          lineStyle={series?.lineStyle ?? 'curve'}
           timed={series?.timed}
         />
       </View>
 
-      <View style={styles.insight}>
-        <Text style={styles.insightText}>{insight}</Text>
-      </View>
+      <InsightCard message={insight} />
 
       <Pressable
         accessibilityRole="button"
@@ -287,14 +287,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(8,8,8,0.72)',
     padding: 12,
   },
-  insight: {
-    marginTop: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(230,193,74,0.4)',
-    padding: 12,
-  },
-  insightText: { color: ui.text, fontFamily: fonts.text, fontSize: 12, lineHeight: 17, textTransform: 'uppercase' },
   note: { marginTop: 10, color: ui.muted, fontFamily: fonts.text, fontSize: 13 },
   link: { marginTop: 16, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   linkLabel: { color: ui.champagne, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
