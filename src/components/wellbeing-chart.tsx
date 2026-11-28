@@ -252,7 +252,8 @@ export function WellbeingChart({
   const showSleep = highlight === 'all' || highlight === 'sleep';
   const showMood = highlight === 'all' || highlight === 'mood';
 
-  const habitIsStep = lineStyle === 'step' || Boolean(timed?.habits);
+  // Degrau só quando lineStyle === 'step'. DIA timed usa a mesma curva suave da SEMANA.
+  const habitIsStep = lineStyle === 'step';
   const habitPaths = habitIsStep ? stepPaths(habitPts) : smoothPaths(habitPts);
   // Sono e humor: sempre pontilhados; suaves fora do DIA timed.
   const sleepPaths = timed?.sleep ? smoothPaths(sleepPts) : smoothPaths(sleepPts);
@@ -354,7 +355,9 @@ export function WellbeingChart({
     }
   }
 
-  const habitDots = showHabits ? relevantDots(habitPts, habitIsStep) : [];
+  // DIA timed: tip luminosa no fim (sem bolinha por hábito); SEMANA mostra pontos por bucket.
+  const tipOnlyHabitDots = habitIsStep || Boolean(timed?.habits);
+  const habitDots = showHabits ? relevantDots(habitPts, tipOnlyHabitDots) : [];
   const sleepDots = showSleep ? relevantDots(sleepPts, false) : [];
   const moodDots = showMood ? relevantDots(moodPts, false) : [];
   const habitLast = showHabits ? lastSolid(habitPts) : null;
@@ -531,7 +534,7 @@ export function WellbeingChart({
           // Marcadores discretos (hábitos: só mudanças relevantes; sem cluster)
           ...habitDots.map((point, index) => {
             const isLast = habitLast != null && point.x === habitLast.x && point.y === habitLast.y;
-            if (habitIsStep && !isLast) {
+            if (tipOnlyHabitDots && !isLast) {
               return null;
             }
             return node('circle', {

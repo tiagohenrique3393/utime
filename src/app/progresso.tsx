@@ -521,7 +521,7 @@ function ProgressBody({
             sleep={[]}
             mood={[]}
             highlight="habits"
-            lineStyle="step"
+            lineStyle={series.lineStyle}
             timed={series.timed ? { habits: series.timed.habits } : undefined}
           />
         ) : (

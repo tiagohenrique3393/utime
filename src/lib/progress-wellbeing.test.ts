@@ -40,7 +40,7 @@ const series = wellbeingSeries({
   habits: [{ key: '2026-11-27', label: 'Hoje', value: 36.36 }],
 });
 assertEqual(series.labels, ['00h', '06h', '12h', '18h', '23:59'], 'eixo dia');
-assertEqual(series.lineStyle, 'step', 'dia em degrau');
+assertEqual(series.lineStyle, 'curve', 'dia com curva suave (padrão visual da semana)');
 assertEqual(series.sleepScore, 90, 'sono score');
 assertEqual(series.moodScore, 90, 'humor score');
 assert(series.timed?.sleep?.[0]?.value === 90, 'sono timed');
