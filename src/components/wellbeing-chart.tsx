@@ -146,6 +146,28 @@ function smoothAreaPath(points: ({ x: number; y: number } | null)[], height: num
   return d;
 }
 
+/**
+ * Origem visual (00h, 0%) → primeiro registro real.
+ * Apenas apresentação: não é check-in, não entra em médias/scores.
+ */
+function withVisualOrigin(
+  pts: (ChartPoint | null)[],
+  padX: number,
+  height: number,
+  padY: number,
+): ChartPoint[] {
+  const solid = pts.filter((point): point is ChartPoint => point != null);
+  if (solid.length === 0) {
+    return [];
+  }
+  const first = solid[0];
+  const baseY = height - padY;
+  if (first.x <= padX + 2 && Math.abs(first.value) < 0.05) {
+    return solid;
+  }
+  return [{ x: padX, y: baseY, value: 0, index: -1 }, ...solid];
+}
+
 function formatPct(value: number) {
   return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value)}%`;
 }
@@ -255,23 +277,37 @@ export function WellbeingChart({
   // Degrau só quando lineStyle === 'step'. DIA timed usa a mesma curva suave da SEMANA.
   const habitIsStep = lineStyle === 'step';
   const habitPaths = habitIsStep ? stepPaths(habitPts) : smoothPaths(habitPts);
-  // Sono e humor: sempre pontilhados; suaves fora do DIA timed.
-  const sleepPaths = timed?.sleep ? smoothPaths(sleepPts) : smoothPaths(sleepPts);
-  const moodPaths = timed?.mood ? smoothPaths(moodPts) : smoothPaths(moodPts);
+  // Sono/humor DIA: curva contínua a partir da origem visual 0% (sem inventar registros).
+  const sleepDrawPts =
+    timed?.sleep != null && timed.sleep.length > 0
+      ? withVisualOrigin(sleepPts, padX, height, padY)
+      : sleepPts;
+  const moodDrawPts =
+    timed?.mood != null && timed.mood.length > 0
+      ? withVisualOrigin(moodPts, padX, height, padY)
+      : moodPts;
+  const sleepPaths = smoothPaths(sleepDrawPts);
+  const moodPaths = smoothPaths(moodDrawPts);
   const habitArea = showHabits
     ? habitIsStep
       ? stepAreaPath(habitPts, height, padY)
       : smoothAreaPath(habitPts, height, padY)
     : null;
+  const moodArea =
+    showMood && highlight === 'mood' ? smoothAreaPath(moodDrawPts, height, padY) : null;
 
-  /** Referência visual 0% → primeiro ponto (não é registro real). */
+  /** SEMANA/MÊS/ANO: lead pontilhado só quando há um único ponto real. */
   function ghostLead(pts: (ChartPoint | null)[]) {
+    if (timed?.sleep != null || timed?.mood != null) {
+      return null;
+    }
     const solid = pts.filter((point): point is ChartPoint => point != null);
     if (solid.length !== 1) {
       return null;
     }
     const baseY = height - padY;
-    return `M ${padX} ${baseY} L ${solid[0].x} ${solid[0].y}`;
+    const midX = (padX + solid[0].x) / 2;
+    return `M ${padX} ${baseY} C ${midX} ${baseY}, ${midX} ${solid[0].y}, ${solid[0].x} ${solid[0].y}`;
   }
   const sleepGhost = showSleep ? ghostLead(sleepPts) : null;
   const moodGhost = showMood ? ghostLead(moodPts) : null;
@@ -365,7 +401,8 @@ export function WellbeingChart({
   const moodLast = showMood ? lastSolid(moodPts) : null;
 
   const goalY = height - padY - (goalPercent / 100) * (height - padY * 2);
-  const gradientId = `habit-fill-${highlight}`;
+  const habitGradientId = `habit-fill-${highlight}`;
+  const moodGradientId = `mood-fill-${highlight}`;
 
   return (
     <View>
@@ -398,10 +435,17 @@ export function WellbeingChart({
             null,
             createElement(
               'linearGradient',
-              { id: gradientId, x1: '0', y1: '0', x2: '0', y2: '1' },
+              { id: habitGradientId, x1: '0', y1: '0', x2: '0', y2: '1' },
               createElement('stop', { offset: '0%', stopColor: colors.habits, stopOpacity: '0.42' }),
               createElement('stop', { offset: '45%', stopColor: colors.habits, stopOpacity: '0.16' }),
               createElement('stop', { offset: '100%', stopColor: colors.habits, stopOpacity: '0' }),
+            ),
+            createElement(
+              'linearGradient',
+              { id: moodGradientId, x1: '0', y1: '0', x2: '0', y2: '1' },
+              createElement('stop', { offset: '0%', stopColor: colors.mood, stopOpacity: '0.22' }),
+              createElement('stop', { offset: '55%', stopColor: colors.mood, stopOpacity: '0.08' }),
+              createElement('stop', { offset: '100%', stopColor: colors.mood, stopOpacity: '0' }),
             ),
           ),
           ...yMarks.flatMap((mark) => {
@@ -462,7 +506,14 @@ export function WellbeingChart({
             ? node('path', {
                 key: 'habit-area',
                 d: habitArea,
-                fill: `url(#${gradientId})`,
+                fill: `url(#${habitGradientId})`,
+              })
+            : null,
+          moodArea
+            ? node('path', {
+                key: 'mood-area',
+                d: moodArea,
+                fill: `url(#${moodGradientId})`,
               })
             : null,
           ...habitPaths.map((d, index) =>
@@ -486,8 +537,8 @@ export function WellbeingChart({
                 fill: 'none',
                 stroke: colors.sleep,
                 strokeWidth: 1.5,
-                strokeDasharray: '4 5',
-                opacity: 0.4,
+                strokeDasharray: '5 5',
+                opacity: 0.55,
               })
             : null,
           moodGhost
@@ -497,8 +548,8 @@ export function WellbeingChart({
                 fill: 'none',
                 stroke: colors.mood,
                 strokeWidth: 1.5,
-                strokeDasharray: '4 5',
-                opacity: 0.4,
+                strokeDasharray: '5 5',
+                opacity: 0.55,
               })
             : null,
           ...sleepPaths.map((d, index) =>

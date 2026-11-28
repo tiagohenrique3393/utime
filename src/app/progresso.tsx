@@ -514,26 +514,14 @@ function ProgressBody({
       </View>
 
       <View style={styles.chartCard}>
-        {period === 'dia' ? (
-          <WellbeingChart
-            labels={series.labels}
-            habits={series.habit}
-            sleep={[]}
-            mood={[]}
-            highlight="habits"
-            lineStyle={series.lineStyle}
-            timed={series.timed ? { habits: series.timed.habits } : undefined}
-          />
-        ) : (
-          <WellbeingChart
-            labels={series.labels}
-            habits={series.habit}
-            sleep={series.sleep}
-            mood={series.mood}
-            lineStyle={series.lineStyle}
-            timed={series.timed}
-          />
-        )}
+        <WellbeingChart
+          labels={series.labels}
+          habits={series.habit}
+          sleep={series.sleep}
+          mood={series.mood}
+          lineStyle={series.lineStyle}
+          timed={series.timed}
+        />
       </View>
 
       <View style={styles.metricsRow}>
