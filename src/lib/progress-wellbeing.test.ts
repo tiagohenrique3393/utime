@@ -120,16 +120,11 @@ assertEqual(year.labels[0], 'Jan', 'jan');
 assertEqual(year.labels[9], 'Out', 'outubro presente nos labels');
 assertEqual(year.labels[11], 'Dez', 'dez');
 assertEqual(year.habit[11], null, 'dezembro futuro sem dado');
-// Eixo anual visível: Jan, Mar, Mai, Jul, Set, Out, Nov, Dez (amostra + Outubro)
-const yearAxisVisible = year.labels.filter((label, index) => {
-  return (
-    index === 0 ||
-    index === year.labels.length - 1 ||
-    index % Math.max(1, Math.ceil(year.labels.length / 6)) === 0 ||
-    label === 'Out'
-  );
-});
-assertEqual(yearAxisVisible, ['Jan', 'Mar', 'Mai', 'Jul', 'Set', 'Out', 'Nov', 'Dez'], 'eixo ano com Outubro');
+assertEqual(
+  year.labels,
+  ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+  'eixo ano com os 12 meses',
+);
 
 const weeks = monthCalendarWeeks('2026-11-27');
 assertEqual(weeks.length, 4, 'mês exatamente 4 divisões');

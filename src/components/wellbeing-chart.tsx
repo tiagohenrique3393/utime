@@ -728,15 +728,16 @@ export function WellbeingChart({
       ) : null}
       <View style={styles.axis}>
         {labels.map((label, index) => {
-          // Ano (12 meses): amostragem 1 a cada 2 + Outubro entre Set e Nov.
+          // Até 12 rótulos (DIA/SEMANA/MÊS/ANO): exibir todos. Acima disso, amostrar.
           const show =
-            labels.length <= 8 ||
+            labels.length <= 12 ||
             index === 0 ||
             index === labels.length - 1 ||
-            index % Math.max(1, Math.ceil(labels.length / 6)) === 0 ||
-            (labels.length === 12 && label === 'Out');
+            index % Math.max(1, Math.ceil(labels.length / 6)) === 0;
           return (
-            <Text key={`${label}-${index}`} style={[styles.tick, !show && styles.tickHidden]}>
+            <Text
+              key={`${label}-${index}`}
+              style={[styles.tick, labels.length === 12 && styles.tickYear, !show && styles.tickHidden]}>
               {show ? label : ' '}
             </Text>
           );
@@ -787,6 +788,8 @@ const styles = StyleSheet.create({
   },
   axis: { marginTop: 6, flexDirection: 'row', justifyContent: 'space-between' },
   tick: { color: ui.faint, fontFamily: fonts.text, fontSize: 10, flex: 1, textAlign: 'center' },
+  // Só redistribui o eixo ANO (12 meses) para caber Jan–Dez sem mudar o desenho.
+  tickYear: { flexShrink: 1, minWidth: 0, paddingHorizontal: 0 },
   tickHidden: { opacity: 0 },
   empty: { color: ui.muted, fontFamily: fonts.text, fontSize: 13, lineHeight: 18 },
 });
