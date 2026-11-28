@@ -728,11 +728,13 @@ export function WellbeingChart({
       ) : null}
       <View style={styles.axis}>
         {labels.map((label, index) => {
+          // Ano (12 meses): amostragem 1 a cada 2 + Outubro entre Set e Nov.
           const show =
             labels.length <= 8 ||
             index === 0 ||
             index === labels.length - 1 ||
-            index % Math.max(1, Math.ceil(labels.length / 6)) === 0;
+            index % Math.max(1, Math.ceil(labels.length / 6)) === 0 ||
+            (labels.length === 12 && label === 'Out');
           return (
             <Text key={`${label}-${index}`} style={[styles.tick, !show && styles.tickHidden]}>
               {show ? label : ' '}
