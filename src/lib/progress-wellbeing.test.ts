@@ -46,6 +46,11 @@ assertEqual(series.moodScore, 90, 'humor score');
 assert(series.timed?.sleep?.[0]?.value === 90, 'sono timed');
 assert(series.timed?.mood?.length === 2, 'humor timed slots');
 assertEqual(series.timed?.habits?.[0], { fraction: 0, value: 0 }, 'hábitos começam em 0');
+// Horários reais distintos por tipo de check-in (manhã 6h, sono ~7h, tarde 15h)
+assertEqual(series.timed!.mood![0].fraction, 6 / 24, 'humor manhã em 06h');
+assertEqual(series.timed!.sleep![0].fraction, 7 / 24, 'sono ~07h');
+assert(series.timed!.mood![0].fraction < series.timed!.mood![1].fraction, 'humor cronológico');
+assertEqual(series.timed!.mood!.map((row) => row.value), [80, 100], 'valores reais de humor');
 
 const steppedDay = wellbeingSeries({
   today: '2026-11-27',
