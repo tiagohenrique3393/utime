@@ -215,7 +215,7 @@ export function wellbeingSeries(options: {
         : [{ fraction: 0, value: 0 }];
     return {
       labels: [...dayAxisLabels],
-      // Séries indexadas só para fallback; o gráfico DIA usa `timed` + degraus.
+      // Séries indexadas só para fallback; o gráfico DIA usa `timed` + curva suave (como SEMANA).
       habit: [0, null, null, null, habit],
       sleep: [null, sleepScore, null, null, null],
       mood: [
@@ -227,7 +227,7 @@ export function wellbeingSeries(options: {
       ],
       sleepScore,
       moodScore,
-      lineStyle: 'step',
+      lineStyle: 'curve',
       timed: {
         habits: timedHabits,
         sleep: sleepScore == null ? [] : [{ fraction: sleepHourFraction, value: sleepScore }],
