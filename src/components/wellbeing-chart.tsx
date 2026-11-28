@@ -103,27 +103,73 @@ function stepAreaPath(points: ({ x: number; y: number } | null)[], height: numbe
 }
 
 /**
- * Curva monotônica suave (sem ultrapassar os valores reais entre pontos).
- * Ideal para hábitos, sono e humor sem fabricar picos.
+ * Cúbica monotônica (Fritsch–Carlson): mesma qualidade da SEMANA,
+ * sem ultrapassar os valores reais nem gerar picos/quedas artificiais.
  */
+function monotoneCubicPath(run: { x: number; y: number }[]) {
+  const n = run.length;
+  if (n === 1) {
+    return `M ${run[0].x} ${run[0].y}`;
+  }
+  if (n === 2) {
+    const midX = (run[0].x + run[1].x) / 2;
+    return `M ${run[0].x} ${run[0].y} C ${midX} ${run[0].y}, ${midX} ${run[1].y}, ${run[1].x} ${run[1].y}`;
+  }
+
+  const dx: number[] = [];
+  const slope: number[] = [];
+  for (let i = 0; i < n - 1; i += 1) {
+    const deltaX = run[i + 1].x - run[i].x;
+    dx.push(deltaX);
+    slope.push(Math.abs(deltaX) < 1e-9 ? 0 : (run[i + 1].y - run[i].y) / deltaX);
+  }
+
+  const tangent = new Array<number>(n).fill(0);
+  tangent[0] = slope[0];
+  tangent[n - 1] = slope[n - 2];
+  for (let i = 1; i < n - 1; i += 1) {
+    if (slope[i - 1] * slope[i] <= 0) {
+      tangent[i] = 0;
+    } else {
+      tangent[i] = (slope[i - 1] + slope[i]) / 2;
+    }
+  }
+
+  for (let i = 0; i < n - 1; i += 1) {
+    if (Math.abs(slope[i]) < 1e-12) {
+      tangent[i] = 0;
+      tangent[i + 1] = 0;
+      continue;
+    }
+    const a = tangent[i] / slope[i];
+    const b = tangent[i + 1] / slope[i];
+    const s = a * a + b * b;
+    if (s > 9) {
+      const t = 3 / Math.sqrt(s);
+      tangent[i] = t * a * slope[i];
+      tangent[i + 1] = t * b * slope[i];
+    }
+  }
+
+  let d = `M ${run[0].x} ${run[0].y}`;
+  for (let i = 0; i < n - 1; i += 1) {
+    const p0 = run[i];
+    const p1 = run[i + 1];
+    if (Math.abs(dx[i]) < 0.75) {
+      d += ` L ${p1.x} ${p1.y}`;
+      continue;
+    }
+    const cp1x = p0.x + dx[i] / 3;
+    const cp1y = p0.y + (tangent[i] * dx[i]) / 3;
+    const cp2x = p1.x - dx[i] / 3;
+    const cp2y = p1.y - (tangent[i + 1] * dx[i]) / 3;
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`;
+  }
+  return d;
+}
+
 function smoothPaths(points: ({ x: number; y: number } | null)[]) {
-  return solidRuns(points).map((run) => {
-    if (run.length === 1) {
-      return `M ${run[0].x} ${run[0].y}`;
-    }
-    if (run.length === 2) {
-      const midX = (run[0].x + run[1].x) / 2;
-      return `M ${run[0].x} ${run[0].y} C ${midX} ${run[0].y}, ${midX} ${run[1].y}, ${run[1].x} ${run[1].y}`;
-    }
-    let d = `M ${run[0].x} ${run[0].y}`;
-    for (let i = 0; i < run.length - 1; i += 1) {
-      const p1 = run[i];
-      const p2 = run[i + 1];
-      const dx = (p2.x - p1.x) / 3;
-      d += ` C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`;
-    }
-    return d;
-  });
+  return solidRuns(points).map((run) => monotoneCubicPath(run));
 }
 
 function smoothAreaPath(points: ({ x: number; y: number } | null)[], height: number, padY: number) {
@@ -135,15 +181,37 @@ function smoothAreaPath(points: ({ x: number; y: number } | null)[], height: num
   if (run.length === 1) {
     return `M ${run[0].x} ${base} L ${run[0].x} ${run[0].y} L ${run[0].x} ${base} Z`;
   }
-  let d = `M ${run[0].x} ${base} L ${run[0].x} ${run[0].y}`;
-  for (let i = 0; i < run.length - 1; i += 1) {
-    const p1 = run[i];
-    const p2 = run[i + 1];
-    const dx = (p2.x - p1.x) / 3;
-    d += ` C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`;
+  const full = monotoneCubicPath(run);
+  const afterMove = full.replace(/^M\s+[-\d.]+ [-\d.]+/, '').trim();
+  return `M ${run[0].x} ${base} L ${run[0].x} ${run[0].y} ${afterMove} L ${run[run.length - 1].x} ${base} Z`;
+}
+
+/** Remove platôs e funde pontos quase colados — só para o traçado SVG. */
+function curveControlPoints(pts: ChartPoint[]): ChartPoint[] {
+  if (pts.length <= 2) {
+    return pts;
   }
-  d += ` L ${run[run.length - 1].x} ${base} Z`;
-  return d;
+  const out: ChartPoint[] = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i += 1) {
+    const prev = out[out.length - 1]!;
+    const cur = pts[i]!;
+    if (Math.abs(cur.x - prev.x) < 1.25) {
+      out[out.length - 1] = cur;
+      continue;
+    }
+    if (Math.abs(cur.value - prev.value) < 0.001) {
+      continue;
+    }
+    out.push(cur);
+  }
+  const last = pts[pts.length - 1]!;
+  const prev = out[out.length - 1]!;
+  if (Math.abs(last.x - prev.x) < 1.25) {
+    out[out.length - 1] = last;
+  } else {
+    out.push(last);
+  }
+  return out;
 }
 
 /**
@@ -260,7 +328,7 @@ export function WellbeingChart({
     return <Text style={styles.empty}>Gráfico disponível na versão web.</Text>;
   }
 
-  const habitPts = timed?.habits
+  const habitPtsRaw = timed?.habits
     ? fractionPoints(timed.habits, width, height, padX, padY)
     : linePoints(habits, width, height, padX, padY);
   const sleepPts = timed?.sleep
@@ -274,9 +342,12 @@ export function WellbeingChart({
   const showSleep = highlight === 'all' || highlight === 'sleep';
   const showMood = highlight === 'all' || highlight === 'mood';
 
-  // Degrau só quando lineStyle === 'step'. DIA timed usa a mesma curva suave da SEMANA.
+  // Degrau só quando lineStyle === 'step'. DIA timed: mesma cúbica monotônica da SEMANA.
   const habitIsStep = lineStyle === 'step';
-  const habitPaths = habitIsStep ? stepPaths(habitPts) : smoothPaths(habitPts);
+  const habitSolid = habitPtsRaw.filter((point): point is ChartPoint => point != null);
+  const habitDrawPts = timed?.habits ? curveControlPoints(habitSolid) : habitPtsRaw;
+  const habitPts = habitPtsRaw;
+  const habitPaths = habitIsStep ? stepPaths(habitPts) : smoothPaths(habitDrawPts);
   // Sono/humor DIA: curva contínua a partir da origem visual 0% (sem inventar registros).
   const sleepDrawPts =
     timed?.sleep != null && timed.sleep.length > 0
@@ -291,7 +362,7 @@ export function WellbeingChart({
   const habitArea = showHabits
     ? habitIsStep
       ? stepAreaPath(habitPts, height, padY)
-      : smoothAreaPath(habitPts, height, padY)
+      : smoothAreaPath(habitDrawPts, height, padY)
     : null;
   const moodArea =
     showMood && highlight === 'mood' ? smoothAreaPath(moodDrawPts, height, padY) : null;
@@ -391,11 +462,13 @@ export function WellbeingChart({
     }
   }
 
-  // DIA timed: tip luminosa no fim (sem bolinha por hábito); SEMANA mostra pontos por bucket.
+  // DIA timed: só ponta luminosa (sem bolinha por hábito/check-in); SEMANA mostra buckets.
   const tipOnlyHabitDots = habitIsStep || Boolean(timed?.habits);
+  const tipOnlySleepDots = Boolean(timed?.sleep?.length);
+  const tipOnlyMoodDots = Boolean(timed?.mood?.length) && highlight !== 'mood';
   const habitDots = showHabits ? relevantDots(habitPts, tipOnlyHabitDots) : [];
-  const sleepDots = showSleep ? relevantDots(sleepPts, false) : [];
-  const moodDots = showMood ? relevantDots(moodPts, false) : [];
+  const sleepDots = showSleep ? relevantDots(sleepPts, tipOnlySleepDots) : [];
+  const moodDots = showMood ? relevantDots(moodPts, tipOnlyMoodDots || highlight === 'mood') : [];
   const habitLast = showHabits ? lastSolid(habitPts) : null;
   const sleepLast = showSleep ? lastSolid(sleepPts) : null;
   const moodLast = showMood ? lastSolid(moodPts) : null;
@@ -523,7 +596,7 @@ export function WellbeingChart({
                   d,
                   fill: 'none',
                   stroke: colors.habits,
-                  strokeWidth: highlight === 'habits' ? 2.8 : 2.35,
+                  strokeWidth: 2.35,
                   strokeLinejoin: 'round',
                   strokeLinecap: 'round',
                   style: { filter: 'drop-shadow(0 0 5px rgba(57,255,115,0.75))' },
@@ -582,7 +655,7 @@ export function WellbeingChart({
                 })
               : null,
           ),
-          // Marcadores discretos (hábitos: só mudanças relevantes; sem cluster)
+          // Marcadores discretos e proporcionais (sem bolinhas exageradas)
           ...habitDots.map((point, index) => {
             const isLast = habitLast != null && point.x === habitLast.x && point.y === habitLast.y;
             if (tipOnlyHabitDots && !isLast) {
@@ -592,37 +665,45 @@ export function WellbeingChart({
               key: `hd-${index}`,
               cx: point.x,
               cy: point.y,
-              r: isLast ? 4.6 : 2.6,
+              r: isLast ? 3.6 : 2.2,
               fill: isLast ? colors.habits : '#0A0A0A',
               stroke: colors.habits,
-              strokeWidth: isLast ? 0 : 1.6,
-              style: isLast ? { filter: 'drop-shadow(0 0 6px rgba(57,255,115,0.95))' } : undefined,
+              strokeWidth: isLast ? 0 : 1.4,
+              style: isLast ? { filter: 'drop-shadow(0 0 4px rgba(57,255,115,0.85))' } : undefined,
             });
           }),
           ...sleepDots.map((point, index) => {
             const isLast = sleepLast != null && point.x === sleepLast.x && point.y === sleepLast.y;
+            if (tipOnlySleepDots && !isLast) {
+              return null;
+            }
             return node('circle', {
               key: `sd-${index}`,
               cx: point.x,
               cy: point.y,
-              r: isLast ? 4.2 : 2.8,
+              r: isLast ? 2.8 : 2.0,
               fill: isLast ? colors.sleep : '#0A0A0A',
               stroke: colors.sleep,
-              strokeWidth: isLast ? 0 : 1.5,
-              style: isLast ? { filter: 'drop-shadow(0 0 5px rgba(110,182,242,0.9))' } : undefined,
+              strokeWidth: isLast ? 0 : 1.2,
+              style: isLast ? { filter: 'drop-shadow(0 0 3px rgba(110,182,242,0.75))' } : undefined,
             });
           }),
           ...moodDots.map((point, index) => {
             const isLast = moodLast != null && point.x === moodLast.x && point.y === moodLast.y;
+            if (tipOnlyMoodDots && !isLast) {
+              return null;
+            }
+            // Na tela de humor: pontos pequenos em cada registro; no progresso: só ponta.
+            const showAsTip = isLast || highlight === 'mood';
             return node('circle', {
               key: `md-${index}`,
               cx: point.x,
               cy: point.y,
-              r: isLast ? 4.2 : 2.8,
+              r: isLast ? 2.8 : 2.0,
               fill: isLast ? colors.mood : '#0A0A0A',
               stroke: colors.mood,
-              strokeWidth: isLast ? 0 : 1.5,
-              style: isLast ? { filter: 'drop-shadow(0 0 5px rgba(230,193,74,0.9))' } : undefined,
+              strokeWidth: isLast ? 0 : 1.2,
+              style: showAsTip && isLast ? { filter: 'drop-shadow(0 0 3px rgba(230,193,74,0.75))' } : undefined,
             });
           }),
         )}

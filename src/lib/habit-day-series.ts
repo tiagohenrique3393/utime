@@ -50,19 +50,24 @@ function roundPercent(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+/** ~90s no dia civil — funde conclusões quase simultâneas sem inventar horários. */
+const SAME_MOMENT_FRACTION = 90 / 86400;
+
 function pushStep(points: TimedChartPoint[], fraction: number, value: number) {
   const safeFraction = Math.max(0, Math.min(1, fraction));
   const safeValue = roundPercent(Math.max(0, Math.min(100, value)));
   const last = points[points.length - 1];
-  if (last && Math.abs(last.fraction - safeFraction) < 1e-9 && last.value === safeValue) {
+  if (last && safeFraction + 1e-12 < last.fraction) {
     return;
   }
-  // Mantém degrau: se o tempo avançou com o mesmo %, ainda registra o ponto de sustentação.
-  if (last && last.value === safeValue && safeFraction > last.fraction) {
-    points.push({ fraction: safeFraction, value: safeValue });
+  // Mesmo instante (ou quase): atualiza o valor acumulado no ponto existente.
+  if (last && Math.abs(last.fraction - safeFraction) <= SAME_MOMENT_FRACTION) {
+    last.fraction = Math.max(last.fraction, safeFraction);
+    last.value = safeValue;
     return;
   }
-  if (last && safeFraction < last.fraction) {
+  // Platô no mesmo %: não cria ponto extra (evita cúbicas deformadas no gráfico).
+  if (last && last.value === safeValue) {
     return;
   }
   points.push({ fraction: safeFraction, value: safeValue });
@@ -136,19 +141,14 @@ export function cumulativeDayHabitsSeries(options: {
   const authoritative = ringPercent ?? 0;
   const last = points[points.length - 1]!;
 
-  // Sustenta o último % até "agora" (horas futuras ficam em branco).
-  if (last.fraction < nowFraction - 1e-9) {
-    pushStep(points, nowFraction, last.value ?? 0);
-  }
-
-  const tip = points[points.length - 1]!;
-  if (tip.value !== authoritative) {
-    // Reconcilia estado atual sem inventar horários no passado: o salto ocorre em "agora".
-    if (Math.abs((tip.fraction ?? 0) - nowFraction) < 1e-9) {
-      tip.value = authoritative;
-    } else {
-      pushStep(points, nowFraction, authoritative);
-    }
+  // Estende até "agora" com o % autoritativo (sem inventar horários no passado).
+  if (Math.abs(last.fraction - nowFraction) <= SAME_MOMENT_FRACTION) {
+    last.fraction = Math.max(last.fraction, nowFraction);
+    last.value = authoritative;
+  } else if (last.fraction < nowFraction - 1e-9) {
+    points.push({ fraction: nowFraction, value: authoritative });
+  } else if (last.value !== authoritative) {
+    last.value = authoritative;
   }
 
   return points;

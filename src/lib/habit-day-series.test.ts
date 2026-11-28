@@ -105,4 +105,25 @@ assert(
 );
 assertEqual(futureBlocked[futureBlocked.length - 1]?.value, 50, 'reconcilia anel sem futuro');
 
+// Conclusões quase simultâneas viram um único ponto acumulado (sem Δx ≈ 0).
+const burst = cumulativeDayHabitsSeries({
+  dayKey: '2026-11-27',
+  planned: 4,
+  events: [
+    { habitId: 'a', completed: true, recordedAt: '2026-11-27T15:00:00.000Z' },
+    { habitId: 'b', completed: true, recordedAt: '2026-11-27T15:00:40.000Z' },
+    { habitId: 'c', completed: true, recordedAt: '2026-11-27T15:01:10.000Z' },
+  ],
+  currentCompletedIds: ['a', 'b', 'c'],
+  now: new Date('2026-11-27T18:00:00.000Z'),
+  ringPercent: 75,
+});
+const noonish = burst.filter((point) => point.fraction > 0.4 && point.fraction < 0.55);
+assertEqual(noonish.length, 1, 'rajada vira 1 ponto');
+assertEqual(noonish[0]?.value, 75, 'valor acumulado da rajada');
+assert(
+  burst.every((point, index) => index === 0 || point.fraction > burst[index - 1]!.fraction + 1e-9),
+  'frações estritamente crescentes',
+);
+
 console.log('habit-day-series-ok');
