@@ -32,7 +32,8 @@ import { acknowledgeNextHabit, armIdleReminder, idleReminderPending, noteHumanAc
 import { nextPendingHabit } from '@/lib/next-habit';
 import { getProfileSnapshot, subscribeProfile } from '@/lib/profile';
 import { reminderArt } from '@/lib/reminder-art';
-import { loadSleepCheckin, saveSleepCheckin } from '@/lib/sleep-store';
+import { DEFAULT_SLEEP_GOAL_HOURS } from '@/lib/sleep-score';
+import { loadSleepCheckin, loadSleepGoal, saveSleepCheckin, saveSleepGoal } from '@/lib/sleep-store';
 import {
   acknowledgeSmartCheckinWave,
   noteSmartCheckinSurface,
@@ -93,6 +94,7 @@ export function SmartCheckinHost() {
   const [moodPeriod, setMoodPeriod] = useState<MoodPeriod>('manha');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [sleepGoalHours, setSleepGoalHours] = useState(DEFAULT_SLEEP_GOAL_HOURS);
   const [celebration, setCelebration] = useState(initialCelebrationView);
   const stepRef = useRef<CheckinStep | null>(null);
   const habitRef = useRef<DailyHabit | null>(null);
@@ -180,6 +182,8 @@ export function SmartCheckinHost() {
         !isPromptClosed(owner, 'next_habit', day);
 
       const sleepRow = await loadSleepCheckin(owner, day);
+      const goal = await loadSleepGoal(owner);
+      setSleepGoalHours(goal);
       const sleepEligible =
         shouldRunSmartCheckin(owner) &&
         !isPromptClosed(owner, 'sleep', day) &&
@@ -334,7 +338,7 @@ export function SmartCheckinHost() {
       return;
     }
     setBusy(true);
-    const result = await saveSleepCheckin(userId, { hours, quality, note });
+    const result = await saveSleepCheckin(userId, { hours, quality, note, goalHours: sleepGoalHours });
     if (!result.ok) {
       setBusy(false);
       setNotice(result.message);
@@ -415,6 +419,17 @@ export function SmartCheckinHost() {
         visible={step?.kind === 'sleep'}
         busy={busy}
         notice={notice}
+        goalHours={sleepGoalHours}
+        onGoalChange={(next) => {
+          if (!userId) {
+            return;
+          }
+          void saveSleepGoal(userId, next).then((saved) => {
+            if (saved.ok) {
+              setSleepGoalHours(saved.goalHours);
+            }
+          });
+        }}
         onSave={(hours, quality, note) => void saveSleep(hours, quality, note)}
         onDismiss={() => void dismissSleep()}
       />

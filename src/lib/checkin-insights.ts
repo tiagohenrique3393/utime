@@ -83,10 +83,10 @@ export function sleepDetailInsight(sleepPercent: number | null, habitPercent: nu
     return 'Sem registro de sono neste período.';
   }
   if (sleepPercent >= 80 && habitPercent != null && habitPercent >= 70) {
-    return 'Dormindo melhor, seus hábitos sobem.';
+    return 'Bom descanso e hábitos firmes neste período.';
   }
   if (sleepPercent < 50) {
-    return 'Sono abaixo da meta — ajuste horário e qualidade.';
+    return 'Sono abaixo da meta. Priorize o descanso.';
   }
   if (sleepPercent >= 70) {
     return 'Sono estável. Mantenha a rotina.';

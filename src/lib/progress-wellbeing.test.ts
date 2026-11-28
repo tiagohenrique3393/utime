@@ -76,8 +76,8 @@ const week = wellbeingSeries({
   ],
 });
 assertEqual(week.labels.length, 7, 'semana 7 dias');
-assertEqual(week.labels[0], 'Seg', 'semana começa segunda');
-assertEqual(week.labels[6], 'Dom', 'semana termina domingo');
+assertEqual(week.labels[0], 'SEG', 'semana começa segunda');
+assertEqual(week.labels[6], 'DOM', 'semana termina domingo');
 assertEqual(week.lineStyle, 'curve', 'semana curva');
 
 const year = wellbeingSeries({
@@ -93,8 +93,25 @@ assertEqual(year.labels[11], 'Dez', 'dez');
 assertEqual(year.habit[11], null, 'dezembro futuro sem dado');
 
 const weeks = monthCalendarWeeks('2026-11-27');
-assert(weeks.length >= 4, 'mês tem ao menos 4 semanas');
-assert(weeks.some((bucket) => bucket.label.includes('SEM')), 'rótulos semanais');
+assertEqual(weeks.length, 4, 'mês exatamente 4 divisões');
+assertEqual(
+  weeks.map((bucket) => bucket.label),
+  ['1ª SEM', '2ª SEM', '3ª SEM', '4ª SEM'],
+  'rótulos 1–4ª SEM',
+);
+assertEqual(weeks[0]?.dates[0], '2026-11-01', '1ª SEM começa no dia 1');
+assertEqual(weeks[1]?.dates[0], '2026-11-08', '2ª SEM dia 8');
+assertEqual(weeks[2]?.dates[0], '2026-11-15', '3ª SEM dia 15');
+assertEqual(weeks[3]?.dates[0], '2026-11-22', '4ª SEM dia 22');
+assert(weeks[3]!.dates.includes('2026-11-27'), '4ª SEM inclui dia 27');
+assert(!weeks[3]!.dates.includes('2026-11-28'), 'não inclui futuro após hoje');
+
+const fullMonth = monthCalendarWeeks('2026-11-30');
+assertEqual(fullMonth.length, 4, 'novembro completo 4 buckets');
+assertEqual(fullMonth[3]?.dates[fullMonth[3]!.dates.length - 1], '2026-11-30', '4ª SEM até dia 30');
+const feb = monthCalendarWeeks('2026-02-28');
+assertEqual(feb.length, 4, 'fevereiro 4 buckets');
+assertEqual(feb[3]?.dates[feb[3]!.dates.length - 1], '2026-02-28', 'fev até 28');
 
 assertEqual(previousPeriodDates('2026-11-27', 'dia'), ['2026-11-26'], 'ontem');
 assertEqual(currentPeriodDates('2026-11-27', 'dia'), ['2026-11-27'], 'hoje');

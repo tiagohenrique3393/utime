@@ -1,6 +1,6 @@
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { InsightCard } from '@/components/insight-card';
@@ -227,19 +227,11 @@ export default function ProgressoSonoScreen() {
         busy={busy}
         notice={notice}
         goalHours={goalHours}
-        onEditGoal={() => {
-          const raw =
-            Platform.OS === 'web' && typeof window !== 'undefined'
-              ? window.prompt('Meta de sono (horas)', String(goalHours))
-              : null;
-          if (!raw) {
-            return;
-          }
+        onGoalChange={(next) => {
           const userId = getSessionUserId();
           if (!userId) {
             return;
           }
-          const next = Number(String(raw).replace(',', '.'));
           void saveSleepGoal(userId, next).then((saved) => {
             if (saved.ok) {
               setGoalHours(saved.goalHours);

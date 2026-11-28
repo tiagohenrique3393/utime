@@ -33,7 +33,7 @@ export type MoodPoint = {
 };
 
 const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-const weekDayLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const weekDayLabels = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 
 /** Frações do dia para posicionar check-ins sem inventar histórico artificial. */
 const moodHourFraction: Record<MoodPeriod, number> = {
@@ -70,31 +70,40 @@ function yearMonthKeys(today: string) {
   return keys;
 }
 
-/** Semanas de calendário (seg–dom) que intersectam o mês, incluindo semanas extras. */
+/**
+ * Quatro intervalos fixos do mês civil (não semanas de calendário):
+ * 1ª SEM: dias 1–7 | 2ª SEM: 8–14 | 3ª SEM: 15–21 | 4ª SEM: 22–último dia.
+ * Todos os dias do mês entram em algum intervalo; meses com 28–31 dias são cobertos.
+ */
 export function monthCalendarWeeks(today: string) {
   const monthDates = monthDateKeys(today);
   const first = monthDates[0];
-  const last = monthDates[monthDates.length - 1];
-  const mondayOffset = (weekdayIndex(first) + 6) % 7;
-  let cursor = shiftDateKey(first, -mondayOffset);
-  const buckets: { key: string; label: string; dates: string[] }[] = [];
-  let index = 0;
-  while (cursor <= last) {
-    index += 1;
-    const weekDates: string[] = [];
-    for (let day = 0; day < 7; day += 1) {
-      const key = shiftDateKey(cursor, day);
-      if (key >= first && key <= last && key <= today) {
-        weekDates.push(key);
+  if (!first) {
+    return [];
+  }
+  const year = Number(first.slice(0, 4));
+  const month = Number(first.slice(5, 7));
+  const lastDay = Number(monthDates[monthDates.length - 1]?.slice(8, 10) ?? 28);
+  const ranges: { start: number; end: number; label: string }[] = [
+    { start: 1, end: 7, label: '1ª SEM' },
+    { start: 8, end: 14, label: '2ª SEM' },
+    { start: 15, end: 21, label: '3ª SEM' },
+    { start: 22, end: lastDay, label: '4ª SEM' },
+  ];
+  return ranges.map((range) => {
+    const dates: string[] = [];
+    for (let day = range.start; day <= range.end; day += 1) {
+      const key = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      if (monthDates.includes(key) && key <= today) {
+        dates.push(key);
       }
     }
-    buckets.push({ key: cursor, label: `${index}ª SEM`, dates: weekDates });
-    cursor = shiftDateKey(cursor, 7);
-    if (index > 6) {
-      break;
-    }
-  }
-  return buckets;
+    return {
+      key: `${year}-${String(month).padStart(2, '0')}-w${range.start}`,
+      label: range.label,
+      dates,
+    };
+  });
 }
 
 function sleepOn(rows: readonly SleepPoint[], key: string) {

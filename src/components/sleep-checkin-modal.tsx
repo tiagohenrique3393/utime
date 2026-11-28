@@ -26,7 +26,7 @@ export function SleepCheckinModal({
   goalHours = DEFAULT_SLEEP_GOAL_HOURS,
   onSave,
   onDismiss,
-  onEditGoal,
+  onGoalChange,
 }: {
   visible: boolean;
   busy: boolean;
@@ -36,7 +36,8 @@ export function SleepCheckinModal({
   goalHours?: number;
   onSave: (hours: number, quality: number, note: string) => void;
   onDismiss: () => void;
-  onEditGoal?: () => void;
+  /** Persiste a meta diária individual (sleep_preferences). */
+  onGoalChange?: (hours: number) => void;
 }) {
   useModalGate(visible);
   const insets = useSafeAreaInsets();
@@ -54,7 +55,7 @@ export function SleepCheckinModal({
             goalHours={goalHours}
             onSave={onSave}
             onDismiss={onDismiss}
-            onEditGoal={onEditGoal}
+            onGoalChange={onGoalChange}
           />
         ) : null}
       </View>
@@ -70,7 +71,7 @@ function SleepCheckinForm({
   goalHours,
   onSave,
   onDismiss,
-  onEditGoal,
+  onGoalChange,
 }: {
   busy: boolean;
   notice: string;
@@ -79,14 +80,24 @@ function SleepCheckinForm({
   goalHours: number;
   onSave: (hours: number, quality: number, note: string) => void;
   onDismiss: () => void;
-  onEditGoal?: () => void;
+  onGoalChange?: (hours: number) => void;
 }) {
   const [hours, setHours] = useState(() => clampSleepHours(initialHours));
   const [quality, setQuality] = useState<number | null>(initialQuality);
   const [note, setNote] = useState('');
+  const [goal, setGoal] = useState(() => clampSleepHours(goalHours || DEFAULT_SLEEP_GOAL_HOURS));
+  const [editingGoal, setEditingGoal] = useState(false);
 
   function bump(delta: number) {
     setHours((current) => clampSleepHours(current + delta));
+  }
+
+  function bumpGoal(delta: number) {
+    setGoal((current) => {
+      const next = clampSleepHours(current + delta);
+      onGoalChange?.(next);
+      return next;
+    });
   }
 
   return (
@@ -138,12 +149,24 @@ function SleepCheckinForm({
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Editar meta de sono"
-            onPress={onEditGoal}
-            disabled={!onEditGoal}
-            style={styles.goalRow}>
-            <Text style={styles.goalInfo}>ⓘ</Text>
-            <Text style={styles.goalText}>Meta de sono: {formatSleepHours(goalHours)}h</Text>
+            accessibilityLabel="Editar meta diária de sono"
+            onPress={() => setEditingGoal((open) => !open)}
+            style={styles.goalBox}>
+            <View style={styles.goalCopy}>
+              <Text style={styles.goalText}>Meta diária de sono: {formatSleepHours(goal)}h</Text>
+              <Text style={styles.goalEdit}>✎</Text>
+            </View>
+            {editingGoal ? (
+              <View style={styles.goalControls}>
+                <Pressable accessibilityRole="button" onPress={() => bumpGoal(-SLEEP_HOURS_STEP)} style={styles.goalStep}>
+                  <Text style={styles.goalStepLabel}>−</Text>
+                </Pressable>
+                <Text style={styles.goalValue}>{formatSleepHours(goal)} h</Text>
+                <Pressable accessibilityRole="button" onPress={() => bumpGoal(SLEEP_HOURS_STEP)} style={styles.goalStep}>
+                  <Text style={styles.goalStepLabel}>+</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </Pressable>
 
           <Text style={[styles.label, styles.labelGap]}>Observação (opcional)</Text>
@@ -268,15 +291,38 @@ const styles = StyleSheet.create({
   qualityOn: { borderColor: '#E8C99B', backgroundColor: 'rgba(232,201,155,0.14)' },
   qualityLabel: { color: ui.muted, fontFamily: fonts.display, fontSize: 13 },
   qualityLabelOn: { color: ui.champagne },
-  goalRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  goalInfo: { color: ui.champagne, fontSize: 14 },
+  goalBox: {
+    marginTop: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(230,193,74,0.55)',
+    backgroundColor: 'rgba(10,10,10,0.92)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  goalCopy: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   goalText: {
+    flex: 1,
     color: ui.champagne,
     fontFamily: fonts.display,
     fontSize: 12,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
+  goalEdit: { color: ui.champagne, fontSize: 14, lineHeight: 16 },
+  goalControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14 },
+  goalStep: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(232,201,155,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goalStepLabel: { color: ui.champagne, fontFamily: fonts.display, fontSize: 18 },
+  goalValue: { color: '#F5E6B8', fontFamily: fonts.display, fontSize: 18, minWidth: 72, textAlign: 'center' },
   note: {
     marginTop: 8,
     minHeight: 64,
