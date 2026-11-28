@@ -2,6 +2,7 @@ import { createElement, useState, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fonts, ui } from '@/constants/theme';
+import { progressBandColor } from '@/lib/progress-color';
 
 const colors = {
   habits: '#39FF73',
@@ -10,6 +11,8 @@ const colors = {
 };
 
 const yMarks = [100, 80, 60, 40, 20, 0] as const;
+/** Meta oficial de desempenho (mesma regra da Constância / anéis). */
+const goalPercent = 70;
 
 type ChartPoint = { x: number; y: number; value: number; index: number };
 
@@ -327,20 +330,42 @@ export function WellbeingChart({
     }
   }
 
-  const renderDots = (pts: (ChartPoint | null)[], color: string, prefix: string) =>
-    pts.map((point, index) =>
-      point
-        ? node('circle', {
-            key: `${prefix}-${index}`,
-            cx: point.x,
-            cy: point.y,
-            r: 3.2,
-            fill: '#0A0A0A',
-            stroke: color,
-            strokeWidth: 1.8,
-          })
-        : null,
-    );
+  /**
+   * Pontos discretos nos registros do período.
+   * Em hábitos DIA (degrau/timed), só marca mudanças reais de % —
+   * não desenha bolinha a cada conclusão/sustentação do mesmo valor.
+   */
+  const renderDots = (
+    pts: (ChartPoint | null)[],
+    color: string,
+    prefix: string,
+    onlyValueChanges = false,
+  ) => {
+    let lastValue: number | null = null;
+    return pts.map((point, index) => {
+      if (!point) {
+        return null;
+      }
+      if (onlyValueChanges) {
+        if (lastValue != null && Math.abs(point.value - lastValue) < 0.001) {
+          return null;
+        }
+        lastValue = point.value;
+      }
+      return node('circle', {
+        key: `${prefix}-${index}`,
+        cx: point.x,
+        cy: point.y,
+        r: 3.2,
+        fill: '#0A0A0A',
+        stroke: color,
+        strokeWidth: 1.8,
+      });
+    });
+  };
+
+  const goalY = height - padY - (goalPercent / 100) * (height - padY * 2);
+  const habitDotsStepOnly = lineStyle === 'step' || Boolean(timed?.habits);
 
   return (
     <View>
@@ -405,6 +430,31 @@ export function WellbeingChart({
               ),
             ];
           }),
+          node('line', {
+            key: 'goal-70',
+            x1: padX,
+            y1: goalY,
+            x2: width - 8,
+            y2: goalY,
+            stroke: progressBandColor.red,
+            strokeWidth: 1.25,
+            strokeDasharray: '5 4',
+            opacity: 0.85,
+          }),
+          node(
+            'text',
+            {
+              key: 'goal-70-label',
+              x: width - 10,
+              y: goalY - 4,
+              fill: progressBandColor.red,
+              fontSize: 8,
+              fontFamily: 'Manrope, sans-serif',
+              textAnchor: 'end',
+              opacity: 0.9,
+            },
+            `META ${goalPercent}%`,
+          ),
           habitArea
             ? node('path', {
                 key: 'habit-area',
@@ -476,7 +526,7 @@ export function WellbeingChart({
                 })
               : null,
           ),
-          ...(showHabits ? renderDots(habitPts, colors.habits, 'hd') : []),
+          ...(showHabits ? renderDots(habitPts, colors.habits, 'hd', habitDotsStepOnly) : []),
           ...(showSleep ? renderDots(sleepPts, colors.sleep, 'sd') : []),
           ...(showMood ? renderDots(moodPts, colors.mood, 'md') : []),
         )}
