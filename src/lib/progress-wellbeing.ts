@@ -4,7 +4,7 @@ import {
   type HabitCompletionEvent,
   type TimedChartPoint,
 } from '@/lib/habit-day-series';
-import { dailyMoodAverage, type MoodPeriod } from '@/lib/mood-score';
+import { dailyMoodAverage, MOOD_PERIODS, type MoodPeriod } from '@/lib/mood-score';
 import {
   averagePercent,
   monthDateKeys,
@@ -129,6 +129,34 @@ function moodOnDay(rows: readonly MoodPoint[], key: string) {
   return dailyMoodAverage(scores);
 }
 
+/** Uma trajetória por dia: períodos únicos, ordem cronológica, ponta = média do card. */
+function dayMoodTimedPoints(rows: readonly MoodPoint[], dayKey: string, moodScore: number | null) {
+  const latest = new Map<MoodPeriod, number>();
+  for (const row of rows) {
+    if (row.localDate !== dayKey || row.score == null || !Number.isFinite(row.score)) {
+      continue;
+    }
+    latest.set(row.period, row.score);
+  }
+  const points: TimedChartPoint[] = [];
+  for (const period of MOOD_PERIODS) {
+    const score = latest.get(period);
+    if (score == null) {
+      continue;
+    }
+    points.push({ fraction: moodHourFraction[period], value: score });
+  }
+  if (points.length === 0) {
+    return points;
+  }
+  // Extremidade = score do card (média), sem inventar horários extras.
+  if (moodScore != null && Number.isFinite(moodScore)) {
+    const tip = points[points.length - 1]!;
+    points[points.length - 1] = { fraction: tip.fraction, value: moodScore };
+  }
+  return points;
+}
+
 export function sleepAverage(dates: readonly string[], rows: readonly SleepPoint[]) {
   return averagePercent(dates.map((key) => sleepOn(rows, key)));
 }
@@ -231,7 +259,7 @@ export function wellbeingSeries(options: {
       timed: {
         habits: timedHabits,
         sleep: sleepScore == null ? [] : [{ fraction: sleepHourFraction, value: sleepScore }],
-        mood: moodRows.map((row) => ({ fraction: moodHourFraction[row.period], value: row.score })),
+        mood: dayMoodTimedPoints(mood, today, moodScore),
       },
     };
   }

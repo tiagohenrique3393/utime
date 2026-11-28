@@ -50,7 +50,30 @@ assertEqual(series.timed?.habits?.[0], { fraction: 0, value: 0 }, 'hábitos come
 assertEqual(series.timed!.mood![0].fraction, 6 / 24, 'humor manhã em 06h');
 assertEqual(series.timed!.sleep![0].fraction, 7 / 24, 'sono ~07h');
 assert(series.timed!.mood![0].fraction < series.timed!.mood![1].fraction, 'humor cronológico');
-assertEqual(series.timed!.mood!.map((row) => row.value), [80, 100], 'valores reais de humor');
+// Ponta do humor = média do card (90); primeiro ponto preserva o check-in real (80)
+assertEqual(series.timed!.mood![0].value, 80, 'humor manhã real');
+assertEqual(series.timed!.mood![1].value, 90, 'ponta humor = score do card');
+assertEqual(series.moodScore, 90, 'card humor');
+assertEqual(series.timed!.sleep![0].value, series.sleepScore, 'ponta sono = card');
+
+// Ordem invertida na origem dos dados não pode cruzar a curva
+const shuffledMood = wellbeingSeries({
+  today: '2026-11-27',
+  period: 'dia',
+  sleep: [],
+  mood: [
+    { localDate: '2026-11-27', period: 'noite' as const, score: 70, level: 7 },
+    { localDate: '2026-11-27', period: 'manha' as const, score: 90, level: 9 },
+    { localDate: '2026-11-27', period: 'tarde' as const, score: 80, level: 8 },
+  ],
+  habits: [{ key: '2026-11-27', label: 'Hoje', value: 0 }],
+});
+assertEqual(
+  shuffledMood.timed!.mood!.map((row) => row.fraction),
+  [6 / 24, 15 / 24, 21 / 24],
+  'humor sempre manhã→tarde→noite',
+);
+assertEqual(shuffledMood.timed!.mood![2].value, shuffledMood.moodScore, 'ponta = card após shuffle');
 
 const steppedDay = wellbeingSeries({
   today: '2026-11-27',

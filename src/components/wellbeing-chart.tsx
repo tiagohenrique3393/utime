@@ -347,18 +347,19 @@ export function WellbeingChart({
   const habitSolid = habitPtsRaw.filter((point): point is ChartPoint => point != null);
   const habitDrawPts = timed?.habits ? curveControlPoints(habitSolid) : habitPtsRaw;
   const habitPts = habitPtsRaw;
-  const habitPaths = habitIsStep ? stepPaths(habitPts) : smoothPaths(habitDrawPts);
-  // Sono/humor DIA: curva contínua a partir da origem visual 0% (sem inventar registros).
+  // Um <path> por indicador (subpaths unidos). DIA timed não empilha path fantasma + curva.
+  const habitPathD = (habitIsStep ? stepPaths(habitPts) : smoothPaths(habitDrawPts)).filter(Boolean).join(' ') || null;
+  // Sono/humor DIA: origem visual 0% integrada na mesma curva (sem path fantasma extra).
   const sleepDrawPts =
-    timed?.sleep != null && timed.sleep.length > 0
+    timed != null && (timed.sleep?.length ?? 0) > 0
       ? withVisualOrigin(sleepPts, padX, height, padY)
       : sleepPts;
   const moodDrawPts =
-    timed?.mood != null && timed.mood.length > 0
+    timed != null && (timed.mood?.length ?? 0) > 0
       ? withVisualOrigin(moodPts, padX, height, padY)
       : moodPts;
-  const sleepPaths = smoothPaths(sleepDrawPts);
-  const moodPaths = smoothPaths(moodDrawPts);
+  const sleepPathD = showSleep ? smoothPaths(sleepDrawPts).filter(Boolean).join(' ') || null : null;
+  const moodPathD = showMood ? smoothPaths(moodDrawPts).filter(Boolean).join(' ') || null : null;
   const habitArea = showHabits
     ? habitIsStep
       ? stepAreaPath(habitPts, height, padY)
@@ -367,9 +368,9 @@ export function WellbeingChart({
   const moodArea =
     showMood && highlight === 'mood' ? smoothAreaPath(moodDrawPts, height, padY) : null;
 
-  /** SEMANA/MÊS/ANO: lead pontilhado só quando há um único ponto real. */
+  /** SEMANA/MÊS/ANO sem timed: lead pontilhado só com um único ponto real. */
   function ghostLead(pts: (ChartPoint | null)[]) {
-    if (timed?.sleep != null || timed?.mood != null) {
+    if (timed != null) {
       return null;
     }
     const solid = pts.filter((point): point is ChartPoint => point != null);
@@ -462,13 +463,13 @@ export function WellbeingChart({
     }
   }
 
-  // DIA timed: só ponta luminosa (sem bolinha por hábito/check-in); SEMANA mostra buckets.
-  const tipOnlyHabitDots = habitIsStep || Boolean(timed?.habits);
+  // DIA timed: somente ponta luminosa; SEMANA/MÊS/ANO mostram buckets.
+  const tipOnlyHabitDots = habitIsStep || Boolean(timed?.habits?.length);
   const tipOnlySleepDots = Boolean(timed?.sleep?.length);
-  const tipOnlyMoodDots = Boolean(timed?.mood?.length) && highlight !== 'mood';
+  const tipOnlyMoodDots = Boolean(timed?.mood?.length);
   const habitDots = showHabits ? relevantDots(habitPts, tipOnlyHabitDots) : [];
   const sleepDots = showSleep ? relevantDots(sleepPts, tipOnlySleepDots) : [];
-  const moodDots = showMood ? relevantDots(moodPts, tipOnlyMoodDots || highlight === 'mood') : [];
+  const moodDots = showMood ? relevantDots(moodPts, tipOnlyMoodDots) : [];
   const habitLast = showHabits ? lastSolid(habitPts) : null;
   const sleepLast = showSleep ? lastSolid(sleepPts) : null;
   const moodLast = showMood ? lastSolid(moodPts) : null;
@@ -589,20 +590,18 @@ export function WellbeingChart({
                 fill: `url(#${moodGradientId})`,
               })
             : null,
-          ...habitPaths.map((d, index) =>
-            showHabits
-              ? node('path', {
-                  key: `h-${index}`,
-                  d,
-                  fill: 'none',
-                  stroke: colors.habits,
-                  strokeWidth: 2.35,
-                  strokeLinejoin: 'round',
-                  strokeLinecap: 'round',
-                  style: { filter: 'drop-shadow(0 0 5px rgba(57,255,115,0.75))' },
-                })
-              : null,
-          ),
+          showHabits && habitPathD
+            ? node('path', {
+                key: 'habit-line',
+                d: habitPathD,
+                fill: 'none',
+                stroke: colors.habits,
+                strokeWidth: 2.35,
+                strokeLinejoin: 'round',
+                strokeLinecap: 'round',
+                style: { filter: 'drop-shadow(0 0 5px rgba(57,255,115,0.75))' },
+              })
+            : null,
           sleepGhost
             ? node('path', {
                 key: 'sleep-ghost',
@@ -625,37 +624,33 @@ export function WellbeingChart({
                 opacity: 0.55,
               })
             : null,
-          ...sleepPaths.map((d, index) =>
-            showSleep
-              ? node('path', {
-                  key: `s-${index}`,
-                  d,
-                  fill: 'none',
-                  stroke: colors.sleep,
-                  strokeWidth: highlight === 'sleep' ? 2.2 : 1.85,
-                  strokeDasharray: '5 5',
-                  strokeLinejoin: 'round',
-                  strokeLinecap: 'round',
-                  style: { filter: 'drop-shadow(0 0 3px rgba(110,182,242,0.55))' },
-                })
-              : null,
-          ),
-          ...moodPaths.map((d, index) =>
-            showMood
-              ? node('path', {
-                  key: `m-${index}`,
-                  d,
-                  fill: 'none',
-                  stroke: colors.mood,
-                  strokeWidth: highlight === 'mood' ? 2.2 : 1.85,
-                  strokeDasharray: '5 5',
-                  strokeLinejoin: 'round',
-                  strokeLinecap: 'round',
-                  style: { filter: 'drop-shadow(0 0 3px rgba(230,193,74,0.55))' },
-                })
-              : null,
-          ),
-          // Marcadores discretos e proporcionais (sem bolinhas exageradas)
+          sleepPathD
+            ? node('path', {
+                key: 'sleep-line',
+                d: sleepPathD,
+                fill: 'none',
+                stroke: colors.sleep,
+                strokeWidth: 1.85,
+                strokeDasharray: '5 5',
+                strokeLinejoin: 'round',
+                strokeLinecap: 'round',
+                style: { filter: 'drop-shadow(0 0 3px rgba(110,182,242,0.55))' },
+              })
+            : null,
+          moodPathD
+            ? node('path', {
+                key: 'mood-line',
+                d: moodPathD,
+                fill: 'none',
+                stroke: colors.mood,
+                strokeWidth: 1.85,
+                strokeDasharray: '5 5',
+                strokeLinejoin: 'round',
+                strokeLinecap: 'round',
+                style: { filter: 'drop-shadow(0 0 3px rgba(230,193,74,0.55))' },
+              })
+            : null,
+          // DIA timed: só ponta; SEMANA/MÊS/ANO: pontos por bucket (padrão já aprovado).
           ...habitDots.map((point, index) => {
             const isLast = habitLast != null && point.x === habitLast.x && point.y === habitLast.y;
             if (tipOnlyHabitDots && !isLast) {
@@ -665,9 +660,9 @@ export function WellbeingChart({
               key: `hd-${index}`,
               cx: point.x,
               cy: point.y,
-              r: isLast ? 3.6 : 2.2,
+              r: isLast ? 3.4 : 2.2,
               fill: isLast ? colors.habits : '#0A0A0A',
-              stroke: colors.habits,
+              stroke: isLast ? 'none' : colors.habits,
               strokeWidth: isLast ? 0 : 1.4,
               style: isLast ? { filter: 'drop-shadow(0 0 4px rgba(57,255,115,0.85))' } : undefined,
             });
@@ -681,9 +676,9 @@ export function WellbeingChart({
               key: `sd-${index}`,
               cx: point.x,
               cy: point.y,
-              r: isLast ? 2.8 : 2.0,
+              r: isLast ? 2.6 : 2.0,
               fill: isLast ? colors.sleep : '#0A0A0A',
-              stroke: colors.sleep,
+              stroke: isLast ? 'none' : colors.sleep,
               strokeWidth: isLast ? 0 : 1.2,
               style: isLast ? { filter: 'drop-shadow(0 0 3px rgba(110,182,242,0.75))' } : undefined,
             });
@@ -693,17 +688,15 @@ export function WellbeingChart({
             if (tipOnlyMoodDots && !isLast) {
               return null;
             }
-            // Na tela de humor: pontos pequenos em cada registro; no progresso: só ponta.
-            const showAsTip = isLast || highlight === 'mood';
             return node('circle', {
               key: `md-${index}`,
               cx: point.x,
               cy: point.y,
-              r: isLast ? 2.8 : 2.0,
+              r: isLast ? 2.6 : 2.0,
               fill: isLast ? colors.mood : '#0A0A0A',
-              stroke: colors.mood,
+              stroke: isLast ? 'none' : colors.mood,
               strokeWidth: isLast ? 0 : 1.2,
-              style: showAsTip && isLast ? { filter: 'drop-shadow(0 0 3px rgba(230,193,74,0.75))' } : undefined,
+              style: isLast ? { filter: 'drop-shadow(0 0 3px rgba(230,193,74,0.75))' } : undefined,
             });
           }),
         )}
